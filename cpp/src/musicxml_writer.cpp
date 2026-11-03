@@ -113,6 +113,10 @@ class MeasureWriter {
     if (tie_start) out_ << "<tie type=\"start\"/>";
     out_ << "<voice>" << e.voice << "</voice><type>" << type_name(e.value.base) << "</type>";
     for (int d = 0; d < e.value.dots; ++d) out_ << "<dot/>";
+    if (e.value.in_tuplet()) {
+      out_ << "<time-modification><actual-notes>" << e.value.tuplet_actual << "</actual-notes><normal-notes>"
+           << e.value.tuplet_normal << "</normal-notes></time-modification>";
+    }
     out_ << "<staff>" << e.staff << "</staff>";
   }
 

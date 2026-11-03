@@ -17,6 +17,8 @@ class SymbolMaps {
 
   // Throws if the model has no such channel.
   const cv::Mat& operator[](std::string_view name) const;
+  // Models trained before a channel was added lack it.
+  bool has(std::string_view name) const;
   const std::vector<std::string>& names() const { return names_; }
   cv::Size size() const { return maps_.empty() ? cv::Size() : maps_.front().size(); }
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <map>
 
 namespace omr {
@@ -23,6 +24,8 @@ constexpr float kDotMaxGap = 2.0f;
 constexpr float kDotMaxDy = 0.8f;
 constexpr float kStemlessChordDx = 0.6f;
 constexpr float kSecondDisplacementDx = 1.6f;  // a head displaced beside its neighbour a step away
+constexpr float kTupletBeamOverhang = 1.0f;    // a tuplet number may sit slightly past its group's ends
+constexpr int kNotesInTriplet = 3;
 
 int find_stem(const Notehead& h, const std::vector<Stem>& stems, float il) {
   int best = -1;
@@ -212,6 +215,55 @@ void add_rests(const PageSymbols& symbols, float il, std::vector<RhythmItem>& it
   }
 }
 
+float vertical_distance(const RhythmItem& item, const PageSymbols& symbols, cv::Point2f p) {
+  if (item.is_rest()) return 0;
+  float d = std::numeric_limits<float>::max();
+  for (int h : item.heads) d = std::min(d, std::abs(symbols.heads[h].center.y - p.y));
+  return d;
+}
+
+// Items a tuplet number belongs to: the beam group it sits over, else the notes and
+// rests nearest to it on its staff (a bracketed or bare tuplet).
+std::vector<RhythmItem*> tuplet_members(const Blob& number, const PageSymbols& symbols, float il, std::vector<RhythmItem>& items) {
+  std::map<int, std::vector<RhythmItem*>> groups;
+  for (RhythmItem& it : items) {
+    if (it.beam_group && it.page_staff == number.staff) groups[it.beam_group].push_back(&it);
+  }
+  std::vector<RhythmItem*> best;
+  float best_dy = std::numeric_limits<float>::max();
+  for (auto& [label, members] : groups) {
+    const auto [lo, hi] = std::minmax_element(members.begin(), members.end(), [](auto* a, auto* b) { return a->x < b->x; });
+    if (number.center.x < (*lo)->x - kTupletBeamOverhang * il || number.center.x > (*hi)->x + kTupletBeamOverhang * il) continue;
+    float dy = std::numeric_limits<float>::max();
+    for (const RhythmItem* m : members) dy = std::min(dy, vertical_distance(*m, symbols, number.center));
+    if (dy < best_dy) {
+      best_dy = dy;
+      best = members;
+    }
+  }
+  if (!best.empty()) return best;
+  std::vector<RhythmItem*> nearest;
+  for (RhythmItem& it : items) {
+    if (it.page_staff == number.staff && !it.value.in_tuplet()) nearest.push_back(&it);
+  }
+  const size_t n = std::min<size_t>(kNotesInTriplet, nearest.size());
+  std::partial_sort(nearest.begin(), nearest.begin() + n, nearest.end(),
+                    [&](auto* a, auto* b) { return std::abs(a->x - number.center.x) < std::abs(b->x - number.center.x); });
+  nearest.resize(n);
+  return nearest;
+}
+
+// Only 3 and 6 (both 2/3 time) are told apart; other tuplet numbers are left alone.
+void apply_tuplets(const PageSymbols& symbols, float il, std::vector<RhythmItem>& items) {
+  for (const Blob& number : symbols.tuplets) {
+    if (number.kind != "tuplet_3" || number.staff < 0) continue;
+    for (RhythmItem* it : tuplet_members(number, symbols, il, items)) {
+      it->value.tuplet_actual = 3;
+      it->value.tuplet_normal = 2;
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<RhythmItem> build_items(const PageSymbols& symbols, double interline) {
@@ -221,6 +273,7 @@ std::vector<RhythmItem> build_items(const PageSymbols& symbols, double interline
   add_stemmed_chords(symbols, il, stem_of_head, items);
   add_stemless_chords(symbols, il, stem_of_head, items);
   add_rests(symbols, il, items);
+  apply_tuplets(symbols, il, items);
   std::sort(items.begin(), items.end(), [](const RhythmItem& a, const RhythmItem& b) { return a.x < b.x; });
   return items;
 }

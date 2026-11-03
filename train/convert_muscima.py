@@ -67,14 +67,29 @@ def parse_nodes(xml_path: Path) -> list[dict]:
     return nodes
 
 
-def channel_for(node: dict, time_signature_numerals: set[int]) -> str | None:
+def numeral_channels(nodes: list[dict]) -> dict[int, str]:
+    """Channel of each numeral that belongs to a time signature or a tuple (tuplet)."""
+    digit = {n["id"]: n["cls"][len("numeral"):] for n in nodes if n["cls"].startswith("numeral")}
+    out = {}
+    for n in nodes:
+        for o in n["outlinks"]:
+            if o not in digit:
+                continue
+            if n["cls"] == "timeSignature":
+                out[o] = f"ts_{digit[o]}"
+            elif n["cls"] == "tuple":
+                out[o] = "tuplet_3" if digit[o] in ("3", "6") else "tuplet_other"
+    return out
+
+
+def channel_for(node: dict, numerals: dict[int, str]) -> str | None:
     cls = node["cls"]
     if cls in ABSTRACT_CLASSES:
         return None
     if cls in CLASS_CHANNEL:
         return CLASS_CHANNEL[cls]
-    if cls.startswith("numeral") and node["id"] in time_signature_numerals:
-        return f"ts_{cls[len('numeral'):]}"
+    if node["id"] in numerals:
+        return numerals[node["id"]]
     return "other"  # text, dynamics, articulations, grace notes, ...
 
 
@@ -84,7 +99,7 @@ def convert_page(xml_path: Path, image_path: Path, out_stem: Path) -> None:
     if image.mean() < 128:  # stored white-on-black
         image = 255 - image
     interline = estimate_interline(nodes)
-    numerals = {o for n in nodes if n["cls"] == "timeSignature" for o in n["outlinks"]}
+    numerals = numeral_channels(nodes)
     masks = np.zeros(image.shape + (len(CHANNELS),), dtype=bool)
     for n in nodes:
         channel = channel_for(n, numerals)

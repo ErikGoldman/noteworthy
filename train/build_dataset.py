@@ -7,10 +7,12 @@ random layout options and renders one page. Output per page:
   NNNNNN.png    grayscale page image
   NNNNNN.npz    packed channel masks ("masks") (H, W, ceil(C/8)) uint8
   NNNNNN.json   render metadata (source, font, interline, options)
+  NNNNNN.svg.gz the laid-out page; relabel_dataset.py regenerates the masks from it
 """
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import multiprocessing as mp
 import random
@@ -53,6 +55,7 @@ def _render_job(args: tuple[int, str, Path]) -> tuple[int, str | None]:
     stem = out_dir / f"{index:06d}"
     Image.fromarray(page.image).save(stem.with_suffix(".png"))
     np.savez_compressed(stem.with_suffix(".npz"), masks=page.masks)
+    stem.with_suffix(".svg.gz").write_bytes(gzip.compress(page.svg))
     stem.with_suffix(".json").write_text(json.dumps({
         "source": score_path, "font": page.font, "interline_px": page.interline_px, "options": options,
     }))

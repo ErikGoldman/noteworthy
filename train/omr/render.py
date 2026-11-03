@@ -1,15 +1,17 @@
 """Render MusicXML pages with Verovio into (image, per-channel mask) pairs.
 
-Every visible SVG primitive is assigned one channel from its semantic context
-(nearest Verovio class + SMuFL glyph). The page image is the render of all
-primitives; each channel mask is the render of only that channel's primitives,
-so overlapping symbols (stem through notehead, beam over stem) get exact labels.
+Two stages, so labels can change without redoing layout:
+  1. layout: Verovio lays out a page; the SVG is sized to the target interline and
+     annotated with everything labeling needs (grace notes), then kept as is.
+  2. labeling (label_page): every visible primitive of that SVG is assigned one channel
+     from its semantic context (nearest Verovio class + SMuFL glyph). The page image is
+     the render of all primitives; each channel mask is the render of only that
+     channel's primitives, so overlapping symbols (stem through notehead) get exact labels.
+Datasets store the stage-1 SVG, so relabel_dataset.py can redo stage 2 alone.
 """
 from __future__ import annotations
 
-import copy
 import functools
-import io
 import random
 import re
 from dataclasses import dataclass
@@ -19,9 +21,8 @@ import cairosvg
 import numpy as np
 import verovio
 from lxml import etree
-from PIL import Image
 
-from .channels import CHANNEL_INDEX, CHANNELS, GLYPH_CHANNEL, pack_masks
+from .channels import CHANNEL_INDEX, CHANNELS, GLYPH_CHANNEL, TUPLET_GLYPH_CHANNEL, pack_masks
 
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
@@ -39,6 +40,7 @@ MASK_ALPHA_THRESHOLD = 64
 NOTEHEAD_GLYPHS = ("E0A0", "E0A2", "E0A3", "E0A4")
 HEAD_CENTER_RADIUS_INTERLINES = 0.25
 HEAD_CENTER_ATTR = "data-nw-head-center"
+GRACE_ATTR = "data-nw-grace"
 
 
 @dataclass
@@ -47,6 +49,7 @@ class RenderedPage:
     masks: np.ndarray        # packed (H, W, ceil(C/8)) uint8, see channels.pack_masks
     interline_px: float
     font: str
+    svg: bytes               # the laid-out page, input to label_page
 
 
 def random_layout_options(rng: random.Random) -> dict:
@@ -83,52 +86,45 @@ def random_layout_options(rng: random.Random) -> dict:
     }
 
 
-class _Labeler:
-    """Assigns a channel to every visible primitive of a Verovio page SVG."""
+def channel_of(prim: etree._Element) -> str:
+    """Channel of one visible primitive of a laid-out page SVG."""
+    classes: list[str] = []
+    node = prim.getparent()
+    while node is not None and node.tag == f"{{{SVG_NS}}}g":
+        cls = node.get("class", "").split()
+        if cls:
+            classes.append(cls[0])
+            if node.get(GRACE_ATTR):
+                return "other"
+        node = node.getparent()
+    nearest = classes[0] if classes else ""
+    glyph = prim.get(XLINK_HREF, "")[1:5] if prim.tag == f"{{{SVG_NS}}}use" else ""
 
-    def __init__(self, toolkit: verovio.toolkit):
-        self._tk = toolkit
-        self._grace_cache: dict[str, bool] = {}
-
-    def _is_grace(self, element_id: str) -> bool:
-        if element_id not in self._grace_cache:
-            self._grace_cache[element_id] = "grace" in self._tk.getElementAttr(element_id)
-        return self._grace_cache[element_id]
-
-    def channel_of(self, prim: etree._Element) -> str:
-        classes: list[str] = []
-        node = prim.getparent()
-        while node is not None and node.tag == f"{{{SVG_NS}}}g":
-            cls = node.get("class", "").split()
-            if cls:
-                classes.append(cls[0])
-                if cls[0] in ("note", "chord") and self._is_grace(node.get("id", "")):
-                    return "other"
-            node = node.getparent()
-        nearest = classes[0] if classes else ""
-        glyph = prim.get(XLINK_HREF, "")[1:5] if prim.tag == f"{{{SVG_NS}}}use" else ""
-
-        if nearest == "staff" and prim.tag.endswith("path"):
-            return "staff_line"
-        if nearest == "ledgerLines":
-            return "ledger_line"
-        if nearest == "barLine":
-            return "barline" if prim.tag.endswith("path") else "other"
-        if nearest == "system" and prim.tag.endswith("path"):
-            return "barline"  # the system-start line joining the staves
-        if nearest == "grpSym":
-            return "brace"
-        if nearest == "stem":
-            return "stem"
-        if nearest == "beam" and prim.tag.endswith("polygon"):
-            return "beam"
-        if nearest == "dots" and prim.tag.endswith("ellipse"):
-            return "aug_dot"
-        if nearest in ("tie", "slur"):
-            return "tie_slur"
-        if nearest in ("notehead", "flag", "accid", "keyAccid", "clef", "meterSig", "rest", "mRest"):
-            return GLYPH_CHANNEL.get(glyph, "other")
-        return "other"
+    if nearest == "staff" and prim.tag.endswith("path"):
+        return "staff_line"
+    if nearest == "ledgerLines":
+        return "ledger_line"
+    if nearest == "barLine":
+        return "barline" if prim.tag.endswith("path") else "other"
+    if nearest == "system" and prim.tag.endswith("path"):
+        return "barline"  # the system-start line joining the staves
+    if nearest == "grpSym":
+        return "brace"
+    if nearest == "stem":
+        return "stem"
+    if nearest == "beam" and prim.tag.endswith("polygon"):
+        return "beam"
+    if nearest == "dots" and prim.tag.endswith("ellipse"):
+        return "aug_dot"
+    if nearest in ("tie", "slur"):
+        return "tie_slur"
+    if nearest in ("notehead", "flag", "accid", "keyAccid", "clef", "meterSig", "rest", "mRest"):
+        return GLYPH_CHANNEL.get(glyph, "other")
+    if nearest == "tupletNum":
+        return TUPLET_GLYPH_CHANNEL.get(glyph, "other")
+    if nearest == "octave":
+        return "ottava"
+    return "other"
 
 
 @functools.cache
@@ -142,7 +138,7 @@ def _notehead_metrics(font: str) -> dict[str, tuple[float, float]]:
 _TRANSFORM = re.compile(r"translate\(([-\d.]+),\s*([-\d.]+)\)\s*scale\(([-\d.]+),\s*([-\d.]+)\)")
 
 
-def _add_head_center_markers(inner: etree._Element, labeler: "_Labeler", font: str, radius_units: float) -> None:
+def _add_head_center_markers(inner: etree._Element, font: str, radius_units: float) -> None:
     """Insert a circle at the centre of every (non-grace) notehead glyph, beside its <use>.
 
     Being a sibling, the circle inherits exactly the glyph's transform chain. Glyph paths
@@ -151,7 +147,7 @@ def _add_head_center_markers(inner: etree._Element, labeler: "_Labeler", font: s
     metrics = _notehead_metrics(font)
     for use in list(inner.iter(f"{{{SVG_NS}}}use")):
         glyph = use.get(XLINK_HREF, "")[1:5]
-        if glyph not in metrics or labeler.channel_of(use) not in ("head_filled", "head_half", "head_whole"):
+        if glyph not in metrics or channel_of(use) not in ("head_filled", "head_half", "head_whole"):
             continue
         tx, ty, sx, sy = (float(v) for v in _TRANSFORM.match(use.get("transform")).groups())
         gx, gy = metrics[glyph]
@@ -166,28 +162,46 @@ def _strip_invisible(root: etree._Element) -> None:
             g.getparent().remove(g)
 
 
-def _rasterize(root: etree._Element, width: int, height: int) -> np.ndarray:
-    """Returns alpha coverage (H, W) uint8 of the drawing."""
-    png = cairosvg.svg2png(bytestring=etree.tostring(root), output_width=width, output_height=height)
-    rgba = np.asarray(Image.open(io.BytesIO(png)).convert("RGBA"))
-    return rgba[..., 3]
+class _ChannelRasterizer:
+    """Draws subsets of one page's channels, parsing the SVG only once.
 
+    Each draw prunes the parsed tree's child lists down to the primitives of the
+    requested channels, so drawing one channel costs in proportion to its content
+    rather than to the whole page. Pixels are read straight from the cairo surface;
+    a PNG round trip used to dominate dataset rendering time.
+    """
 
-def _filtered_copy(root: etree._Element, keep) -> etree._Element:
-    clone = copy.deepcopy(root)
-    for prim in list(clone.iter(*PRIMITIVES)):
-        tag_id = prim.get("data-nw")
-        if tag_id is not None and not keep(int(tag_id)):
-            prim.getparent().remove(prim)
-    return clone
+    def __init__(self, svg: bytes, channel_of_prim: dict[int, str], width: int, height: int):
+        self._tree = cairosvg.parser.Tree(bytestring=svg)
+        self._width, self._height = width, height
+        self._children: dict[int, list] = {}
+        self._channels: dict[int, frozenset[str]] = {}  # per node: channels drawn in its subtree
+        self._index(self._tree, channel_of_prim)
 
+    def _index(self, node, channel_of_prim: dict[int, str]) -> frozenset[str]:
+        self._children[id(node)] = list(node.children)
+        prim = node.get("data-nw")
+        found = {channel_of_prim[int(prim)]} if prim is not None else set()
+        for child in node.children:
+            found |= self._index(child, channel_of_prim)
+        self._channels[id(node)] = frozenset(found)
+        return self._channels[id(node)]
 
-def _remove_except(root: etree._Element, keep_ids: set[int]) -> etree._Element:
-    return _filtered_copy(root, lambda n: n in keep_ids)
+    def _prune(self, node, wanted: frozenset[str]) -> None:
+        # Nodes holding no labeled primitive (defs, empty groups) are always kept.
+        kept = [c for c in self._children[id(node)] if not self._channels[id(c)] or self._channels[id(c)] & wanted]
+        node.children = kept
+        for child in kept:
+            self._prune(child, wanted)
 
-
-def _remove_ids(root: etree._Element, drop_ids: set[int]) -> etree._Element:
-    return _filtered_copy(root, lambda n: n not in drop_ids)
+    def alpha(self, channels: frozenset[str]) -> np.ndarray:
+        """Alpha coverage (H, W) uint8 of the given channels' primitives."""
+        self._prune(self._tree, channels)
+        surface = cairosvg.surface.PNGSurface(self._tree, None, 96, output_width=self._width, output_height=self._height)
+        surface.cairo.flush()
+        stride = surface.cairo.get_stride()
+        bgra = np.frombuffer(surface.cairo.get_data(), np.uint8).reshape(surface.height, stride // 4, 4)
+        return bgra[: self._height, : self._width, 3].copy()
 
 
 def render_score_pages(musicxml_path: str, options: dict, target_interline_px: float,
@@ -198,37 +212,49 @@ def render_score_pages(musicxml_path: str, options: dict, target_interline_px: f
         return []
     page_numbers = list(range(1, tk.getPageCount() + 1))
     rng.shuffle(page_numbers)
-    labeler = _Labeler(tk)
     px_per_unit = target_interline_px / (UNITS_PER_INTERLINE_PER_UNIT * options["unit"])
     pages = []
     for page_no in page_numbers[:max_pages]:
-        pages.append(_render_page(tk.renderToSVG(page_no), labeler, px_per_unit, target_interline_px, options["font"]))
+        svg = _layout_svg(tk, tk.renderToSVG(page_no), px_per_unit)
+        image, masks = label_page(svg, options["font"], target_interline_px)
+        pages.append(RenderedPage(image=image, masks=masks, interline_px=target_interline_px, font=options["font"], svg=svg))
     return pages
 
 
-def _render_page(svg: str, labeler: _Labeler, px_per_unit: float, interline_px: float, font: str) -> RenderedPage:
+def _layout_svg(tk: verovio.toolkit, svg: str, px_per_unit: float) -> bytes:
+    """The page SVG, sized in pixels and self-describing: labeling needs no toolkit."""
     root = etree.fromstring(svg.encode())
     _strip_invisible(root)
+    for g in root.iter(f"{{{SVG_NS}}}g"):
+        if g.get("class", "").split()[:1] in (["note"], ["chord"]) and "grace" in tk.getElementAttr(g.get("id", "")):
+            g.set(GRACE_ATTR, "1")
     inner = root.find(f"{{{SVG_NS}}}svg")
     vb = [float(v) for v in inner.get("viewBox").split()]
-    width, height = int(round(vb[2] * px_per_unit)), int(round(vb[3] * px_per_unit))
-    root.set("width", f"{width}px")
-    root.set("height", f"{height}px")
+    root.set("width", f"{int(round(vb[2] * px_per_unit))}px")
+    root.set("height", f"{int(round(vb[3] * px_per_unit))}px")
+    return etree.tostring(root)
 
-    _add_head_center_markers(inner, labeler, font, HEAD_CENTER_RADIUS_INTERLINES * interline_px / px_per_unit)
+
+def label_page(svg: bytes, font: str, interline_px: float) -> tuple[np.ndarray, np.ndarray]:
+    """Page image (H, W) uint8 and packed channel masks of a laid-out page SVG."""
+    root = etree.fromstring(svg)
+    inner = root.find(f"{{{SVG_NS}}}svg")
+    width, height = int(root.get("width").removesuffix("px")), int(root.get("height").removesuffix("px"))
+    px_per_unit = width / float(inner.get("viewBox").split()[2])
+
+    _add_head_center_markers(inner, font, HEAD_CENTER_RADIUS_INTERLINES * interline_px / px_per_unit)
 
     # Glyph <defs> live in the outer <svg>, so iterating the inner page only visits drawn primitives.
-    channel_prims: dict[str, set[int]] = {name: set() for name in CHANNELS}
+    channel_of_prim: dict[int, str] = {}
     for n, prim in enumerate(inner.iter(*PRIMITIVES)):
         prim.set("data-nw", str(n))
-        channel = "head_center" if prim.get(HEAD_CENTER_ATTR) else labeler.channel_of(prim)
-        channel_prims[channel].add(n)
+        channel_of_prim[n] = "head_center" if prim.get(HEAD_CENTER_ATTR) else channel_of(prim)
 
-    image = 255 - _rasterize(_remove_ids(root, channel_prims["head_center"]), width, height)
+    rasterizer = _ChannelRasterizer(etree.tostring(root), channel_of_prim, width, height)
+    present = frozenset(channel_of_prim.values())
+    image = 255 - rasterizer.alpha(present - {"head_center"})
     masks = np.zeros((height, width, len(CHANNELS)), dtype=bool)
-    for name, ids in channel_prims.items():
-        if ids:
-            alpha = _rasterize(_remove_except(root, ids), width, height)
-            masks[..., CHANNEL_INDEX[name]] = alpha >= MASK_ALPHA_THRESHOLD
-    return RenderedPage(image=image, masks=pack_masks(masks), interline_px=interline_px, font=font)
+    for name in present:
+        masks[..., CHANNEL_INDEX[name]] = rasterizer.alpha(frozenset({name})) >= MASK_ALPHA_THRESHOLD
+    return image, pack_masks(masks)
 

@@ -33,7 +33,7 @@ Rational NoteValue::duration() const {
     add = add / 2;
     d += add;
   }
-  return d;
+  return d * Rational(tuplet_normal, tuplet_actual);
 }
 
 }  // namespace omr

@@ -32,10 +32,14 @@ struct TimeSignature {
   Rational measure_length() const { return Rational(4 * beats, beat_type); }
 };
 
-// Notated duration: a base value (1 = whole, 2 = half, 4 = quarter, ...) plus dots.
+// Notated duration: a base value (1 = whole, 2 = half, 4 = quarter, ...) plus dots,
+// played `tuplet_actual` in the time of `tuplet_normal` (3 in 2 for a triplet).
 struct NoteValue {
   int base = 4;
   int dots = 0;
+  int tuplet_actual = 1;
+  int tuplet_normal = 1;
+  bool in_tuplet() const { return tuplet_actual != tuplet_normal; }
   Rational duration() const;  // in quarter notes
 };
 

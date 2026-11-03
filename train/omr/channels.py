@@ -42,6 +42,9 @@ CHANNELS = [
     "ts_0", "ts_1", "ts_2", "ts_3", "ts_4", "ts_5", "ts_6", "ts_7", "ts_8", "ts_9",
     "ts_common",
     "ts_cut",
+    "tuplet_3",       # tuplet numbers meaning 2/3 time: 3 and 6
+    "tuplet_other",   # other tuplet numbers (2, 4, 5, 7, ...)
+    "ottava",         # 8va/8vb/15ma number and its dashed extension line
     "other",          # dynamics, text, articulations, ornaments, grace notes...
 ]
 
@@ -54,14 +57,18 @@ GLYPH_CHANNEL = {
     "E242": "flag_16", "E243": "flag_16",
     "E244": "flag_32", "E245": "flag_32", "E246": "flag_32", "E247": "flag_32",
     "E262": "sharp", "E260": "flat", "E261": "natural", "E263": "double_sharp", "E264": "double_flat",
-    "E050": "clef_g", "E052": "clef_g", "E053": "clef_g",
-    "E062": "clef_f", "E064": "clef_f", "E065": "clef_f",
-    "E05C": "clef_c",
+    # Mid-system clef changes use the smaller *ClefChange glyphs (E07A-E07C).
+    "E050": "clef_g", "E052": "clef_g", "E053": "clef_g", "E07A": "clef_g",
+    "E062": "clef_f", "E064": "clef_f", "E065": "clef_f", "E07C": "clef_f",
+    "E05C": "clef_c", "E07B": "clef_c",
     "E4E3": "rest_whole", "E4E4": "rest_half", "E4E5": "rest_quarter",
-    "E4E6": "rest_8", "E4E7": "rest_16", "E4E8": "rest_32", "E4E9": "rest_32",
+    "E4E6": "rest_8", "E4E7": "rest_16", "E4E8": "rest_32", "E4E9": "rest_32", "E4EA": "rest_32", "E4EB": "rest_32",
     **{f"E08{d}": f"ts_{d}" for d in range(10)},
     "E08A": "ts_common", "E08B": "ts_cut",
 }
+
+# Tuplet number glyphs (tupletN = E880 + N).
+TUPLET_GLYPH_CHANNEL = {f"E88{n}": "tuplet_3" if n in (3, 6) else "tuplet_other" for n in range(10)}
 
 
 def pack_masks(masks: np.ndarray) -> np.ndarray:

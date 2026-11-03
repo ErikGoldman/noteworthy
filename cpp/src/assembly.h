@@ -22,7 +22,7 @@ class ScoreBuilder {
   Score build() &&;
 
  private:
-  void apply_opening_attributes(const SystemReader& reader, Measure& first);
+  void apply_attribute_changes(const SystemReader& reader, int k, Measure& measure);
   std::map<int, Pitch> resolve_pitches(const std::vector<MeasureItem>& items, const System& sys, const SystemReader& reader,
                                        const std::map<int, int>& explicit_alter, const PageSymbols& symbols);
 

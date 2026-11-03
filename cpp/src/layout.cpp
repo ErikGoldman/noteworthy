@@ -46,6 +46,22 @@ bool covers_staff(const Blob& b, const Staff& s) {
   return overlap >= kStaffCoverage * (s.bottom(x) - s.top(x));
 }
 
+// A barline drawn between two staves of a system. Seen faintly, the network may predict
+// only part of a barline's length, but a vertical line bridging the gap between staves
+// is still unmistakable.
+bool bridges_gap(const Blob& b, const Staff& upper, const Staff& lower) {
+  const float x = b.center.x;
+  return b.box.y <= upper.bottom(x) && b.box.br().y >= lower.top(x);
+}
+
+bool on_system(const Blob& b, const System& sys, const std::vector<Staff>& staves) {
+  for (size_t k = 0; k < sys.staves.size(); ++k) {
+    if (covers_staff(b, staves[sys.staves[k]])) return true;
+    if (k > 0 && bridges_gap(b, staves[sys.staves[k - 1]], staves[sys.staves[k]])) return true;
+  }
+  return false;
+}
+
 std::vector<std::vector<int>> group_staves(const std::vector<Staff>& staves, const PageSymbols& symbols, double interline) {
   auto any_joins = [&](const std::vector<Blob>& blobs, int i) {
     return std::any_of(blobs.begin(), blobs.end(), [&](const Blob& b) { return joins(b, staves[i - 1], staves[i], staves, interline); });
@@ -65,8 +81,7 @@ std::vector<float> barline_positions(const System& sys, const std::vector<Staff>
                                      double interline) {
   std::vector<float> xs;
   for (const Blob& b : symbols.barlines) {
-    const bool on_system = std::any_of(sys.staves.begin(), sys.staves.end(), [&](int s) { return covers_staff(b, staves[s]); });
-    if (on_system && within_span(b.center.x, sys.x_start, sys.x_end, interline)) xs.push_back(b.center.x);
+    if (on_system(b, sys, staves) && within_span(b.center.x, sys.x_start, sys.x_end, interline)) xs.push_back(b.center.x);
   }
   std::sort(xs.begin(), xs.end());
   std::vector<float> merged;

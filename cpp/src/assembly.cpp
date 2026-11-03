@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <map>
 
 #include "chords.h"
@@ -91,28 +90,37 @@ class SystemReader {
   std::map<int, Clef> opening_clefs() const {
     std::map<int, Clef> out;
     for (const ClefAt& c : clefs_) {
-      if (c.x < first_item_x(c.staff_number) && !out.count(c.staff_number)) out[c.staff_number] = c.clef;
+      if (c.x < content_start(0, c.staff_number) && !out.count(c.staff_number)) out[c.staff_number] = c.clef;
     }
     return out;
   }
 
-  std::optional<int> key_signature() const {
+  // Key signature drawn at the start of measure k. Every system restates its key, so
+  // the first measure without one is in C; later measures without one keep the key.
+  std::optional<int> key_signature(int k) const {
     std::optional<int> best;
     for (int n = 1; n <= static_cast<int>(sys_.staves.size()); ++n) {
+      const std::vector<Blob> accidentals = key_accidentals(k, n);
+      if (k > 0 && accidentals.empty()) continue;
+      // A change to fewer accidentals may first cancel the old ones with naturals.
       int sharps = 0, flats = 0;
-      for (const Blob& acc : opening_accidentals(n)) (accidental_alter(acc.kind) > 0 ? sharps : flats)++;
+      for (const Blob& acc : accidentals) {
+        if (accidental_alter(acc.kind) > 0) ++sharps;
+        if (accidental_alter(acc.kind) < 0) ++flats;
+      }
       const int fifths = sharps >= flats ? sharps : -flats;
       if (!best || std::abs(fifths) > std::abs(*best)) best = fifths;
     }
     return best;
   }
 
-  std::optional<TimeSignature> time_signature() const {
+  // Time signature drawn at the start of measure k.
+  std::optional<TimeSignature> time_signature(int k) const {
     for (int n = 1; n <= static_cast<int>(sys_.staves.size()); ++n) {
       const int page_staff = sys_.staves[n - 1];
       std::vector<const Blob*> upper, lower;
       for (const Blob& d : symbols_.time_digits) {
-        if (d.staff != page_staff || d.center.x >= first_item_x(n)) continue;
+        if (d.staff != page_staff || d.center.x < sys_.bounds[k] || d.center.x >= content_start(k, n)) continue;
         if (d.kind == "ts_common") return TimeSignature{4, 4};
         if (d.kind == "ts_cut") return TimeSignature{2, 2};
         (d.center.y < staves_[page_staff].center_y(d.center.x) ? upper : lower).push_back(&d);
@@ -122,6 +130,19 @@ class SystemReader {
       if (plausible(t)) return t;
     }
     return std::nullopt;
+  }
+
+  // Octaves an ottava line shifts a notehead by: up when drawn above its staff (8va),
+  // down when below (8vb).
+  int ottava_octaves(const Notehead& head) const {
+    for (const Blob& o : symbols_.ottavas) {
+      const float reach = kHeadHalfWidth * il_;
+      if (o.staff != head.staff || head.center.x < o.box.x - reach || head.center.x > o.box.br().x + reach) continue;
+      const Staff& staff = staves_[o.staff];
+      if (o.center.y < staff.top(o.center.x)) return 1;
+      if (o.center.y > staff.bottom(o.center.x)) return -1;
+    }
+    return 0;
   }
 
   // Explicit accidental alteration of each notehead that has one, by head index.
@@ -135,10 +156,12 @@ class SystemReader {
     return out;
   }
 
-  float first_item_x(int staff_number) const {
-    float x = sys_.bounds.size() > 1 ? sys_.bounds[1] : sys_.x_end;
+  // Left edge of the first note or rest of measure k on a staff; clef, key and time
+  // changes sit between the measure's barline and this point.
+  float content_start(int k, int staff_number) const {
+    float x = sys_.bounds[k + 1];
     for (const RhythmItem& it : items_) {
-      if (sys_.staff_number(it.page_staff) == staff_number) x = std::min(x, it.x - kHeadHalfWidth * il_);
+      if (sys_.staff_number(it.page_staff) == staff_number && it.x >= sys_.bounds[k]) x = std::min(x, it.x - kHeadHalfWidth * il_);
     }
     return x;
   }
@@ -149,10 +172,10 @@ class SystemReader {
   static int number(std::vector<const Blob*> digits) {
     std::sort(digits.begin(), digits.end(), [](const Blob* a, const Blob* b) { return a->box.x < b->box.x; });
     int value = 0;
-    int covered_until = std::numeric_limits<int>::min();
+    std::optional<int> covered_until;
     for (const Blob* d : digits) {
-      const bool same_digit = d->box.x < covered_until - d->box.width / 2;
-      covered_until = std::max(covered_until, d->box.br().x);
+      const bool same_digit = covered_until && d->box.x < *covered_until - d->box.width / 2;
+      covered_until = std::max(covered_until.value_or(d->box.br().x), d->box.br().x);
       if (!same_digit) value = value * 10 + (d->kind.back() - '0');
     }
     return value;
@@ -182,16 +205,18 @@ class SystemReader {
     return best;
   }
 
-  // Accidentals before the first note of a staff that do not belong to a note.
-  std::vector<Blob> opening_accidentals(int staff_number) const {
+  // Accidentals at the start of measure k on a staff, after any clef and before the
+  // first note, that do not belong to a note.
+  std::vector<Blob> key_accidentals(int k, int staff_number) const {
     const int page_staff = sys_.staves[staff_number - 1];
-    float clef_end = sys_.x_start;
+    const float end = content_start(k, staff_number);
+    float start = sys_.bounds[k];
     for (const Blob& c : symbols_.clefs) {
-      if (c.staff == page_staff && c.box.x < first_item_x(staff_number)) clef_end = std::max(clef_end, static_cast<float>(c.box.br().x));
+      if (c.staff == page_staff && c.box.x >= start && c.box.x < end) start = std::max(start, static_cast<float>(c.box.br().x));
     }
     std::vector<Blob> out;
     for (const Blob& acc : symbols_.accidentals) {
-      if (acc.staff != page_staff || acc.center.x < clef_end || acc.center.x > first_item_x(staff_number)) continue;
+      if (acc.staff != page_staff || acc.center.x < start || acc.center.x > end) continue;
       const int head = head_right_of(acc);
       const bool belongs_to_note = head >= 0 && symbols_.heads[head].center.x - acc.center.x < kKeyAccidentalClearance * il_;
       if (!belongs_to_note) out.push_back(acc);
@@ -250,21 +275,24 @@ std::vector<MeasureItem> measure_items(const std::vector<RhythmItem>& sys_items,
 
 }  // namespace
 
-// Clef, key and time changes drawn at the start of a system, applied to its first measure.
-void ScoreBuilder::apply_opening_attributes(const SystemReader& reader, Measure& first) {
-  for (const auto& [n, clef] : reader.opening_clefs()) {
-    if (!clefs_.count(n) || clefs_[n].sign != clef.sign || clefs_[n].line != clef.line) {
-      first.clefs.emplace_back(n, clef);
-      clefs_[n] = clef;
+// Clef, key and time changes drawn at the start of measure k of a system. Clefs are
+// written only at system starts; clef_at() applies mid-system changes to pitches.
+void ScoreBuilder::apply_attribute_changes(const SystemReader& reader, int k, Measure& measure) {
+  if (k == 0) {
+    for (const auto& [n, clef] : reader.opening_clefs()) {
+      if (!clefs_.count(n) || clefs_[n].sign != clef.sign || clefs_[n].line != clef.line) {
+        measure.clefs.emplace_back(n, clef);
+        clefs_[n] = clef;
+      }
     }
   }
-  const std::optional<int> key = reader.key_signature();
-  if (key && key != key_fifths_) first.key_fifths = key_fifths_ = key;
-  const std::optional<TimeSignature> time = reader.time_signature();
-  if (time && (!time_ || time->beats != time_->beats || time->beat_type != time_->beat_type)) first.time = time_ = time;
+  const std::optional<int> key = reader.key_signature(k);
+  if (key && key != key_fifths_) measure.key_fifths = key_fifths_ = key;
+  const std::optional<TimeSignature> time = reader.time_signature(k);
+  if (time && (!time_ || time->beats != time_->beats || time->beat_type != time_->beat_type)) measure.time = time_ = time;
   if (score_.measures.empty()) {
-    if (!key_fifths_) first.key_fifths = key_fifths_ = 0;
-    if (!time_) first.time = time_ = TimeSignature{};
+    if (!key_fifths_) measure.key_fifths = key_fifths_ = 0;
+    if (!time_) measure.time = time_ = TimeSignature{};
   }
 }
 
@@ -286,6 +314,8 @@ std::map<int, Pitch> ScoreBuilder::resolve_pitches(const std::vector<MeasureItem
     if (auto e = explicit_alter.find(h); e != explicit_alter.end()) carried_alter[{n, p.diatonic}] = e->second;
     auto c = carried_alter.find({n, p.diatonic});
     p.alter = c != carried_alter.end() ? c->second : key_alter(*key_fifths_, p.diatonic);
+    // Accidentals carry by written position, so the ottava shift comes last.
+    p.diatonic += 7 * reader.ottava_octaves(head);
     pitch_of[h] = p;
   }
   return pitch_of;
@@ -303,7 +333,7 @@ void ScoreBuilder::add_page(const std::vector<Staff>& staves, const PageSymbols&
     const std::map<int, int> explicit_alter = reader.attached_accidentals();
     for (int k = 0; k < sys.measure_count(); ++k) {
       Measure measure;
-      if (k == 0) apply_opening_attributes(reader, measure);
+      apply_attribute_changes(reader, k, measure);
       const Rational length = time_->measure_length();
       const std::vector<MeasureItem> mitems = measure_items(sys_items, sys, k, length);
       const std::vector<Timing> timing = solve_measure(mitems, {length, sys.bounds[k], sys.bounds[k + 1]}, interline);

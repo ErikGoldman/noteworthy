@@ -47,6 +47,10 @@ const cv::Mat& SymbolMaps::operator[](std::string_view name) const {
   return maps_[it - names_.begin()];
 }
 
+bool SymbolMaps::has(std::string_view name) const {
+  return std::find(names_.begin(), names_.end(), name) != names_.end();
+}
+
 struct Segmenter::Impl {
   Ort::Env env{ORT_LOGGING_LEVEL_WARNING, "noteworthy"};
   Ort::Session session{nullptr};
