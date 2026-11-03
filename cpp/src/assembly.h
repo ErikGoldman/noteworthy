@@ -22,7 +22,10 @@ class ScoreBuilder {
   Score build() &&;
 
  private:
+  Clef current_clef(int n) const;
   void apply_attribute_changes(const SystemReader& reader, int k, Measure& measure);
+  void record_clef_changes(const SystemReader& reader, int k, const std::vector<MeasureItem>& items,
+                           const std::vector<Timing>& timing, Rational length, Measure& measure);
   std::map<int, Pitch> resolve_pitches(const std::vector<MeasureItem>& items, const System& sys, const SystemReader& reader,
                                        const std::map<int, int>& explicit_alter, const PageSymbols& symbols);
 

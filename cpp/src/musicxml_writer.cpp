@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <map>
 #include <numeric>
+#include <optional>
 #include <sstream>
 
 namespace omr {
@@ -55,24 +56,52 @@ int64_t divisions_for(const Score& score) {
   return div;
 }
 
+void write_clef(std::ostringstream& out, const ClefChange& c) {
+  out << "<clef number=\"" << c.staff << "\"><sign>" << clef_sign(c.clef.sign) << "</sign><line>" << c.clef.line
+      << "</line></clef>";
+}
+
 class MeasureWriter {
  public:
   MeasureWriter(std::ostringstream& out, int64_t divisions) : out_(out), divisions_(divisions) {}
 
+  // Clefs changing within the measure are written inline, in the first voice of their staff.
   void write_events(const Measure& measure) {
     std::map<std::pair<int, int>, std::vector<const Event*>> voices;  // (staff, voice) -> events
     for (const Event& e : measure.events) voices[{e.staff, e.voice}].push_back(&e);
+    std::vector<const ClefChange*> pending;
+    for (const ClefChange& c : measure.clefs) {
+      if (c.onset > Rational(0)) pending.push_back(&c);
+    }
     bool first = true;
     for (auto& [key, events] : voices) {
       if (!first) backup_to_start();
       first = false;
       std::sort(events.begin(), events.end(), [](const Event* a, const Event* b) { return a->onset < b->onset; });
-      for (const Event* e : events) write_event(*e);
+      for (const Event* e : events) {
+        write_clefs_due(pending, key.first, e->onset);
+        write_event(*e);
+      }
+      write_clefs_due(pending, key.first, std::nullopt);
     }
+    while (!pending.empty()) write_clefs_due(pending, pending.front()->staff, std::nullopt);  // staves without notes
   }
 
  private:
   int64_t ticks(const Rational& r) const { return (r * Rational(divisions_)).num(); }
+
+  // Writes and drops the pending clefs of `staff` due by `onset` (all of them at the
+  // end of a voice).
+  void write_clefs_due(std::vector<const ClefChange*>& pending, int staff, std::optional<Rational> onset) {
+    auto due = [&](const ClefChange* c) { return c->staff == staff && (!onset || c->onset <= *onset); };
+    for (const ClefChange* c : pending) {
+      if (!due(c)) continue;
+      out_ << "<attributes>";
+      write_clef(out_, *c);
+      out_ << "</attributes>";
+    }
+    pending.erase(std::remove_if(pending.begin(), pending.end(), due), pending.end());
+  }
 
   void backup_to_start() {
     if (cursor_ > Rational(0)) out_ << "<backup><duration>" << ticks(cursor_) << "</duration></backup>";
@@ -126,15 +155,15 @@ class MeasureWriter {
 };
 
 void write_attributes(std::ostringstream& out, const Measure& m, int64_t divisions, bool first, int staves) {
-  if (!first && !m.key_fifths && !m.time && m.clefs.empty()) return;
+  const bool opening_clef = std::any_of(m.clefs.begin(), m.clefs.end(), [](const ClefChange& c) { return c.onset == Rational(0); });
+  if (!first && !m.key_fifths && !m.time && !opening_clef) return;
   out << "<attributes>";
   if (first) out << "<divisions>" << divisions << "</divisions>";
   if (m.key_fifths) out << "<key><fifths>" << *m.key_fifths << "</fifths></key>";
   if (m.time) out << "<time><beats>" << m.time->beats << "</beats><beat-type>" << m.time->beat_type << "</beat-type></time>";
   if (first) out << "<staves>" << staves << "</staves>";
-  for (const auto& [staff, clef] : m.clefs) {
-    out << "<clef number=\"" << staff << "\"><sign>" << clef_sign(clef.sign) << "</sign><line>" << clef.line
-        << "</line></clef>";
+  for (const ClefChange& c : m.clefs) {
+    if (c.onset == Rational(0)) write_clef(out, c);
   }
   out << "</attributes>";
 }

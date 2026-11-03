@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <map>
 
 #include "chords.h"
@@ -86,11 +87,11 @@ class SystemReader {
     return clef;
   }
 
-  // Clefs drawn at the start of the system, before any note.
-  std::map<int, Clef> opening_clefs() const {
-    std::map<int, Clef> out;
+  // Clefs drawn within measure k, left to right.
+  std::vector<ClefAt> clefs_in_measure(int k) const {
+    std::vector<ClefAt> out;
     for (const ClefAt& c : clefs_) {
-      if (c.x < content_start(0, c.staff_number) && !out.count(c.staff_number)) out[c.staff_number] = c.clef;
+      if (c.x >= measure_left(k) && c.x < sys_.bounds[k + 1]) out.push_back(c);
     }
     return out;
   }
@@ -120,7 +121,7 @@ class SystemReader {
       const int page_staff = sys_.staves[n - 1];
       std::vector<const Blob*> upper, lower;
       for (const Blob& d : symbols_.time_digits) {
-        if (d.staff != page_staff || d.center.x < sys_.bounds[k] || d.center.x >= content_start(k, n)) continue;
+        if (d.staff != page_staff || d.center.x < measure_left(k) || d.center.x >= content_start(k, n)) continue;
         if (d.kind == "ts_common") return TimeSignature{4, 4};
         if (d.kind == "ts_cut") return TimeSignature{2, 2};
         (d.center.y < staves_[page_staff].center_y(d.center.x) ? upper : lower).push_back(&d);
@@ -156,12 +157,16 @@ class SystemReader {
     return out;
   }
 
+  // Measure k's region starts at its barline; the first measure's also takes in the
+  // system's opening clef, which reaches left of the detected staff start.
+  float measure_left(int k) const { return k == 0 ? -std::numeric_limits<float>::infinity() : sys_.bounds[k]; }
+
   // Left edge of the first note or rest of measure k on a staff; clef, key and time
   // changes sit between the measure's barline and this point.
   float content_start(int k, int staff_number) const {
     float x = sys_.bounds[k + 1];
     for (const RhythmItem& it : items_) {
-      if (sys_.staff_number(it.page_staff) == staff_number && it.x >= sys_.bounds[k]) x = std::min(x, it.x - kHeadHalfWidth * il_);
+      if (sys_.staff_number(it.page_staff) == staff_number && it.x >= measure_left(k)) x = std::min(x, it.x - kHeadHalfWidth * il_);
     }
     return x;
   }
@@ -210,7 +215,7 @@ class SystemReader {
   std::vector<Blob> key_accidentals(int k, int staff_number) const {
     const int page_staff = sys_.staves[staff_number - 1];
     const float end = content_start(k, staff_number);
-    float start = sys_.bounds[k];
+    float start = measure_left(k);
     for (const Blob& c : symbols_.clefs) {
       if (c.staff == page_staff && c.box.x >= start && c.box.x < end) start = std::max(start, static_cast<float>(c.box.br().x));
     }
@@ -275,17 +280,8 @@ std::vector<MeasureItem> measure_items(const std::vector<RhythmItem>& sys_items,
 
 }  // namespace
 
-// Clef, key and time changes drawn at the start of measure k of a system. Clefs are
-// written only at system starts; clef_at() applies mid-system changes to pitches.
+// Key and time changes drawn at the start of measure k of a system.
 void ScoreBuilder::apply_attribute_changes(const SystemReader& reader, int k, Measure& measure) {
-  if (k == 0) {
-    for (const auto& [n, clef] : reader.opening_clefs()) {
-      if (!clefs_.count(n) || clefs_[n].sign != clef.sign || clefs_[n].line != clef.line) {
-        measure.clefs.emplace_back(n, clef);
-        clefs_[n] = clef;
-      }
-    }
-  }
   const std::optional<int> key = reader.key_signature(k);
   if (key && key != key_fifths_) measure.key_fifths = key_fifths_ = key;
   const std::optional<TimeSignature> time = reader.time_signature(k);
@@ -294,6 +290,31 @@ void ScoreBuilder::apply_attribute_changes(const SystemReader& reader, int k, Me
     if (!key_fifths_) measure.key_fifths = key_fifths_ = 0;
     if (!time_) measure.time = time_ = TimeSignature{};
   }
+}
+
+// The clef in force on staff n, as carried from earlier measures; treble (the MusicXML
+// default) before any clef was read.
+Clef ScoreBuilder::current_clef(int n) const {
+  const auto it = clefs_.find(n);
+  return it != clefs_.end() ? it->second : Clef{};
+}
+
+// Clef changes drawn in measure k, each taking effect at the first item after it on its
+// staff (or at the measure end when none follows, as for a clef before a barline).
+// Pitches do not depend on this: clef_at() reads clefs by position.
+void ScoreBuilder::record_clef_changes(const SystemReader& reader, int k, const std::vector<MeasureItem>& items,
+                                       const std::vector<Timing>& timing, Rational length, Measure& measure) {
+  for (const ClefAt& c : reader.clefs_in_measure(k)) {
+    const auto current = clefs_.find(c.staff_number);
+    if (current != clefs_.end() && current->second.sign == c.clef.sign && current->second.line == c.clef.line) continue;
+    Rational onset = length;
+    for (size_t i = 0; i < items.size(); ++i) {
+      if (items[i].staff == c.staff_number && items[i].item->x > c.x) onset = std::min(onset, timing[i].onset);
+    }
+    measure.clefs.push_back({c.staff_number, c.clef, onset});
+    clefs_[c.staff_number] = c.clef;
+  }
+  std::stable_sort(measure.clefs.begin(), measure.clefs.end(), [](const ClefChange& a, const ClefChange& b) { return a.onset < b.onset; });
 }
 
 // Pitch of every notehead in the measure. Accidentals carry to later notes of the same
@@ -310,7 +331,7 @@ std::map<int, Pitch> ScoreBuilder::resolve_pitches(const std::vector<MeasureItem
     const Notehead& head = symbols.heads[h];
     const int n = sys.staff_number(head.staff);
     Pitch p;
-    p.diatonic = reader.clef_at(n, head.center.x, clefs_[n]).bottom_line_step() + head.position;
+    p.diatonic = reader.clef_at(n, head.center.x, current_clef(n)).bottom_line_step() + head.position;
     if (auto e = explicit_alter.find(h); e != explicit_alter.end()) carried_alter[{n, p.diatonic}] = e->second;
     auto c = carried_alter.find({n, p.diatonic});
     p.alter = c != carried_alter.end() ? c->second : key_alter(*key_fifths_, p.diatonic);
@@ -338,6 +359,7 @@ void ScoreBuilder::add_page(const std::vector<Staff>& staves, const PageSymbols&
       const std::vector<MeasureItem> mitems = measure_items(sys_items, sys, k, length);
       const std::vector<Timing> timing = solve_measure(mitems, {length, sys.bounds[k], sys.bounds[k + 1]}, interline);
       const std::map<int, Pitch> pitch_of = resolve_pitches(mitems, sys, reader, explicit_alter, symbols);
+      record_clef_changes(reader, k, mitems, timing, length, measure);
       HeadSlots slots;
       for (size_t i = 0; i < mitems.size(); ++i) {
         const RhythmItem& it = *mitems[i].item;

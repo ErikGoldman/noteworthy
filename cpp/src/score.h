@@ -56,12 +56,18 @@ struct Event {
   bool is_rest() const { return pitches.empty(); }
 };
 
+struct ClefChange {
+  int staff = 1;
+  Clef clef;
+  Rational onset;  // 0 = at the measure start; the measure length = just before its end barline
+};
+
 struct Measure {
   std::vector<Event> events;
   // Attributes taking effect at the start of this measure (only when they change).
   std::optional<int> key_fifths;
   std::optional<TimeSignature> time;
-  std::vector<std::pair<int, Clef>> clefs;  // (staff, clef)
+  std::vector<ClefChange> clefs;  // in onset order
 };
 
 struct Score {

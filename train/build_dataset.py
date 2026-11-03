@@ -16,7 +16,6 @@ import gzip
 import json
 import multiprocessing as mp
 import random
-import signal
 import sys
 from pathlib import Path
 
@@ -26,29 +25,20 @@ from PIL import Image
 from omr.render import random_layout_options, render_score_pages
 
 BASE_INTERLINE_PX = 20.0
-JOB_TIMEOUT_S = 120
-
-
-class _Timeout(Exception):
-    pass
-
-
-def _on_alarm(signum, frame):
-    raise _Timeout()
+# Some scores make Verovio loop inside C++, where no signal can interrupt it. The parent
+# stops waiting for such a job after this long; its worker stays stuck until the pool
+# is terminated at the end, costing one worker per hang.
+HUNG_JOB_S = 300
 
 
 def _render_job(args: tuple[int, str, Path]) -> tuple[int, str | None]:
     index, score_path, out_dir = args
     rng = random.Random(index)
     options = random_layout_options(rng)
-    signal.signal(signal.SIGALRM, _on_alarm)
-    signal.alarm(JOB_TIMEOUT_S)
     try:
         pages = render_score_pages(score_path, options, BASE_INTERLINE_PX, max_pages=1, rng=rng)
     except Exception as e:  # noqa: BLE001 - a bad score must not kill the build
         return index, f"{score_path}: {type(e).__name__}: {e}"
-    finally:
-        signal.alarm(0)
     if not pages:
         return index, f"{score_path}: verovio could not load"
     page = pages[0]
@@ -83,7 +73,12 @@ def main() -> None:
     # pool workers forked during recycling cannot use, so every job after the first
     # worker restart fails with "font resources are not available".
     with mp.get_context("spawn").Pool(args.workers, maxtasksperchild=20) as pool:
-        for done, (index, error) in enumerate(pool.imap_unordered(_render_job, jobs), 1):
+        pending = [(job, pool.apply_async(_render_job, (job,))) for job in jobs]
+        for done, (job, result) in enumerate(pending, 1):
+            try:
+                _, error = result.get(timeout=HUNG_JOB_S)
+            except mp.TimeoutError:
+                error = f"{job[1]}: hung for {HUNG_JOB_S}s"
             if error:
                 failures += 1
                 print(f"[fail] {error}", file=sys.stderr)

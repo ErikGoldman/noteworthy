@@ -36,3 +36,19 @@ Infrastructure:
 - Dataset renderer ~6× faster (in-memory cairo surfaces, SVG parsed once per page).
 - Datasets store laid-out SVGs; `train/relabel_dataset.py` regenerates masks after
   labeling changes without Verovio.
+
+### pipeline fixes (prelim model, spot checks)
+- Rival-kind suppression (rest_8/16/32 etc. firing on one symbol): of 6 spot-checked scores,
+  4 improved (005 0.260→0.296, 045 0.426→0.434, 075 0.697→0.728, 084 0.828→0.847),
+  063 unchanged, 021 0.368→0.344.
+- Barlines accepted when they bridge two staves of the system even if only partly
+  predicted (a missed barline shifted every later measure): 005 0.296→0.524.
+- Clef changes now recorded at any position (MusicXML inline attributes); opening clefs no
+  longer depend on the detected staff start.
+- Dataset build: a few scores hang Verovio in C++ (SIGALRM cannot interrupt); the parent now
+  stops waiting after 300 s instead of the whole build stalling at 11995/12000.
+
+### v2 training (runs/v2)
+- Data: data/synth_v2 (11995 pages, 45 channels, corrected clef-change labels, tuplet/ottava
+  channels) + MUSCIMA ×20. 60k steps, batch 16, crop 384, lr 2e-3 one-cycle.
+- ~100 crops/s on a quiet machine (vs 22 crops/s when the CPU was shared).
