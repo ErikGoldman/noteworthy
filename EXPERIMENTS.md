@@ -52,3 +52,15 @@ Infrastructure:
 - Data: data/synth_v2 (11995 pages, 45 channels, corrected clef-change labels, tuplet/ottava
   channels) + MUSCIMA ×20. 60k steps, batch 16, crop 384, lr 2e-3 one-cycle.
 - ~100 crops/s on a quiet machine (vs 22 crops/s when the CPU was shared).
+- Baseline after pipeline fixes, prelim model: **verovio-100 0.811, musescore-100 0.811**
+  (from 0.799 / 0.802). Onset errors 1741 → 1328.
+- v2 @10k steps (verovio-100): 0.803. 8va handled (score 008 first measures now exact,
+  0.175 → 0.316); triplets and inline clef changes appear in the output.
+- Semitone errors rose to 772 at 10k: stray clef_c specks on time-signature digits counted as
+  a clef, which pushed the key-signature search window past the key accidentals of the
+  first system. Fix: clef blobs must be ≥ 2 interlines tall (smallest real clef ≈ 2.4).
+  Spot checks @10k: 033 0.63→1.0, 042 0.46→1.0, 007 0.47→0.97, 066 0.63→0.92, 047 0.81→1.0.
+- Class frequencies (share of pages containing the class): ts_0 0%, tuplet_other 0.7%,
+  ts_cut 0.7%, clef_c 0.8%, flag_32 1.7%, ts_common 2.7%, rest_32 3.2%, ottava 4.3%,
+  double_flat 5.5%. Added `--balanced-crops` (crops centred on a uniformly chosen class
+  present on the page) for the next run; in a smoke test it doubles rare-class crops.

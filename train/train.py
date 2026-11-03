@@ -70,7 +70,10 @@ def main() -> None:
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--workers", type=int, default=28)
     ap.add_argument("--eval-every", type=int, default=2000)
-    ap.add_argument("--resume", default=None)
+    ap.add_argument("--resume", default=None, help="checkpoint to continue (weights, optimizer, schedule, step)")
+    ap.add_argument("--init", default=None, help="checkpoint whose weights start a new schedule (fine-tuning)")
+    ap.add_argument("--balanced-crops", type=float, default=0.0,
+                    help="fraction of training crops centred on a uniformly chosen class present on the page")
     args = ap.parse_args()
 
     out = Path(args.out)
@@ -82,7 +85,8 @@ def main() -> None:
     if args.batch % CROPS_PER_PAGE:
         raise SystemExit(f"--batch must be a multiple of {CROPS_PER_PAGE}")
     pages_per_batch = args.batch // CROPS_PER_PAGE
-    train_ds = PageCrops(train_pages, args.crop, length=args.steps * pages_per_batch, crops_per_page=CROPS_PER_PAGE)
+    train_ds = PageCrops(train_pages, args.crop, length=args.steps * pages_per_batch, crops_per_page=CROPS_PER_PAGE,
+                         balanced_fraction=args.balanced_crops)
     val_ds = PageCrops(val_pages, args.crop, length=VAL_CROPS // CROPS_PER_PAGE, crops_per_page=CROPS_PER_PAGE, seed=12345)
     train_loader = DataLoader(train_ds, pages_per_batch, shuffle=False, num_workers=args.workers, collate_fn=collate_crops, worker_init_fn=init_worker,
                               pin_memory=True, persistent_workers=True, prefetch_factor=4)
@@ -93,6 +97,8 @@ def main() -> None:
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=args.steps, pct_start=0.03)
     start_step = 0
+    if args.init:
+        model.load_state_dict(torch.load(args.init, map_location=device)["model"])
     if args.resume:
         ckpt = torch.load(args.resume, map_location=device)
         model.load_state_dict(ckpt["model"])

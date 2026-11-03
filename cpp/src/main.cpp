@@ -24,10 +24,11 @@ struct Options {
   fs::path model;
   fs::path output;
   fs::path debug_dir;
+  int threads = 0;  // 0 = ONNX Runtime's default (all cores)
 };
 
 void usage() {
-  std::cerr << "usage: noteworthy INPUT(.pdf|image) --model MODEL.onnx -o OUT.musicxml [--debug DIR]\n";
+  std::cerr << "usage: noteworthy INPUT(.pdf|image) --model MODEL.onnx -o OUT.musicxml [--debug DIR] [--threads N]\n";
 }
 
 bool parse_args(int argc, char** argv, Options& opt) {
@@ -41,6 +42,8 @@ bool parse_args(int argc, char** argv, Options& opt) {
       opt.output = v;
     } else if (a == "--debug" && (v = next())) {
       opt.debug_dir = v;
+    } else if (a == "--threads" && (v = next())) {
+      opt.threads = std::stoi(v);
     } else if (!a.starts_with("-") && opt.input.empty()) {
       opt.input = a;
     } else {
@@ -105,7 +108,7 @@ int main(int argc, char** argv) {
     return 2;
   }
   try {
-    omr::Segmenter segmenter(opt.model);
+    omr::Segmenter segmenter(opt.model, opt.threads);
     const auto pages = omr::load_pages(opt.input);
     if (!opt.debug_dir.empty()) fs::create_directories(opt.debug_dir);
     omr::ScoreBuilder builder;

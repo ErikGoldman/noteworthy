@@ -20,6 +20,9 @@ constexpr float kStaffReachInterlines = 6.0f;   // how far outside a staff a sym
 constexpr float kStaffXReachInterlines = 4.0f;  // detected staff ends fall short of the drawn ones
 constexpr float kOttavaDashGapInterlines = 1.0f;
 constexpr float kRivalOverlap = 0.5f;  // box IoU above which two blobs are one symbol
+// Even the reduced mid-system clefs stand >= 2.4 interlines tall; shorter clef blobs are
+// specks on other symbols (time-signature digits) or the separate dots of an F clef.
+constexpr float kMinClefHeightInterlines = 2.0f;
 constexpr float kNoLedgerNeededInterlines = 0.8f;  // heads this close to a staff edge need no ledger line
 
 cv::Mat binarize(const cv::Mat& prob) {
@@ -256,7 +259,8 @@ PageSymbols extract_symbols(const SymbolMaps& maps, const std::vector<Staff>& st
   append_components(out.dots, maps, {"aug_dot"}, 1);
   append_components(out.accidentals, maps, {"sharp", "flat", "natural", "double_sharp", "double_flat"}, tiny);
   append_components(out.rests, maps, {"rest_whole", "rest_half", "rest_quarter", "rest_8", "rest_16", "rest_32"}, tiny);
-  append_components(out.clefs, maps, {"clef_g", "clef_f", "clef_c"}, tiny * 4);
+  append_components(out.clefs, maps, {"clef_g", "clef_f", "clef_c"}, tiny);
+  std::erase_if(out.clefs, [&](const Blob& c) { return c.box.height < kMinClefHeightInterlines * interline; });
   out.time_digits = extract_time_digits(maps, staves, interline, tiny);
   append_components(out.barlines, maps, {"barline"}, tiny);
   append_components(out.braces, maps, {"brace"}, tiny);

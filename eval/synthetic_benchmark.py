@@ -134,6 +134,7 @@ def main() -> None:
     ap.add_argument("--count", type=int, default=20)
     ap.add_argument("--degrade", action="store_true")
     ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--threads", type=int, default=0, help="inference threads per recognizer (0 = all cores)")
     ap.add_argument("--renderer", choices=["verovio", "musescore"], default="verovio")
     args = ap.parse_args()
 
@@ -148,7 +149,7 @@ def main() -> None:
         if isinstance(n_measures, str):
             return n_measures
         png, xml = out / f"{i:03d}.png", out / f"{i:03d}.musicxml"
-        run = subprocess.run([args.binary, str(png), "--model", args.model, "-o", str(xml)], capture_output=True, text=True)
+        run = subprocess.run([args.binary, str(png), "--model", args.model, "-o", str(xml), "--threads", str(args.threads)], capture_output=True, text=True)
         if run.returncode != 0:
             return f"recognizer failed: {run.stderr.strip()[-200:]}"
         gt = [e for e in parse_musicxml(scores[i]) if e.measure < n_measures]
