@@ -1,0 +1,9 @@
+*.pdf
+.venv/
+__pycache__/
+data/
+runs/
+runs_*.log
+cpp/build/
+cpp/third_party/onnxruntime/
+cpp/third_party/pdfium/
