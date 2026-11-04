@@ -144,3 +144,15 @@ Infrastructure:
   drop, as engravers print them; a lone note accidental after a barline spelled a 1-sharp
   key (083 flipped 4 → 1 sharp mid-system). 083 0.785 → 0.834. All 5 genuine first-page key
   changes in verovio-100 still read (005's two measures late).
+- v5 + key-change rule: **verovio-100 0.948, musescore-100 0.928** (aligned accuracy
+  0.951 / 0.954). Remaining onset errors are now case-specific (triplet placement in 083,
+  a chord split across two values in 034, column merging in 019), not one systematic cause.
+
+## Summary of the session (2026-11-03/04)
+| model + pipeline | verovio-100 | musescore-100 |
+|---|---|---|
+| prelim, start of session | 0.794 | — |
+| prelim, pipeline fixes | 0.811 | 0.811 |
+| v2 final | 0.920 | 0.856 |
+| v3 | 0.941 | 0.926 |
+| **v5 (current)** | **0.948** | **0.928** |
