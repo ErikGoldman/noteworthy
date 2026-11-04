@@ -9,10 +9,9 @@
 #include "score.h"
 #include "staff.h"
 #include "symbols.h"
+#include "system_reader.h"
 
 namespace omr {
-
-class SystemReader;
 
 // Turns the symbols of successive pages into one score. Clef, key and time signature
 // persist across systems and pages until they change.
