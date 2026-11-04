@@ -32,14 +32,43 @@ const std::vector<int> kBeatTypes = {1, 2, 4, 8, 16, 32};
 
 int floor_mod(int a, int b) { return ((a % b) + b) % b; }
 
+// Steps (C = 0 ... B = 6) a key signature alters, in the order it writes them.
+constexpr int kSharpOrder[7] = {3, 0, 4, 1, 5, 2, 6};  // F C G D A E B
+constexpr int kFlatOrder[7] = {6, 2, 5, 1, 4, 0, 3};   // B E A D G C F
+
 // Alteration a key signature gives to a diatonic step.
 int key_alter(int fifths, int diatonic) {
-  static constexpr int kSharpOrder[7] = {3, 0, 4, 1, 5, 2, 6};  // F C G D A E B, as steps C=0
   const int step = floor_mod(diatonic, 7);
   for (int i = 0; i < std::abs(fifths); ++i) {
-    if (kSharpOrder[fifths > 0 ? i : 6 - i] == step) return fifths > 0 ? 1 : -1;
+    if ((fifths > 0 ? kSharpOrder : kFlatOrder)[i] == step) return fifths > 0 ? 1 : -1;
   }
   return 0;
+}
+
+// How a row of accidentals reads as a key signature: the longest run of sharps or flats
+// following the standard order. `exact` when every sharp and flat is part of that run.
+struct KeySpelling {
+  int fifths = 0;
+  bool exact = true;
+  std::vector<int> natural_steps;
+};
+
+KeySpelling spell_key(const std::vector<std::pair<int, int>>& alter_and_step) {
+  KeySpelling out;
+  int altered = 0, run = 0, sign = 0;
+  for (const auto& [alter, step] : alter_and_step) {
+    if (alter == 0) {
+      out.natural_steps.push_back(step);
+      continue;
+    }
+    ++altered;
+    if (sign == 0) sign = alter > 0 ? 1 : -1;
+    const int* order = sign > 0 ? kSharpOrder : kFlatOrder;
+    if ((alter > 0) == (sign > 0) && run < 7 && order[run] == step) ++run;
+  }
+  out.fifths = sign * run;
+  out.exact = run == altered;
+  return out;
 }
 
 int accidental_alter(const std::string& kind) {
@@ -103,21 +132,23 @@ class SystemReader {
     return out;
   }
 
-  // Key signature drawn at the start of measure k. Every system restates its key, so
-  // the first measure without one is in C; later measures without one keep the key.
-  std::optional<int> key_signature(int k) const {
+  // Key signature drawn at the start of measure k. Every system restates its key, so a
+  // system start reads the best-spelled key (C when none). Mid-system, accidentals right
+  // after a barline usually belong to notes, so a change needs a correctly ordered
+  // signature, or naturals cancelling exactly the current key.
+  std::optional<int> key_signature(int k, int current_fifths, const std::map<int, Clef>& carried) const {
     std::optional<int> best;
     for (int n = 1; n <= static_cast<int>(sys_.staves.size()); ++n) {
-      const std::vector<Blob> accidentals = key_accidentals(k, n);
-      if (k > 0 && accidentals.empty()) continue;
-      // A change to fewer accidentals may first cancel the old ones with naturals.
-      int sharps = 0, flats = 0;
-      for (const Blob& acc : accidentals) {
-        if (accidental_alter(acc.kind) > 0) ++sharps;
-        if (accidental_alter(acc.kind) < 0) ++flats;
+      const KeySpelling key = spell_key(key_accidental_steps(k, n, carried));
+      std::optional<int> reading;
+      if (k == 0) {
+        reading = key.fifths;
+      } else if (key.fifths != 0 && key.exact) {
+        reading = key.fifths;
+      } else if (key.fifths == 0 && key.exact && cancels(key.natural_steps, current_fifths)) {
+        reading = 0;
       }
-      const int fifths = sharps >= flats ? sharps : -flats;
-      if (!best || std::abs(fifths) > std::abs(*best)) best = fifths;
+      if (reading && (!best || std::abs(*reading) > std::abs(*best))) best = reading;
     }
     return best;
   }
@@ -153,14 +184,20 @@ class SystemReader {
     return 0;
   }
 
-  // Explicit accidental alteration of each notehead that has one, by head index.
+  // Explicit accidental alteration of each notehead that has one, by head index. A head
+  // in reach of several accidentals (its own, and a key signature's just before the
+  // first note) takes the nearest.
   std::map<int, int> attached_accidentals() const {
-    std::map<int, int> out;
+    std::map<int, std::pair<float, int>> nearest;  // head -> (match score, alteration)
     for (const Blob& acc : symbols_.accidentals) {
       if (!sys_.staff_number(acc.staff)) continue;
-      const int head = head_right_of(acc);
-      if (head >= 0) out[head] = accidental_alter(acc.kind);
+      const std::optional<HeadMatch> match = head_right_of(acc);
+      if (!match) continue;
+      auto it = nearest.find(match->head);
+      if (it == nearest.end() || match->score < it->second.first) nearest[match->head] = {match->score, accidental_alter(acc.kind)};
     }
+    std::map<int, int> out;
+    for (const auto& [head, match] : nearest) out[head] = match.second;
     return out;
   }
 
@@ -206,10 +243,14 @@ class SystemReader {
     return best;
   }
 
-  int head_right_of(const Blob& acc) const {
+  struct HeadMatch {
+    int head;
+    float score;  // px: horizontal gap plus vertical mismatch; lower is closer
+  };
+
+  std::optional<HeadMatch> head_right_of(const Blob& acc) const {
     const float pos = accidental_position(acc, staves_[acc.staff], il_);
-    int best = -1;
-    float best_score = 1e9f;
+    std::optional<HeadMatch> best;
     for (size_t h = 0; h < symbols_.heads.size(); ++h) {
       const Notehead& head = symbols_.heads[h];
       const float gap = head.center.x - kHeadHalfWidth * il_ - acc.box.br().x;
@@ -217,12 +258,29 @@ class SystemReader {
       const float dpos = std::abs(head.position - pos);
       if (dpos > 1.0f) continue;
       const float score = dpos * il_ + gap;
-      if (score < best_score) {
-        best_score = score;
-        best = static_cast<int>(h);
-      }
+      if (!best || score < best->score) best = HeadMatch{static_cast<int>(h), score};
     }
     return best;
+  }
+
+  // (alteration, diatonic step) of the key accidentals of measure k on a staff, left to right.
+  std::vector<std::pair<int, int>> key_accidental_steps(int k, int staff_number, const std::map<int, Clef>& carried) const {
+    std::vector<Blob> accidentals = key_accidentals(k, staff_number);
+    std::sort(accidentals.begin(), accidentals.end(), [](const Blob& a, const Blob& b) { return a.center.x < b.center.x; });
+    const auto it = carried.find(staff_number);
+    const Clef before = it != carried.end() ? it->second : Clef{};
+    std::vector<std::pair<int, int>> out;
+    for (const Blob& acc : accidentals) {
+      const Clef clef = clef_at(staff_number, acc.center.x, before);
+      const int position = static_cast<int>(std::lround(accidental_position(acc, staves_[acc.staff], il_)));
+      out.emplace_back(accidental_alter(acc.kind), floor_mod(clef.bottom_line_step() + position, 7));
+    }
+    return out;
+  }
+
+  static bool cancels(const std::vector<int>& natural_steps, int fifths) {
+    if (fifths == 0 || natural_steps.size() != static_cast<size_t>(std::abs(fifths))) return false;
+    return std::all_of(natural_steps.begin(), natural_steps.end(), [&](int step) { return key_alter(fifths, step) != 0; });
   }
 
   // Accidentals at the start of measure k on a staff, after any clef and before the
@@ -237,8 +295,8 @@ class SystemReader {
     std::vector<Blob> out;
     for (const Blob& acc : symbols_.accidentals) {
       if (acc.staff != page_staff || acc.center.x < start || acc.center.x > end) continue;
-      const int head = head_right_of(acc);
-      const bool belongs_to_note = head >= 0 && symbols_.heads[head].center.x - acc.center.x < kKeyAccidentalClearance * il_;
+      const std::optional<HeadMatch> match = head_right_of(acc);
+      const bool belongs_to_note = match && symbols_.heads[match->head].center.x - acc.center.x < kKeyAccidentalClearance * il_;
       if (!belongs_to_note) out.push_back(acc);
     }
     return out;
@@ -297,7 +355,7 @@ std::vector<MeasureItem> measure_items(const std::vector<RhythmItem>& sys_items,
 
 // Key and time changes drawn at the start of measure k of a system.
 void ScoreBuilder::apply_attribute_changes(const SystemReader& reader, int k, Measure& measure) {
-  const std::optional<int> key = reader.key_signature(k);
+  const std::optional<int> key = reader.key_signature(k, key_fifths_.value_or(0), clefs_);
   if (key && key != key_fifths_) measure.key_fifths = key_fifths_ = key;
   const std::optional<TimeSignature> time = reader.time_signature(k);
   if (time && (!time_ || time->beats != time_->beats || time->beat_type != time_->beat_type)) measure.time = time_ = time;

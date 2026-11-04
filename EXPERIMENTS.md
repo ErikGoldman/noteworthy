@@ -90,3 +90,11 @@ Infrastructure:
   shift covered one note (088: 42 octave errors). Rasterization now varies the ottava dash
   pattern and stroke width per page (seeded from the page SVG, so relabeling reproduces
   it); C++ joins dashes across gaps up to 2 interlines.
+- Key signatures validated by spelling: accidentals must follow the standard order
+  (sharps F C G D A E B, flats B E A D G C F) at the clef's steps. Mid-system changes need an
+  exact spelling or naturals cancelling exactly the current key (064 flipped -2/+1 every
+  measure from note accidentals after barlines).
+- A head in reach of several accidentals takes the nearest (a key-signature flat just before
+  the first note used to override the note's own natural).
+- Barlines with no note or rest before them (start-repeat after clef/key/time) no longer
+  open an empty measure that shifted the whole page: 064 0.30 → 0.90.

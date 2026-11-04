@@ -95,6 +95,13 @@ std::vector<float> barline_positions(const System& sys, const std::vector<Staff>
   return merged;
 }
 
+// Whether any note or rest of the system lies left of x.
+bool has_content_before(float x, const System& sys, const PageSymbols& symbols) {
+  const auto on_system = [&](int staff) { return sys.staff_number(staff) != 0; };
+  return std::any_of(symbols.heads.begin(), symbols.heads.end(), [&](const Notehead& h) { return on_system(h.staff) && h.center.x < x; }) ||
+         std::any_of(symbols.rests.begin(), symbols.rests.end(), [&](const Blob& r) { return on_system(r.staff) && r.center.x < x; });
+}
+
 }  // namespace
 
 int System::staff_number(int page_staff) const {
@@ -115,7 +122,9 @@ std::vector<System> find_systems(const std::vector<Staff>& staves, const PageSym
     }
     sys.bounds.push_back(sys.x_start);
     for (float x : barline_positions(sys, staves, symbols, interline)) {
-      if (x - sys.x_start < kSystemStartInterlines * interline) continue;
+      // A barline with nothing before it opens the system (often a start-repeat drawn
+      // after the clef, key and time signature); it bounds no measure.
+      if (x - sys.x_start < kSystemStartInterlines * interline || !has_content_before(x, sys, symbols)) continue;
       sys.bounds.push_back(x);
     }
     if (sys.x_end - sys.bounds.back() > kTrailingMeasureInterlines * interline) sys.bounds.push_back(sys.x_end);
