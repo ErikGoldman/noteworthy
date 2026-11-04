@@ -154,6 +154,14 @@ class MeasureWriter {
   Rational cursor_{0};
 };
 
+void write_print(std::ostringstream& out, const LayoutBreak& layout) {
+  if (layout.new_page) {
+    out << "<print new-page=\"yes\" page-number=\"" << *layout.new_page << "\"/>";
+  } else if (layout.new_system) {
+    out << "<print new-system=\"yes\"/>";
+  }
+}
+
 void write_attributes(std::ostringstream& out, const Measure& m, int64_t divisions, bool first, int staves) {
   const bool opening_clef = std::any_of(m.clefs.begin(), m.clefs.end(), [](const ClefChange& c) { return c.onset == Rational(0); });
   if (!first && !m.key_fifths && !m.time && !opening_clef) return;
@@ -179,6 +187,7 @@ std::string to_musicxml(const Score& score, const std::string& title) {
   for (size_t i = 0; i < score.measures.size(); ++i) {
     const Measure& m = score.measures[i];
     out << "<measure number=\"" << i << "\">";
+    write_print(out, m.layout);
     write_attributes(out, m, divisions, i == 0, score.staves);
     MeasureWriter(out, divisions).write_events(m);
     out << "</measure>";

@@ -62,7 +62,14 @@ struct ClefChange {
   Rational onset;  // 0 = at the measure start; the measure length = just before its end barline
 };
 
+// Where a measure sits in the source's layout, for tools that relate output to pages.
+struct LayoutBreak {
+  bool new_system = false;
+  std::optional<int> new_page;  // 1-based page number of the input, on a page's first measure
+};
+
 struct Measure {
+  LayoutBreak layout;
   std::vector<Event> events;
   // Attributes taking effect at the start of this measure (only when they change).
   std::optional<int> key_fifths;

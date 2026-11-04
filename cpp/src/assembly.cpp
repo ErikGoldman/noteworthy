@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <utility>
 
 #include "chords.h"
 #include "key_signature.h"
@@ -121,8 +122,9 @@ std::map<int, Pitch> ScoreBuilder::resolve_pitches(const std::vector<MeasureItem
   return pitch_of;
 }
 
-void ScoreBuilder::add_page(const std::vector<Staff>& staves, const PageSymbols& symbols, double interline) {
+void ScoreBuilder::add_page(int page_number, const std::vector<Staff>& staves, const PageSymbols& symbols, double interline) {
   const std::vector<RhythmItem> items = build_items(symbols, staves, interline);
+  bool first_on_page = true;
   for (const System& sys : find_systems(staves, symbols, interline)) {
     score_.staves = std::max(score_.staves, static_cast<int>(sys.staves.size()));
     std::vector<RhythmItem> sys_items;
@@ -133,6 +135,8 @@ void ScoreBuilder::add_page(const std::vector<Staff>& staves, const PageSymbols&
     const std::map<int, int> explicit_alter = reader.attached_accidentals();
     for (int k = 0; k < sys.measure_count(); ++k) {
       Measure measure;
+      measure.layout.new_system = k == 0;
+      if (std::exchange(first_on_page, false)) measure.layout.new_page = page_number;
       apply_attribute_changes(reader, k, measure);
       const Rational length = time_->measure_length();
       const std::vector<MeasureItem> mitems = measure_items(sys_items, sys, k, length);

@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
       const omr::SymbolMaps maps = segmenter.run(page);
       const auto staves = omr::detect_staves(maps["staff_line"], segmenter.normalized_interline());
       const omr::PageSymbols symbols = omr::extract_symbols(maps, staves, segmenter.normalized_interline());
-      builder.add_page(staves, symbols, segmenter.normalized_interline());
+      builder.add_page(static_cast<int>(p + 1), staves, symbols, segmenter.normalized_interline());
       std::cerr << "page " << p + 1 << ": scale " << scale << ", " << staves.size() << " staves, "
                 << symbols.heads.size() << " noteheads\n";
       if (!opt.debug_dir.empty()) {
