@@ -140,3 +140,7 @@ Infrastructure:
   0.796 (v3 0.740). Onset errors 782 → 625 (verovio), 501 → 466 (musescore).
   First-time-signature misreads 30/100 → 2/100 (verovio), 1/97 (musescore); the rest are
   cut time read as common time, which gives the same measure length.
+- Mid-system key changes must cancel (with naturals) every accidental of the old key they
+  drop, as engravers print them; a lone note accidental after a barline spelled a 1-sharp
+  key (083 flipped 4 → 1 sharp mid-system). 083 0.785 → 0.834. All 5 genuine first-page key
+  changes in verovio-100 still read (005's two measures late).

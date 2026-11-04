@@ -26,4 +26,10 @@ KeySpelling spell_key(const std::vector<std::pair<int, int>>& alter_and_step);
 // Whether naturals on these steps cancel exactly the key of `fifths`.
 bool cancels_key(const std::vector<int>& natural_steps, int fifths);
 
+// Whether `spelling`, read mid-system, is a believable change from the key of
+// `current_fifths`: correctly ordered, and with naturals for every accidental of the
+// old key it drops, as engravers print them. A lone note accidental after a barline
+// spells a one-accidental key but cancels nothing.
+bool plausible_key_change(const KeySpelling& spelling, int current_fifths);
+
 }  // namespace omr

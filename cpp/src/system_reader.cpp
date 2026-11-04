@@ -113,10 +113,8 @@ std::optional<int> SystemReader::key_signature(int k, int current_fifths, const 
     std::optional<int> reading;
     if (k == 0) {
       reading = key.counted_fifths;
-    } else if (key.fifths != 0 && key.exact) {
+    } else if (plausible_key_change(key, current_fifths)) {
       reading = key.fifths;
-    } else if (key.fifths == 0 && key.exact && cancels_key(key.natural_steps, current_fifths)) {
-      reading = 0;
     }
     if (reading && (!best || std::abs(*reading) > std::abs(*best))) best = reading;
   }

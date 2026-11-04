@@ -35,8 +35,8 @@ class SystemReader {
   // Key signature drawn at the start of measure k. Every system restates its key, so a
   // system start counts its key accidentals (C when none); counting tolerates glyphs
   // whose reference point is off a step in other engravers' fonts. Mid-system,
-  // accidentals right after a barline usually belong to notes, so a change needs a
-  // correctly ordered signature, or naturals cancelling exactly the current key.
+  // accidentals right after a barline usually belong to notes, so a change must be
+  // spelled in order and cancel what it drops (see plausible_key_change).
   std::optional<int> key_signature(int k, int current_fifths, const std::map<int, Clef>& carried) const;
 
   // Time signature drawn at the start of measure k.

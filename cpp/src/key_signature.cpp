@@ -47,4 +47,16 @@ bool cancels_key(const std::vector<int>& natural_steps, int fifths) {
   return std::all_of(natural_steps.begin(), natural_steps.end(), [&](int step) { return key_alter(fifths, step) != 0; });
 }
 
+bool plausible_key_change(const KeySpelling& spelling, int current_fifths) {
+  if (!spelling.exact || spelling.fifths == current_fifths) return false;
+  if (spelling.fifths == 0) return cancels_key(spelling.natural_steps, current_fifths);
+  for (int step = 0; step < 7; ++step) {
+    const bool dropped = key_alter(current_fifths, step) != 0 && key_alter(spelling.fifths, step) != key_alter(current_fifths, step);
+    if (dropped && std::find(spelling.natural_steps.begin(), spelling.natural_steps.end(), step) == spelling.natural_steps.end()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace omr
