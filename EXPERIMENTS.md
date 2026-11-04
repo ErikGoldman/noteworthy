@@ -156,3 +156,14 @@ Infrastructure:
 | v2 final | 0.920 | 0.856 |
 | v3 | 0.941 | 0.926 |
 | **v5 (current)** | **0.948** | **0.928** |
+
+## 2026-11-04
+
+### Night Album (held out), v5 + key-change rule
+- **Note F1 0.992** (633 GT notes, 633 predicted); onset+pitch 0.998; 57/62 measures exact;
+  all matched notes on the right staff. Pages 2-4 read in 45 s (8 threads).
+- The 5 wrong measures: m0 one note an octave high (B4 for B3); m26, m41 a quarter read as
+  an eighth; m43, m60 a long note given the wrong duration. Not investigated, so the
+  score stays held out.
+- At 633 notes this score can no longer separate models (5 errors); the PDMX benchmarks
+  remain the development signal.
