@@ -76,7 +76,7 @@ SymbolMaps Segmenter::run(const cv::Mat& gray) const {
 
   Ort::MemoryInfo cpu = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
   const char* input_names[] = {"image"};
-  const char* output_names[] = {"logits"};
+  const char* output_names[] = {"probabilities"};
 
   for (int y0 = 0; y0 < gray.rows; y0 += kTileCore) {
     for (int x0 = 0; x0 < gray.cols; x0 += kTileCore) {
@@ -93,15 +93,12 @@ SymbolMaps Segmenter::run(const cv::Mat& gray) const {
       const int64_t shape[] = {1, 1, h, w};
       Ort::Value tensor = Ort::Value::CreateTensor<float>(cpu, input.ptr<float>(), input.total(), shape, 4);
       auto outputs = impl_->session.Run(Ort::RunOptions{nullptr}, input_names, &tensor, 1, output_names, 1);
-      const float* logits = outputs[0].GetTensorData<float>();
+      const float* probabilities = outputs[0].GetTensorData<float>();
 
       const cv::Rect core_in_tile = core - with_context.tl();
       for (int c = 0; c < channels; ++c) {
-        cv::Mat logit(h, w, CV_32FC1, const_cast<float*>(logits + static_cast<size_t>(c) * h * w));
-        cv::Mat prob;
-        cv::exp(-logit(core_in_tile), prob);
-        prob = 255.0 / (1.0 + prob);
-        prob.convertTo(maps[c](core), CV_8U);
+        const cv::Mat prob(h, w, CV_32FC1, const_cast<float*>(probabilities + static_cast<size_t>(c) * h * w));
+        prob(core_in_tile).convertTo(maps[c](core), CV_8U, 255.0);
       }
     }
   }

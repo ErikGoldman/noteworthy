@@ -10,10 +10,10 @@ import time
 from pathlib import Path
 
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from omr.channels import CHANNELS
+from omr.heads import EXCLUSIVE_FAMILIES, loss, probabilities
 from omr.dataset import PageCrops, collate_crops, init_worker, list_pages, split_by_source, to_model_input
 from omr.model import UNet
 
@@ -28,23 +28,6 @@ def weighted_pages(spec: str) -> list[Path]:
     return list_pages(directory) * int(weight or 1)
 
 
-def loss_fn(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """BCE for calibration plus per-channel soft Dice so rare symbols (rests, flags) are not
-    drowned out.
-
-    Dice covers every channel, including those absent from the batch, where it reduces to
-    1 - 1 / (predicted mass + 1). Restricting it to present channels (as v1-v3 did) leaves
-    rare classes almost unpenalized for false positives, and the network learned to fire
-    them on anything similar: ts_5/ts_9/ts_cut on a 6, tuplet_other on a 3."""
-    bce = F.binary_cross_entropy_with_logits(logits, target)
-    prob = torch.sigmoid(logits)
-    dims = (0, 2, 3)
-    inter = (prob * target).sum(dims)
-    denom = prob.sum(dims) + target.sum(dims)
-    dice = 1 - (2 * inter + 1) / (denom + 1)
-    return bce + dice.mean()
-
-
 @torch.no_grad()
 def evaluate(model, loader, device) -> dict[str, float]:
     model.eval()
@@ -55,7 +38,7 @@ def evaluate(model, loader, device) -> dict[str, float]:
         x, y = to_model_input(x, y, device)
         y = y.bool()
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            pred = model(x) > 0
+            pred = probabilities(model(x).float()) > 0.5
         tp += (pred & y).sum((0, 2, 3))
         fp += (pred & ~y).sum((0, 2, 3))
         fn += (~pred & y).sum((0, 2, 3))
@@ -122,9 +105,9 @@ def main() -> None:
         x = x.to(memory_format=torch.channels_last)
         with torch.autocast("cuda", dtype=torch.bfloat16):
             logits = model(x)
-        loss = loss_fn(logits.float(), y)
+        batch_loss = loss(logits.float(), y)
         opt.zero_grad(set_to_none=True)
-        loss.backward()
+        batch_loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
         sched.step()
@@ -132,15 +115,15 @@ def main() -> None:
         if step % 100 == 0:
             rate = 100 * args.batch / (time.time() - t0)
             t0 = time.time()
-            print(f"step {step} loss {loss.item():.4f} lr {sched.get_last_lr()[0]:.2e} {rate:.0f} crops/s", flush=True)
+            print(f"step {step} loss {batch_loss.item():.4f} lr {sched.get_last_lr()[0]:.2e} {rate:.0f} crops/s", flush=True)
         if step % args.eval_every == 0 or step == args.steps:
             f1 = evaluate(model, val_loader, device)
             mean_f1 = sum(f1.values()) / len(f1)
-            log.write(json.dumps({"step": step, "loss": loss.item(), "mean_f1": mean_f1, "f1": f1}) + "\n")
+            log.write(json.dumps({"step": step, "loss": batch_loss.item(), "mean_f1": mean_f1, "f1": f1}) + "\n")
             log.flush()
             print(f"[eval] step {step} mean F1 {mean_f1:.4f} " + " ".join(f"{k}={v:.2f}" for k, v in f1.items()), flush=True)
             state = {"model": model.state_dict(), "opt": opt.state_dict(), "sched": sched.state_dict(),
-                     "step": step, "channels": CHANNELS}
+                     "step": step, "channels": CHANNELS, "families": EXCLUSIVE_FAMILIES}
             torch.save(state, out / "last.pt")
             if mean_f1 > best_f1:
                 best_f1 = mean_f1

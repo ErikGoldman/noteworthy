@@ -2,6 +2,10 @@
 
 usage: export_onnx.py CHECKPOINT.pt OUT.onnx
 
+The exported graph outputs per-channel probabilities ("probabilities", N x C x H x W),
+including any exclusive-family softmax (see omr.heads); checkpoints from before the
+families existed export with plain sigmoids.
+
 The model's contract with C++ travels in ONNX metadata:
   channels               JSON list of output channel names, in output order
   normalized_interline   staff interline (px) the model expects
@@ -16,8 +20,20 @@ import sys
 import onnx
 import torch
 
+from omr.channels import CHANNEL_INDEX
 from omr.dataset import NORMALIZED_INTERLINE_PX
+from omr.heads import probabilities
 from omr.model import SIZE_MULTIPLE, UNet
+
+
+class WithProbabilities(torch.nn.Module):
+    def __init__(self, model: torch.nn.Module, families: list[list[int]]):
+        super().__init__()
+        self.model = model
+        self.families = families
+
+    def forward(self, x):
+        return probabilities(self.model(x), self.families)
 
 
 def main() -> None:
@@ -27,11 +43,13 @@ def main() -> None:
     model = UNet(len(channels))
     model.load_state_dict(ckpt["model"])
     model.eval()
+    families = [[CHANNEL_INDEX[name] for name in family] for family in ckpt.get("families", [])]
 
     dummy = torch.zeros(1, 1, 256, 256)
-    torch.onnx.export(model, dummy, out_path, input_names=["image"], output_names=["logits"],
+    torch.onnx.export(WithProbabilities(model, families), dummy, out_path, input_names=["image"],
+                      output_names=["probabilities"],
                       dynamic_axes={"image": {0: "batch", 2: "height", 3: "width"},
-                                    "logits": {0: "batch", 2: "height", 3: "width"}},
+                                    "probabilities": {0: "batch", 2: "height", 3: "width"}},
                       opset_version=17, dynamo=False)
 
     proto = onnx.load(out_path)

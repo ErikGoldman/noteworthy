@@ -118,3 +118,19 @@ Infrastructure:
   penalized for false positives (BCE averaged over 45 channels × all pixels is too weak).
   This also explains tuplet_other on 3s and clef_c specks on digits. Fix: Dice over all
   channels (absent → 1 − 1/(mass+1)). v4 = fine-tune of v3 with the corrected loss.
+
+### v3 (runs/v3: v2 + 20k fine-tune, balanced crops 0.5, re-rasterized data with fonts and
+### ottava styles; old present-only Dice)
+- **verovio-100 0.941, musescore-100 0.926** (v2 final: 0.920 / 0.856). MuseScore onset
+  errors 1267 → 501.
+
+### v4 (aborted at 10k): all-channel Dice over-corrected
+- The 6 vanished entirely (ts_5/ts_6/ts_9 val F1 0.00; 6/8 read as 4/4): penalizing rare
+  false positives made the network give up on confusable classes.
+
+### v5 (running): exclusive-family softmax
+- Mutually exclusive glyph families (heads, flags, accidentals, clefs, rests, time-signature
+  glyphs, tuplet numbers) share a softmax with an implicit "none" class (omr/heads.py);
+  Dice back to present channels only. ONNX now outputs probabilities (C++ no longer applies
+  a sigmoid); old checkpoints re-export with plain sigmoids — v3 re-exported, outputs
+  unchanged on spot checks. Fine-tune of v3, 20k steps, balanced crops 0.5.
