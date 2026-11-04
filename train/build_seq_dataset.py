@@ -12,7 +12,8 @@ OLiMPiC's linearizer, as for the OLiMPiC and GrandStaff-LMX datasets.
 
 Writes DIR/samples/<score index>/s<k>.png + .lmx, and DIR/samples.train.txt listing
 every sample. A score's directory is written whole or not at all, so an interrupted
-run resumes where it stopped.
+run resumes where it stopped. Scores that hang inside Verovio are listed in
+DIR/hung.txt and skipped by later runs.
 """
 from __future__ import annotations
 
@@ -44,6 +45,7 @@ MEASURES_PER_SYSTEM = (2, 6)
 MAX_TOKENS = 1000          # the model's sequence limit, with room for <bos>/<eos>
 INTERLINE_PX = (14.0, 26.0)
 MARGIN_INTERLINES = (0.5, 3.0)
+HUNG_SCORE_S = 300         # a score not done by then is hung inside Verovio
 PART_NAME_HIDDEN = 0.85    # only a score's first system shows the instrument name
 
 
@@ -174,15 +176,27 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=os.cpu_count())
     args = ap.parse_args()
     sources = args.scores.read_text().split("\n")
-    jobs = [(i, s, args.out, args.systems_per_score) for i, s in enumerate(sources) if s.strip()]
+    hung_log = args.out / "hung.txt"
+    hung = set(hung_log.read_text().split("\n")) if hung_log.exists() else set()
+    jobs = [(i, s, args.out, args.systems_per_score) for i, s in enumerate(sources) if s.strip() and s not in hung]
     total = 0
     # "spawn", not fork: Verovio keeps its font resources in C++ static state that forked
     # workers cannot use ("font resources are not available"); see build_dataset.py.
     with mp.get_context("spawn").Pool(args.workers) as pool:
-        for done, n in enumerate(pool.imap_unordered(build_score, jobs, chunksize=4), 1):
-            total += n
+        pending = [(job, pool.apply_async(build_score, (job,))) for job in jobs]
+        for done, (job, result) in enumerate(pending, 1):
+            try:
+                total += result.get(timeout=HUNG_SCORE_S)
+            except mp.TimeoutError:
+                # Verovio occasionally never returns on a score. Its worker stays stuck
+                # until the pool is terminated; the score is skipped from now on.
+                with hung_log.open("a") as f:
+                    f.write(job[1] + "\n")
             if done % 500 == 0:
                 print(f"{done}/{len(jobs)} scores, {total} systems", flush=True)
+        pool.terminate()
+    for partial in (args.out / "samples").glob("*.partial"):
+        shutil.rmtree(partial)
     names = sorted(f"samples/{p.parent.name}/{p.stem}" for p in (args.out / "samples").glob("[0-9]*/*.lmx"))
     (args.out / "samples.train.txt").write_text("\n".join(names) + "\n")
     print(f"{len(names)} systems from {len(jobs)} scores")
