@@ -7,7 +7,9 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
-MUSCIMA_WEIGHT=20  # handwritten pages are few; each counts this many times
+# Handwritten pages are few (100 MUSCIMA++ pages); each counts this many times, so that
+# they are about 7% of the 12,000-page mix: roughly their share of real-world scores.
+MUSCIMA_WEIGHT=9
 
 # train_stage NAME STEPS [train.py options]. A stage with a checkpoint resumes from it;
 # train.py returns at once when that checkpoint already reached STEPS.

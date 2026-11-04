@@ -5,12 +5,12 @@ usage: convert_muscima.py MUSCIMA_ROOT OUT_DIR
 MUSCIMA_ROOT holds v2.0/ (MuNG annotations) and CvcMuscima-Distortions/ (images).
 Every annotated object carries a pixel mask, which is painted into the channel its
 class maps to. Abstract objects (staff, keySignature, measureSeparator, ...) have no
-ink of their own and are skipped. MUSCIMA++ is CC BY-NC-SA 4.0.
+ink of their own and are skipped. The writer-independent test pages are left out
+(omr.muscima). MUSCIMA++ is CC BY-NC-SA 4.0.
 """
 from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -19,6 +19,7 @@ import numpy as np
 from lxml import etree
 
 from omr.channels import CHANNEL_INDEX, CHANNELS, pack_masks
+from omr.muscima import training_pages
 from omr.render import HEAD_CENTER_RADIUS_INTERLINES
 
 CLASS_CHANNEL = {
@@ -38,7 +39,6 @@ CLASS_CHANNEL = {
 }
 ABSTRACT_CLASSES = {"staff", "staffSpace", "staffGrouping", "keySignature", "timeSignature", "measureSeparator"}
 HEAD_CLASSES = {"noteheadFull", "noteheadHalf", "noteheadWhole"}
-DOCUMENT_NAME = re.compile(r"CVC-MUSCIMA_W-(\d+)_N-(\d+)_D-ideal")
 
 
 def decode_mask(rle: str, height: int, width: int) -> np.ndarray:
@@ -120,11 +120,8 @@ def convert_page(xml_path: Path, image_path: Path, out_stem: Path) -> None:
 def main() -> None:
     root, out = Path(sys.argv[1]), Path(sys.argv[2])
     out.mkdir(parents=True, exist_ok=True)
-    for xml_path in sorted((root / "v2.0" / "data" / "annotations").glob("CVC-MUSCIMA_*.xml")):
-        m = DOCUMENT_NAME.search(xml_path.name)
-        writer, page = int(m.group(1)), int(m.group(2))
-        image_path = root / "CvcMuscima-Distortions" / "ideal" / f"w-{writer:02d}" / "image" / f"p{page:03d}.png"
-        convert_page(xml_path, image_path, out / f"muscima_w{writer:02d}_p{page:03d}")
+    for page in training_pages(root):
+        convert_page(page.annotation, page.image, out / f"muscima_{page.name}")
     print(f"converted {len(list(out.glob('*.json')))} pages")
 
 

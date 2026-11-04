@@ -237,3 +237,22 @@ Infrastructure:
 - TEDn (the paper's metric, their code) is wired up for the test split; numbers pending a
   reference model. TEDn also counts stems, beams, slurs and articulations, which we do
   not output, so our note F1 is reported for both as well.
+
+### Handwritten benchmark (`eval/handwritten_benchmark.py`, `eval/muscima_truth.py`)
+- Goal: handwritten scores at about their real-world share, 5-10% of training pages;
+  print remains the gate. MUSCIMA++ was 19% of the mix (140 pages x 20); now 100 pages x 9,
+  about 7%.
+- MUSCIMA++ splits (omr.muscima): writer-independent test set (20 pages, 7 writers seen
+  nowhere else) held out like Night Album; writer-dependent test set (20 pages) is the
+  handwritten dev set; both out of training (previously a 5% hash). All writers copied
+  the same 20 pieces, so pieces always leak; only the handwriting is unseen.
+- Ground truth from the MuNG graphs: pitch by mung2midi (ties dropped first; it rejects
+  ties over three notes), durations from each head's links (its own duration inference
+  fails on two-stem notes), measures from measure separators, onsets by chaining each
+  staff left to right, or per stem direction. A measure is scored only when every staff
+  fills the time signature (or, without one, the page's most common fill; pickups at the
+  page's ends). 2,138 of 2,862 measures scored. The 7 copies of each piece agree at
+  pairwise F1 0.946 on measures both score; the rest are one-note writer/annotation slips
+  and a few pieces (05, 17, 18, 20: few or no separators/legible rhythm).
+- v5 (which trained on all 140 pages, dev included, so optimistic): **dev F1 0.296**,
+  right pitch timing aside 0.601, over 1,610 scored notes on 20 pages. Print is 0.94.
