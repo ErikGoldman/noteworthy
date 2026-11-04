@@ -5,6 +5,7 @@
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PY="$ROOT/.venv/bin/python"
+ZEUS_PY="$ROOT/.venv-zeus/bin/python"
 NW_DATA=${NW_DATA:-$ROOT/data}
 NW_RUNS=${NW_RUNS:-$ROOT/runs}
 NW_PAGES=${NW_PAGES:-12000}                 # synthetic training pages
@@ -50,4 +51,16 @@ unpack() {
   esac
   for entry in "$@"; do rm -rf "${dest:?}/$entry" && mv "$tmp/$entry" "$dest/$entry"; done
   rm -rf "$tmp"
+}
+
+# Clones REPO at COMMIT into DEST, unless DEST is already at that commit.
+checkout() {
+  local repo=$1 commit=$2 dest=$3
+  [ "$(git -C "$dest" rev-parse HEAD 2>/dev/null)" = "$commit" ] && return
+  log "fetching $repo"
+  rm -rf "$dest.partial"
+  git init -q "$dest.partial"
+  git -C "$dest.partial" fetch -q --depth 1 "$repo" "$commit"
+  git -C "$dest.partial" checkout -q FETCH_HEAD
+  rm -rf "$dest" && mv "$dest.partial" "$dest"
 }

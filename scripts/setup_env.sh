@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Checks system prerequisites and creates or updates the Python environment (.venv).
+# Checks system prerequisites and creates or updates the Python environments: .venv for
+# everything of ours, .venv-zeus for the OLiMPiC authors' recognizer we compare against.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
@@ -22,4 +23,6 @@ command -v nvidia-smi >/dev/null || log "warning: no NVIDIA GPU found; training 
 # uv installs only what is missing or at another version. torch comes from its own CUDA index.
 uv pip install -q --python "$PY" --index-url "$TORCH_INDEX" -r "$ROOT/requirements-torch.txt"
 uv pip install -q --python "$PY" -r "$ROOT/requirements.txt"
+[ -x "$ZEUS_PY" ] || uv venv "$ROOT/.venv-zeus" --python 3.11 -q
+uv pip install -q --python "$ZEUS_PY" -r "$ROOT/requirements-zeus.txt"
 log "python environment ready"

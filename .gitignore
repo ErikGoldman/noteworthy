@@ -7,3 +7,4 @@ runs_*.log
 cpp/build/
 cpp/third_party/onnxruntime/
 cpp/third_party/pdfium/
+.venv-zeus/

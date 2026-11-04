@@ -124,10 +124,14 @@ class MeasureWriter {
       out_ << "</note>";
       return;
     }
-    for (size_t i = 0; i < e.pitches.size(); ++i) {
+    // Chord notes bottom up, as engraving software writes them (and LMX requires).
+    std::vector<size_t> order(e.pitches.size());
+    std::iota(order.begin(), order.end(), 0);
+    std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return e.pitches[a].midi() < e.pitches[b].midi(); });
+    for (size_t i : order) {
       const Pitch& p = e.pitches[i];
       const bool tie = i < e.tie_start.size() && e.tie_start[i];
-      out_ << "<note>" << (i ? "<chord/>" : "") << "<pitch><step>" << p.step_name() << "</step>";
+      out_ << "<note>" << (i != order.front() ? "<chord/>" : "") << "<pitch><step>" << p.step_name() << "</step>";
       if (p.alter) out_ << "<alter>" << p.alter << "</alter>";
       out_ << "<octave>" << p.octave() << "</octave></pitch>";
       write_note_fields(e, tie);

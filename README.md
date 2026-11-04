@@ -12,7 +12,8 @@ Current scope: notes and rhythm of engraved piano music.
 
 This sets up the Python environment, downloads the training sources (PDMX, ASAP,
 MUSCIMA++; about 6 GB), renders the synthetic training pages, trains the network,
-builds the C++ recognizer and runs the benchmarks. Every stage skips work already
+builds the C++ recognizer, runs the benchmarks and compares with Zeus, the OLiMPiC
+authors' end-to-end recognizer (in its own Python 3.11 environment, `.venv-zeus`). Every stage skips work already
 done, so it is safe to rerun at any time; an interrupted run picks up where it stopped. Settings (page and
 step counts, data locations) are environment variables listed in `scripts/common.sh`;
 `reproduce.sh` shows a minutes-long smoke configuration.
@@ -45,6 +46,7 @@ cpp/build/noteworthy score.pdf --model runs/finetune/model.onnx -o score.musicxm
 | [ASAP](https://github.com/fosfrancesco/asap-dataset) (classical piano MusicXML) | training renders | CC BY-NC-SA 4.0 |
 | [MUSCIMA++ 2.0](https://github.com/OMR-Research/muscima-pp) and [CVC-MUSCIMA](http://www.cvc.uab.es/cvcmuscima/) (handwritten pages) | training | CC BY-NC-SA 4.0 |
 | [OLiMPiC](https://github.com/ufal/olimpic-icdar24) (IMSLP scans of [OpenScore Lieder](https://github.com/OpenScore/Lieder) songs, with piano transcriptions) | benchmarks only | CC BY-SA 4.0; the Lieder transcriptions themselves are CC0 |
+| [OLiMPiC code and Zeus model](https://github.com/ufal/olimpic-icdar24) (the authors' TEDn metric and end-to-end recognizer) | comparison only (`scripts/compare_zeus.sh`) | code MIT; Zeus model CC BY-SA 4.0 |
 
 ASAP and MUSCIMA++ are non-commercial (NC), so models trained by this pipeline are for
 non-commercial use. OLiMPiC is share-alike (SA): anything redistributed that is derived

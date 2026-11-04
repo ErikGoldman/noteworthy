@@ -3,11 +3,15 @@
 
 usage: olimpic_benchmark.py systems|pages --binary NOTEWORTHY --model MODEL.onnx --out DIR
                                           [--split dev|test] [--jobs N] [--threads T]
+       olimpic_benchmark.py systems --predictions DIR --out DIR [--split dev|test]
 
   systems  each OLiMPiC system crop is recognized alone and scored against its piano
            ground truth. Tests reading real engravings and scan noise. A crop shows no
            time signature unless the system starts the song, so the recognizer assumes
            4/4 there; onsets and durations are scored, which mostly do not depend on it.
+           With --predictions, another recognizer's MusicXML for each crop is scored
+           instead (DIR/samples/<song>/<system>.musicxml; see zeus_comparison.py).
+           The samples scored are listed in OUT/scored_samples.txt.
   pages    each song's full IMSLP pages are recognized in order as one score, so page
            layout (finding staves and systems among the voice part, lyrics, titles and
            neighbouring songs) and context carried across systems and pages are tested
@@ -110,9 +114,9 @@ def f1(t: Counter) -> float:
 TIMING_ONLY = ("onset", "duration", "onset+duration")
 
 
-def report(results: dict[str, Counter], excluded: int, what: str) -> None:
+def report(results: dict[str, Counter], excluded: int, what: str, show_worst: bool) -> None:
+    """Totals, plus the worst items when show_worst (never on the held-out test split)."""
     total = sum(results.values(), Counter())
-    worst = sorted(results.items(), key=lambda kv: f1(kv[1]))[:10]
     right_pitch = total["correct"] + sum(total[k] for k in TIMING_ONLY)
     print(f"overall F1 = {f1(total):.3f} over {len(results)} {what}, {gt_notes(total)} gt notes "
           f"(P={total['correct'] / max(1, total['pred']):.3f} R={total['correct'] / max(1, gt_notes(total)):.3f}); "
@@ -121,8 +125,10 @@ def report(results: dict[str, Counter], excluded: int, what: str) -> None:
     for k, v in total.most_common():
         if k != "pred":
             print(f"  {k:16s} {v}")
+    if not show_worst:
+        return
     print("worst:")
-    for name, t in worst:
+    for name, t in sorted(results.items(), key=lambda kv: f1(kv[1]))[:10]:
         print(f"  {name} F1={f1(t):.3f} " + ", ".join(f"{k}={v}" for k, v in t.most_common() if k not in ("correct", "pred")))
 
 
@@ -136,11 +142,17 @@ def recognize(binary: str, model: str, threads: int, images: list[Path], out: Pa
 
 def bench_systems(args: argparse.Namespace) -> None:
     samples, excluded = split_samples(args.split)
+    args.out.mkdir(parents=True, exist_ok=True)
+    (args.out / "scored_samples.txt").write_text("\n".join(samples) + "\n")
 
     def one(sample: str) -> Counter | str:
-        prediction = args.out / f"{sample}.musicxml"
-        error = recognize(args.binary, args.model, args.threads, [SCANNED / f"{sample}.png"], prediction)
-        return error or score(parse_musicxml(SCANNED / f"{sample}.musicxml"), parse_musicxml(prediction))
+        if args.predictions:
+            prediction = args.predictions / f"{sample}.musicxml"
+        else:
+            prediction = args.out / f"{sample}.musicxml"
+            if error := recognize(args.binary, args.model, args.threads, [SCANNED / f"{sample}.png"], prediction):
+                return error
+        return score(parse_musicxml(SCANNED / f"{sample}.musicxml"), parse_musicxml(prediction))
 
     results = {}
     with ThreadPoolExecutor(args.jobs) as pool:
@@ -149,7 +161,7 @@ def bench_systems(args: argparse.Namespace) -> None:
                 print(f"{sample}: recognizer failed: {result}")
             else:
                 results[sample] = result
-    report(results, excluded, "systems")
+    report(results, excluded, "systems", show_worst=args.split != "test")
 
 
 # --- pages -----------------------------------------------------------------------------
@@ -224,19 +236,24 @@ def bench_pages(args: argparse.Namespace) -> None:
                 print(f"{song}: recognizer failed: {result}")
             else:
                 results[song] = result
-    report(results, excluded, "songs")
+    report(results, excluded, "songs", show_worst=args.split != "test")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("mode", choices=["systems", "pages"])
-    ap.add_argument("--binary", required=True)
-    ap.add_argument("--model", required=True)
+    ap.add_argument("--binary")
+    ap.add_argument("--model")
+    ap.add_argument("--predictions", type=Path, help="score these instead of recognizing (systems only)")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--split", choices=["dev", "test"], default="dev")
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--threads", type=int, default=2)
     args = ap.parse_args()
+    if not args.predictions and not (args.binary and args.model):
+        ap.error("--binary and --model are needed unless --predictions is given")
+    if args.predictions and args.mode != "systems":
+        ap.error("--predictions works with systems only")
     (bench_systems if args.mode == "systems" else bench_pages)(args)
 
 

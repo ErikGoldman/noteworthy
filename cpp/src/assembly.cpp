@@ -53,7 +53,7 @@ std::vector<MeasureItem> measure_items(const std::vector<RhythmItem>& sys_items,
   for (const RhythmItem* it : inside) {
     const int staff = sys.staff_number(it->page_staff);
     const bool measure_rest = it->rest_kind == "rest_whole" && items_per_staff[staff] == 1;
-    out.push_back({it, staff, measure_rest ? measure_length : it->value.duration()});
+    out.push_back({it, staff, it->value, measure_rest ? measure_length : it->value.duration()});
   }
   return out;
 }
@@ -150,7 +150,8 @@ void ScoreBuilder::add_page(const InputPage& page, const std::vector<Staff>& sta
       if (std::exchange(first_on_page, false)) measure.layout.new_page = page.number;
       apply_attribute_changes(reader, k, measure);
       const Rational length = time_->measure_length();
-      const std::vector<MeasureItem> mitems = measure_items(sys_items, sys, k, length);
+      std::vector<MeasureItem> mitems = measure_items(sys_items, sys, k, length);
+      imply_tuplets(mitems, length, interline);
       const std::vector<Timing> timing = solve_measure(mitems, {length, sys.bounds[k], sys.bounds[k + 1]}, interline);
       const std::map<int, Pitch> pitch_of = resolve_pitches(mitems, sys, reader, explicit_alter, symbols);
       record_clef_changes(reader, k, mitems, timing, length, measure);
@@ -160,7 +161,7 @@ void ScoreBuilder::add_page(const InputPage& page, const std::vector<Staff>& sta
         Event e;
         e.onset = timing[i].onset;
         e.duration = mitems[i].duration;
-        e.value = mitems[i].duration == it.value.duration() ? it.value : NoteValue{1, 0};
+        e.value = mitems[i].duration == mitems[i].value.duration() ? mitems[i].value : NoteValue{1, 0};
         e.staff = mitems[i].staff;
         e.voice = timing[i].voice;
         for (size_t j = 0; j < it.heads.size(); ++j) {

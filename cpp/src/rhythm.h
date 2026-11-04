@@ -10,7 +10,8 @@ namespace omr {
 struct MeasureItem {
   const RhythmItem* item = nullptr;
   int staff = 1;         // 1-based staff number within the system
-  Rational duration;     // as notated (whole-measure rests get the measure length)
+  NoteValue value;       // as read in this measure: implied tuplets are added here
+  Rational duration;     // value.duration(), except that a whole-measure rest lasts the measure
 };
 
 // The measure being solved: its duration and where its barlines are on the page.
@@ -24,6 +25,13 @@ struct Timing {
   Rational onset;
   int voice = 1;
 };
+
+// Engravers mark the first few triplets of a passage and leave the "3" off the rest.
+// An unmarked beam group of 3 or 6 notes of one plain value is made a triplet (or
+// sextuplet) when the staff's notes overfill the measure and making all such groups of
+// the staff tuplets fills it exactly. The exact fill keeps plain groups of three, as in
+// 3/8 or after an eighth rest in 4/4, untouched.
+void imply_tuplets(std::vector<MeasureItem>& items, Rational measure_length, double interline);
 
 // Resolves when each item of one measure starts and which voice it belongs to.
 //

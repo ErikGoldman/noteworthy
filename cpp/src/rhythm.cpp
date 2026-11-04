@@ -207,7 +207,69 @@ std::vector<int> assign_voices(const std::vector<MeasureItem>& items, const std:
   return voice;
 }
 
+// Time the staff's notes take when read column by column, each column lasting its
+// shortest item: the length of the staff's fastest voice, whatever the polyphony.
+Rational staff_timeline(const std::vector<MeasureItem>& items, int staff, double interline) {
+  std::vector<const MeasureItem*> on_staff;
+  for (const MeasureItem& it : items) {
+    if (it.staff == staff) on_staff.push_back(&it);
+  }
+  std::sort(on_staff.begin(), on_staff.end(), [](auto* a, auto* b) { return a->item->x < b->item->x; });
+  Rational total(0);
+  for (size_t i = 0; i < on_staff.size();) {
+    Rational shortest = on_staff[i]->duration;
+    size_t j = i + 1;
+    for (; j < on_staff.size() && same_column(*on_staff[i], *on_staff[j], interline); ++j) {
+      shortest = std::min(shortest, on_staff[j]->duration);
+    }
+    total += shortest;
+    i = j;
+  }
+  return total;
+}
+
+constexpr size_t kTripletNotes = 3;
+
+bool could_be_unmarked_tuplet(const std::vector<MeasureItem>& items, const std::vector<int>& group) {
+  if (group.size() != kTripletNotes && group.size() != 2 * kTripletNotes) return false;
+  const NoteValue& first = items[group.front()].value;
+  return std::all_of(group.begin(), group.end(), [&](int i) {
+    const NoteValue& v = items[i].value;
+    return !v.in_tuplet() && v.dots == 0 && v.base == first.base && items[i].staff == items[group.front()].staff;
+  });
+}
+
+void make_triplet(MeasureItem& it) {
+  it.value.tuplet_actual = 3;
+  it.value.tuplet_normal = 2;
+  it.duration = it.value.duration();
+}
+
 }  // namespace
+
+void imply_tuplets(std::vector<MeasureItem>& items, Rational measure_length, double interline) {
+  std::map<int, std::vector<int>> beams;
+  for (size_t i = 0; i < items.size(); ++i) {
+    if (items[i].item->beam_group) beams[items[i].item->beam_group].push_back(static_cast<int>(i));
+  }
+  std::map<int, std::vector<int>> candidates_by_staff;
+  for (const auto& [group, members] : beams) {
+    if (could_be_unmarked_tuplet(items, members)) {
+      auto& c = candidates_by_staff[items[members.front()].staff];
+      c.insert(c.end(), members.begin(), members.end());
+    }
+  }
+  for (const auto& [staff, candidates] : candidates_by_staff) {
+    if (staff_timeline(items, staff, interline) <= measure_length) continue;
+    std::vector<MeasureItem> trial = items;
+    for (int i : candidates) make_triplet(trial[i]);
+    // Only an exact fill: with several voices on a staff the timeline can overfill
+    // without any tuplet, and a looser test turns their plain groups into triplets.
+    if (staff_timeline(trial, staff, interline) == measure_length) {
+      for (int i : candidates) make_triplet(items[i]);
+    }
+  }
+}
 
 std::vector<Timing> solve_measure(const std::vector<MeasureItem>& items, const MeasureSpan& span, double interline) {
   std::vector<Rational> durations;

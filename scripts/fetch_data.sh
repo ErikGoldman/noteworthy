@@ -6,7 +6,9 @@
 #   MUSCIMA++  handwritten pages with symbol masks (CC BY-NC-SA 4.0), plus the
 #              CVC-MUSCIMA images they annotate
 #   OLiMPiC    benchmark only: IMSLP scans of OpenScore Lieder songs with their piano
-#              transcriptions (CC BY-SA 4.0), and the Lieder corpus metadata (CC0)
+#              transcriptions (CC BY-SA 4.0), and the Lieder corpus metadata (CC0);
+#              the authors' code (MIT: TEDn metric, linearization) and their trained
+#              Zeus model (CC BY-SA 4.0), to compare against
 #
 # A source already in place is not fetched again. Archives are deleted once unpacked.
 set -euo pipefail
@@ -19,6 +21,9 @@ MUSCIMA_PP=https://github.com/OMR-Research/muscima-pp/releases/download/v2.0/MUS
 CVC_MUSCIMA=https://github.com/apacha/OMR-Datasets/releases/download/datasets/CVCMUSCIMA_SR.zip
 OLIMPIC_RELEASE=https://github.com/ufal/olimpic-icdar24/releases/download/datasets
 LIEDER_SCORES=https://raw.githubusercontent.com/OpenScore/Lieder/38c5db510224d9facdc4b08d741fc788cfb58ea8/data/scores.yaml
+OLIMPIC_REPO=https://github.com/ufal/olimpic-icdar24.git
+OLIMPIC_COMMIT=f4f45ac523ebe09832342270a68b1b4368f63da2
+ZEUS_MODEL=https://github.com/ufal/olimpic-icdar24/releases/download/zeus-release/zeus-olimpic-1.0-2024-02-12.model.tar.gz
 
 download "$PDMX_RECORD/PDMX.csv/content" "$RAW/pdmx/PDMX.csv" 30392ccf38bb63ce70e7afae70f9c88c
 if [ ! -d "$RAW/pdmx/mxl" ]; then
@@ -27,13 +32,7 @@ if [ ! -d "$RAW/pdmx/mxl" ]; then
   rm "$RAW/pdmx/mxl.tar.gz"
 fi
 
-if [ "$(git -C "$RAW/asap" rev-parse HEAD 2>/dev/null)" != "$ASAP_COMMIT" ]; then
-  rm -rf "$RAW/asap.partial"
-  git init -q "$RAW/asap.partial"
-  git -C "$RAW/asap.partial" fetch -q --depth 1 "$ASAP_REPO" "$ASAP_COMMIT"
-  git -C "$RAW/asap.partial" checkout -q FETCH_HEAD
-  rm -rf "$RAW/asap" && mv "$RAW/asap.partial" "$RAW/asap"
-fi
+checkout "$ASAP_REPO" "$ASAP_COMMIT" "$RAW/asap"
 
 if [ ! -d "$RAW/muscima/v2.0" ]; then
   download "$MUSCIMA_PP" "$RAW/muscima/MUSCIMA-pp_v2.0.zip" e13c13f0719feb1ed8f3419c1960bd9e
@@ -56,4 +55,10 @@ if [ ! -d "$RAW/olimpic/sources/imslp_systems" ]; then
   rm "$RAW/olimpic/sources.tgz"
 fi
 download "$LIEDER_SCORES" "$RAW/olimpic/lieder_scores.yaml" f9b27916cb7d3ebd5c8d5af50a6ad7d6
+checkout "$OLIMPIC_REPO" "$OLIMPIC_COMMIT" "$RAW/olimpic/code/repo"
+if [ ! -d "$RAW/olimpic/code/zeus-olimpic-1.0-2024-02-12.model" ]; then
+  download "$ZEUS_MODEL" "$RAW/olimpic/code/zeus.tgz" c6dfa1175a740c145015073b481bdf51
+  unpack "$RAW/olimpic/code/zeus.tgz" "$RAW/olimpic/code" zeus-olimpic-1.0-2024-02-12.model
+  rm "$RAW/olimpic/code/zeus.tgz"
+fi
 log "raw data ready"

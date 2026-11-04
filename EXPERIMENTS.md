@@ -213,3 +213,27 @@ Infrastructure:
   overfill the beat), then a scan-like augmentation check.
 - Recognizer: several inputs are read as consecutive pages; `--layout` writes where each
   system's staves lie on the input pages (used to score only annotated staves).
+
+### Implied tuplets (C++ `imply_tuplets`)
+- An unmarked beam group of 3 or 6 equal plain values becomes a triplet when the staff
+  overfills its measure and making all such groups triplets fills it exactly.
+- v5, verovio-100: 0.937 → **0.938** (040 0.887 → 0.942, 058 0.901 → 0.956, nothing worse).
+  Night Album unchanged (0.992). Worst OLiMPiC song 6474359: 0.104 → 0.18.
+- A looser test (accept any fill ≥ the measure) catches more scans, where grace notes read
+  as 32nds spoil the exact fill (6474359 system p3-s1 0.04 → 0.57), but verovio-100 drops
+  to 0.932: on three interleaved voices (017, 0.715 → 0.338) the column timeline overfills
+  with no tuplet and plain 16th groups were turned into triplets. Exact kept. The scan
+  cases need grace notes recognized as such.
+
+### Zeus comparison (`scripts/compare_zeus.sh`, `eval/zeus_comparison.py`)
+- Zeus (released model, CNN + BiLSTM encoder, attention LSTM decoder, LMX output) runs on
+  the same OLiMPiC system crops; 1,438 dev crops in 86 s on CPU (SER 15.8%).
+- Dev, 658 crops of songs without a copy in our training sources, our note F1:
+  **Zeus 0.767 vs v5 0.532**; right pitch regardless of timing 0.902 vs 0.875. Zeus is
+  better on 455 crops, v5 on 95. The gap is timing: implied triplets (Zeus reads
+  6474359 perfectly), mid-song crops without a time signature (we assume 4/4 and place
+  onsets by x over the wrong measure length), mixed 16th/32nd beaming.
+- Zeus trained on synthetic renders of other Lieder songs (in-domain), we on PDMX.
+- TEDn (the paper's metric, their code) is wired up for the test split; numbers pending a
+  reference model. TEDn also counts stems, beams, slurs and articulations, which we do
+  not output, so our note F1 is reported for both as well.
