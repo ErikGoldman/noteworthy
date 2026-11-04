@@ -12,6 +12,7 @@ NW_PAGES=${NW_PAGES:-12000}                 # synthetic training pages
 NW_BASE_STEPS=${NW_BASE_STEPS:-60000}       # training from scratch
 NW_FINETUNE_STEPS=${NW_FINETUNE_STEPS:-20000}
 NW_EVAL_EVERY=${NW_EVAL_EVERY:-5000}
+NW_SEQ_STEPS=${NW_SEQ_STEPS:-80000}       # sequence model (train_seq.sh)
 NW_RENDER_WORKERS=${NW_RENDER_WORKERS:-$(nproc)}
 NW_TRAIN_WORKERS=${NW_TRAIN_WORKERS:-$(( $(nproc) < 10 ? $(nproc) : 10 ))}
 NW_BENCH_COUNT=${NW_BENCH_COUNT:-100}

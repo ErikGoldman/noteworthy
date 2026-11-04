@@ -8,7 +8,10 @@
 #   OLiMPiC    benchmark only: IMSLP scans of OpenScore Lieder songs with their piano
 #              transcriptions (CC BY-SA 4.0), and the Lieder corpus metadata (CC0);
 #              the authors' code (MIT: TEDn metric, linearization) and their trained
-#              Zeus model (CC BY-SA 4.0), to compare against
+#              Zeus model (CC BY-SA 4.0), to compare against; OLiMPiC synthetic
+#              (CC BY-SA 4.0) for training the sequence model
+#   GrandStaff piano excerpts (images) with GrandStaff-LMX transcriptions (CC BY-SA 4.0),
+#              for training the sequence model
 #
 # A source already in place is not fetched again. Archives are deleted once unpacked.
 set -euo pipefail
@@ -24,6 +27,7 @@ LIEDER_SCORES=https://raw.githubusercontent.com/OpenScore/Lieder/38c5db510224d9f
 OLIMPIC_REPO=https://github.com/ufal/olimpic-icdar24.git
 OLIMPIC_COMMIT=f4f45ac523ebe09832342270a68b1b4368f63da2
 ZEUS_MODEL=https://github.com/ufal/olimpic-icdar24/releases/download/zeus-release/zeus-olimpic-1.0-2024-02-12.model.tar.gz
+GRANDSTAFF_IMAGES=https://grfia.dlsi.ua.es/musicdocs/grandstaff.tgz
 
 download "$PDMX_RECORD/PDMX.csv/content" "$RAW/pdmx/PDMX.csv" 30392ccf38bb63ce70e7afae70f9c88c
 if [ ! -d "$RAW/pdmx/mxl" ]; then
@@ -56,6 +60,22 @@ if [ ! -d "$RAW/olimpic/sources/imslp_systems" ]; then
 fi
 download "$LIEDER_SCORES" "$RAW/olimpic/lieder_scores.yaml" f9b27916cb7d3ebd5c8d5af50a6ad7d6
 checkout "$OLIMPIC_REPO" "$OLIMPIC_COMMIT" "$RAW/olimpic/code/repo"
+if [ ! -d "$RAW/olimpic/olimpic-1.0-synthetic" ]; then
+  download "$OLIMPIC_RELEASE/olimpic-1.0-synthetic.2024-02-12.tar.gz" "$RAW/olimpic/synthetic.tar.gz" efaeb053fc85a10a74316d32aab13e22
+  unpack "$RAW/olimpic/synthetic.tar.gz" "$RAW/olimpic" olimpic-1.0-synthetic
+  rm "$RAW/olimpic/synthetic.tar.gz"
+fi
+# GrandStaff-LMX holds the transcriptions; its images come from the original GrandStaff
+# release and are extracted into the same directories.
+if [ ! -d "$RAW/olimpic/grandstaff-lmx" ]; then
+  download "$OLIMPIC_RELEASE/grandstaff-lmx.2024-02-12.tar.gz" "$RAW/olimpic/grandstaff-lmx.tar.gz" 9aca0658471b4f9a328de5766c980744
+  download "$GRANDSTAFF_IMAGES" "$RAW/olimpic/grandstaff.tgz" f8245becbf534edc7afe241ac244602b
+  rm -rf "$RAW/olimpic/.grandstaff" && mkdir -p "$RAW/olimpic/.grandstaff"
+  tar xzf "$RAW/olimpic/grandstaff-lmx.tar.gz" -C "$RAW/olimpic/.grandstaff"
+  tar xzf "$RAW/olimpic/grandstaff.tgz" -C "$RAW/olimpic/.grandstaff/grandstaff-lmx" 2>/dev/null
+  mv "$RAW/olimpic/.grandstaff/grandstaff-lmx" "$RAW/olimpic/grandstaff-lmx"
+  rm -rf "$RAW/olimpic/.grandstaff" "$RAW/olimpic/grandstaff-lmx.tar.gz" "$RAW/olimpic/grandstaff.tgz"
+fi
 if [ ! -d "$RAW/olimpic/code/zeus-olimpic-1.0-2024-02-12.model" ]; then
   download "$ZEUS_MODEL" "$RAW/olimpic/code/zeus.tgz" c6dfa1175a740c145015073b481bdf51
   unpack "$RAW/olimpic/code/zeus.tgz" "$RAW/olimpic/code" zeus-olimpic-1.0-2024-02-12.model

@@ -46,11 +46,13 @@ cpp/build/noteworthy score.pdf --model runs/finetune/model.onnx -o score.musicxm
 | [ASAP](https://github.com/fosfrancesco/asap-dataset) (classical piano MusicXML) | training renders | CC BY-NC-SA 4.0 |
 | [MUSCIMA++ 2.0](https://github.com/OMR-Research/muscima-pp) and [CVC-MUSCIMA](http://www.cvc.uab.es/cvcmuscima/) (handwritten pages) | training, handwritten benchmark (its two test sets) | CC BY-NC-SA 4.0 |
 | [OLiMPiC](https://github.com/ufal/olimpic-icdar24) (IMSLP scans of [OpenScore Lieder](https://github.com/OpenScore/Lieder) songs, with piano transcriptions) | benchmarks only | CC BY-SA 4.0; the Lieder transcriptions themselves are CC0 |
+| [OLiMPiC synthetic](https://github.com/ufal/olimpic-icdar24) (MuseScore renders of Lieder accompaniment systems) | sequence-model training | CC BY-SA 4.0 |
+| [GrandStaff](https://github.com/multiscore/e2e-pianoform) images with [GrandStaff-LMX](https://hdl.handle.net/11234/1-5423) transcriptions (piano excerpts) | sequence-model training | LMX: CC BY-SA 4.0; images: no license stated, published for research replication |
 | [OLiMPiC code and Zeus model](https://github.com/ufal/olimpic-icdar24) (the authors' TEDn metric and end-to-end recognizer) | comparison only (`scripts/compare_zeus.sh`) | code MIT; Zeus model CC BY-SA 4.0 |
 
 ASAP and MUSCIMA++ are non-commercial (NC), so models trained by this pipeline are for
-non-commercial use. OLiMPiC is share-alike (SA): anything redistributed that is derived
-from it must carry the same license; it is only evaluated on here. Its scans come from
+non-commercial use. OLiMPiC and GrandStaff-LMX are share-alike (SA): a redistributed
+sequence model trained on them must carry the same license. Its scans come from
 IMSLP, where works are public domain in Canada and in most countries for these 19th- and
 early 20th-century editions, but check local copyright before redistributing images.
 
