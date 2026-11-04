@@ -222,6 +222,19 @@ float vertical_distance(const RhythmItem& item, const PageSymbols& symbols, cv::
   return d;
 }
 
+// A beam group of 3 or 6 is one triplet or sextuplet. A longer group (a triplet beamed
+// together with plain notes) holds the triplet under the number, which is centred over
+// its three notes.
+std::vector<RhythmItem*> triplet_within_group(std::vector<RhythmItem*> group, const Blob& number) {
+  if (group.size() == kNotesInTriplet || group.size() == 2 * kNotesInTriplet || group.size() < kNotesInTriplet) return group;
+  std::sort(group.begin(), group.end(), [](auto* a, auto* b) { return a->x < b->x; });
+  size_t middle = 1;
+  for (size_t i = 1; i + 1 < group.size(); ++i) {
+    if (std::abs(group[i]->x - number.center.x) < std::abs(group[middle]->x - number.center.x)) middle = i;
+  }
+  return {group.begin() + static_cast<std::ptrdiff_t>(middle) - 1, group.begin() + static_cast<std::ptrdiff_t>(middle) + 2};
+}
+
 // Items a tuplet number belongs to: the beam group it sits over, else the notes and
 // rests nearest to it on its staff (a bracketed or bare tuplet).
 std::vector<RhythmItem*> tuplet_members(const Blob& number, const PageSymbols& symbols, float il, std::vector<RhythmItem>& items) {
@@ -241,7 +254,7 @@ std::vector<RhythmItem*> tuplet_members(const Blob& number, const PageSymbols& s
       best = members;
     }
   }
-  if (!best.empty()) return best;
+  if (!best.empty()) return triplet_within_group(std::move(best), number);
   std::vector<RhythmItem*> nearest;
   for (RhythmItem& it : items) {
     if (it.page_staff == number.staff && !it.value.in_tuplet()) nearest.push_back(&it);
@@ -253,10 +266,10 @@ std::vector<RhythmItem*> tuplet_members(const Blob& number, const PageSymbols& s
   return nearest;
 }
 
-// Only 3 and 6 (both 2/3 time) are told apart; other tuplet numbers are left alone.
+// Triplets and sextuplets: both play in 2/3 of their written time.
 void apply_tuplets(const PageSymbols& symbols, float il, std::vector<RhythmItem>& items) {
   for (const Blob& number : symbols.tuplets) {
-    if (number.kind != "tuplet_3" || number.staff < 0) continue;
+    if (number.staff < 0) continue;
     for (RhythmItem* it : tuplet_members(number, symbols, il, items)) {
       it->value.tuplet_actual = 3;
       it->value.tuplet_normal = 2;

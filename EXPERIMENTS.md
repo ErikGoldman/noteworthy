@@ -64,3 +64,9 @@ Infrastructure:
   ts_cut 0.7%, clef_c 0.8%, flag_32 1.7%, ts_common 2.7%, rest_32 3.2%, ottava 4.3%,
   double_flat 5.5%. Added `--balanced-crops` (crops centred on a uniformly chosen class
   present on the page) for the next run; in a smoke test it doubles rare-class crops.
+- v2 @20k steps (with clef height filter): **verovio-100 0.872, musescore-100 0.852**.
+  Plain pitch errors 1247 → 23; onset errors now dominate (1174 / 1413).
+- Tuplets: tuplet_other (val F1 0.00 at every eval; 0.7% of pages) fires on 3s with mass
+  equal to tuplet_3, so rival suppression dropped real triplets. Only tuplet_3 is extracted
+  now (075 0.587→0.755, 083 0.573→0.787). A triplet beamed together with plain notes is
+  the 3 notes centred under the number (075 → 0.79).

@@ -46,7 +46,7 @@ struct PageSymbols {
   std::vector<Blob> barlines;
   std::vector<Blob> braces;
   std::vector<Blob> ties;         // ties and slurs
-  std::vector<Blob> tuplets;      // kind tuplet_3 / tuplet_other: the tuplet number
+  std::vector<Blob> tuplets;      // kind tuplet_3: the number of a triplet or sextuplet
   std::vector<Blob> ottavas;      // an 8va/8vb mark joined with its dashed line
   cv::Mat beam_labels;            // CV_32S connected-component labels of the beam map, 0 = none
 };

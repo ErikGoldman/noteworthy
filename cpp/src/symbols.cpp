@@ -265,7 +265,9 @@ PageSymbols extract_symbols(const SymbolMaps& maps, const std::vector<Staff>& st
   append_components(out.barlines, maps, {"barline"}, tiny);
   append_components(out.braces, maps, {"brace"}, tiny);
   append_components(out.ties, maps, {"tie_slur"}, tiny);
-  if (maps.has("tuplet_3")) append_components(out.tuplets, maps, {"tuplet_3", "tuplet_other"}, tiny);
+  // Only 2/3 tuplets are interpreted. tuplet_other is too rare to train reliably and
+  // fires on 3s as well, so letting it compete would only suppress real triplets.
+  if (maps.has("tuplet_3")) append_components(out.tuplets, maps, {"tuplet_3"}, tiny);
   if (maps.has("ottava")) out.ottavas = extract_ottavas(maps["ottava"], interline, tiny);
   for (auto* group : {&out.flags, &out.dots, &out.accidentals, &out.rests, &out.clefs, &out.time_digits, &out.barlines,
                       &out.tuplets, &out.ottavas}) {
