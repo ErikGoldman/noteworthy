@@ -24,7 +24,7 @@ import verovio
 from lxml import etree
 
 from .fonts import use_smufl_fonts
-from .channels import CHANNEL_INDEX, CHANNELS, GLYPH_CHANNEL, TUPLET_GLYPH_CHANNEL, pack_masks
+from .channels import CHANNEL_INDEX, CHANNELS, GLYPH_CHANNEL, TUPLET_GLYPH_CHANNEL
 
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
@@ -279,8 +279,16 @@ def label_page(svg: bytes, font: str, interline_px: float) -> tuple[np.ndarray, 
     rasterizer = _ChannelRasterizer(etree.tostring(root), channel_of_prim, width, height)
     present = frozenset(channel_of_prim.values())
     image = 255 - rasterizer.alpha(present - {"head_center"})
-    masks = np.zeros((height, width, len(CHANNELS)), dtype=bool)
+    return image, _packed_masks(rasterizer, present, height, width)
+
+
+def _packed_masks(rasterizer: "_ChannelRasterizer", present: frozenset[str], height: int, width: int) -> np.ndarray:
+    """Channel masks packed as channels.pack_masks does (channel c = bit 7 - c % 8 of byte
+    c // 8), built directly: filling a full (H, W, C) bool array channel by channel is a
+    strided write per channel and dominated labeling time on large pages."""
+    planes = np.zeros(((len(CHANNELS) + 7) // 8, height, width), dtype=np.uint8)
     for name in present:
-        masks[..., CHANNEL_INDEX[name]] = rasterizer.alpha(frozenset({name})) >= MASK_ALPHA_THRESHOLD
-    return image, pack_masks(masks)
+        c = CHANNEL_INDEX[name]
+        planes[c // 8] |= (rasterizer.alpha(frozenset({name})) >= MASK_ALPHA_THRESHOLD).view(np.uint8) << (7 - c % 8)
+    return np.ascontiguousarray(np.moveaxis(planes, 0, -1))
 
