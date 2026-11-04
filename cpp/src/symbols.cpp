@@ -18,7 +18,7 @@ constexpr float kStemColumnInterlines = 0.25f;
 constexpr float kStemGapInterlines = 1.3f;  // a notehead's height plus margin
 constexpr float kStaffReachInterlines = 6.0f;   // how far outside a staff a symbol may sit
 constexpr float kStaffXReachInterlines = 4.0f;  // detected staff ends fall short of the drawn ones
-constexpr float kOttavaDashGapInterlines = 1.0f;
+constexpr float kOttavaDashGapInterlines = 2.0f;
 constexpr float kRivalOverlap = 0.5f;  // box IoU above which two blobs are one symbol
 // Even the reduced mid-system clefs stand >= 2.4 interlines tall; shorter clef blobs are
 // specks on other symbols (time-signature digits) or the separate dots of an F clef.

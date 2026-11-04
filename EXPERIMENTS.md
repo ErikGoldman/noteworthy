@@ -86,3 +86,7 @@ Infrastructure:
   Spot checks: 003 0.712→0.998, 086 0.697→0.848.
 - v2 @20k with tuplet/time-signature/voice-side changes: **verovio-100 0.887 (from 0.872),
   musescore-100 0.861 (from 0.852)**. Onset errors 1174 → 902 (verovio).
+- MuseScore draws ottava extensions as thin, sparse dashes; v2 only finds the "8", so the
+  shift covered one note (088: 42 octave errors). Rasterization now varies the ottava dash
+  pattern and stroke width per page (seeded from the page SVG, so relabeling reproduces
+  it); C++ joins dashes across gaps up to 2 interlines.

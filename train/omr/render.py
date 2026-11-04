@@ -14,6 +14,7 @@ from __future__ import annotations
 import functools
 import random
 import re
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -236,6 +237,28 @@ def _layout_svg(tk: verovio.toolkit, svg: str, px_per_unit: float) -> bytes:
     return etree.tostring(root)
 
 
+# Verovio draws every ottava extension with one dash pattern; other engravers use thinner,
+# sparser dashes, which a network trained on Verovio alone does not recognize.
+OTTAVA_DASH_UNITS = (15.0, 60.0)
+OTTAVA_GAP_RATIO = (1.0, 4.0)
+OTTAVA_STROKE_SCALE = (0.5, 1.5)
+
+
+def _vary_line_styles(inner: etree._Element, rng: random.Random) -> None:
+    """Randomizes the drawing style of lines Verovio always draws alike. Seeded from the
+    page, so relabeling a stored page reproduces it."""
+    dash = rng.uniform(*OTTAVA_DASH_UNITS)
+    gap = dash * rng.uniform(*OTTAVA_GAP_RATIO)
+    stroke_scale = rng.uniform(*OTTAVA_STROKE_SCALE)
+    for g in inner.iter(f"{{{SVG_NS}}}g"):
+        if g.get("class", "").split()[:1] != ["octave"]:
+            continue
+        for line in g.iter(f"{{{SVG_NS}}}path"):
+            if line.get("stroke-dasharray"):
+                line.set("stroke-dasharray", f"{dash:.0f} {gap:.0f}")
+                line.set("stroke-width", f"{float(line.get('stroke-width', '18')) * stroke_scale:.0f}")
+
+
 def label_page(svg: bytes, font: str, interline_px: float) -> tuple[np.ndarray, np.ndarray]:
     """Page image (H, W) uint8 and packed channel masks of a laid-out page SVG."""
     use_smufl_fonts()
@@ -245,6 +268,7 @@ def label_page(svg: bytes, font: str, interline_px: float) -> tuple[np.ndarray, 
     px_per_unit = width / float(inner.get("viewBox").split()[2])
 
     _add_head_center_markers(inner, font, HEAD_CENTER_RADIUS_INTERLINES * interline_px / px_per_unit)
+    _vary_line_styles(inner, random.Random(zlib.crc32(svg)))
 
     # Glyph <defs> live in the outer <svg>, so iterating the inner page only visits drawn primitives.
     channel_of_prim: dict[int, str] = {}
