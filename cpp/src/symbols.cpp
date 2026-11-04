@@ -175,7 +175,7 @@ void assign_staff(std::vector<Blob>& blobs, const std::vector<Staff>& staves) {
 // and a digit's mask can carry specks of another digit's channel, so digits are the
 // components of all digit channels together, cut apart at each staff's middle line,
 // and each is named by the channel holding most of its probability mass.
-std::vector<Blob> extract_time_digits(const SymbolMaps& maps, const std::vector<Staff>& staves, double interline, int min_area) {
+std::vector<TimeGlyph> extract_time_digits(const SymbolMaps& maps, const std::vector<Staff>& staves, double interline, int min_area) {
   static constexpr const char* kKinds[] = {"ts_0", "ts_1", "ts_2", "ts_3", "ts_4", "ts_5", "ts_6",
                                            "ts_7", "ts_8", "ts_9", "ts_common", "ts_cut"};
   cv::Mat any_digit = cv::Mat::zeros(maps.size(), CV_8U);
@@ -191,24 +191,27 @@ std::vector<Blob> extract_time_digits(const SymbolMaps& maps, const std::vector<
   }
   cv::Mat labels, stats, centroids;
   const int n = cv::connectedComponentsWithStats(any_digit, labels, stats, centroids, 8, CV_32S);
-  std::vector<Blob> out;
+  std::vector<TimeGlyph> out;
   for (int i = 1; i < n; ++i) {
     if (stats.at<int>(i, cv::CC_STAT_AREA) < min_area) continue;
     const cv::Rect box(stats.at<int>(i, cv::CC_STAT_LEFT), stats.at<int>(i, cv::CC_STAT_TOP), stats.at<int>(i, cv::CC_STAT_WIDTH),
                        stats.at<int>(i, cv::CC_STAT_HEIGHT));
     const cv::Mat mask = labels(box) == i;
-    const char* best = kKinds[0];
+    TimeGlyph glyph;
     double best_mass = -1;
-    for (const char* kind : kKinds) {
-      const double mass = cv::sum(maps[kind](box) & mask)[0];
+    for (size_t k = 0; k < std::size(kKinds); ++k) {
+      const double mass = cv::sum(maps[kKinds[k]](box) & mask)[0];
+      if (k < glyph.digit_mass.size()) glyph.digit_mass[k] = mass;
       if (mass > best_mass) {
         best_mass = mass;
-        best = kind;
+        glyph.kind = kKinds[k];
       }
     }
-    out.push_back({best, box,
-                   cv::Point2f(static_cast<float>(centroids.at<double>(i, 0)), static_cast<float>(centroids.at<double>(i, 1))),
-                   stats.at<int>(i, cv::CC_STAT_AREA), -1});
+    glyph.box = box;
+    glyph.center = cv::Point2f(static_cast<float>(centroids.at<double>(i, 0)), static_cast<float>(centroids.at<double>(i, 1)));
+    glyph.area = stats.at<int>(i, cv::CC_STAT_AREA);
+    glyph.staff = nearest_staff(staves, glyph.center, kStaffReachInterlines);
+    out.push_back(std::move(glyph));
   }
   return out;
 }
@@ -269,7 +272,7 @@ PageSymbols extract_symbols(const SymbolMaps& maps, const std::vector<Staff>& st
   // fires on 3s as well, so letting it compete would only suppress real triplets.
   if (maps.has("tuplet_3")) append_components(out.tuplets, maps, {"tuplet_3"}, tiny);
   if (maps.has("ottava")) out.ottavas = extract_ottavas(maps["ottava"], interline, tiny);
-  for (auto* group : {&out.flags, &out.dots, &out.accidentals, &out.rests, &out.clefs, &out.time_digits, &out.barlines,
+  for (auto* group : {&out.flags, &out.dots, &out.accidentals, &out.rests, &out.clefs, &out.barlines,
                       &out.tuplets, &out.ottavas}) {
     assign_staff(*group, staves);
   }

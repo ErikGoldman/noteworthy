@@ -4,6 +4,8 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <numeric>
+#include <string>
 
 #include "chords.h"
 #include "layout.h"
@@ -20,8 +22,13 @@ constexpr float kKeyAccidentalClearance = 2.0f;
 constexpr float kTieEndReach = 1.2f;
 constexpr float kTieVerticalReach = 1.5f;
 constexpr float kHeadHalfWidth = 0.6f;
-constexpr int kMaxBeats = 32;
-constexpr int kMaxBeatType = 32;
+// Values a time signature's numbers may take.
+const std::vector<int> kBeatCounts = [] {
+  std::vector<int> v(32);
+  std::iota(v.begin(), v.end(), 1);
+  return v;
+}();
+const std::vector<int> kBeatTypes = {1, 2, 4, 8, 16, 32};
 
 int floor_mod(int a, int b) { return ((a % b) + b) % b; }
 
@@ -119,16 +126,16 @@ class SystemReader {
   std::optional<TimeSignature> time_signature(int k) const {
     for (int n = 1; n <= static_cast<int>(sys_.staves.size()); ++n) {
       const int page_staff = sys_.staves[n - 1];
-      std::vector<const Blob*> upper, lower;
-      for (const Blob& d : symbols_.time_digits) {
+      std::vector<const TimeGlyph*> upper, lower;
+      for (const TimeGlyph& d : symbols_.time_digits) {
         if (d.staff != page_staff || d.center.x < measure_left(k) || d.center.x >= content_start(k, n)) continue;
         if (d.kind == "ts_common") return TimeSignature{4, 4};
         if (d.kind == "ts_cut") return TimeSignature{2, 2};
         (d.center.y < staves_[page_staff].center_y(d.center.x) ? upper : lower).push_back(&d);
       }
-      if (upper.empty() || lower.empty()) continue;
-      const TimeSignature t{number(upper), number(lower)};
-      if (plausible(t)) return t;
+      const std::optional<int> beats = decode_number(upper, kBeatCounts);
+      const std::optional<int> beat_type = decode_number(lower, kBeatTypes);
+      if (beats && beat_type) return TimeSignature{*beats, *beat_type};
     }
     return std::nullopt;
   }
@@ -172,23 +179,31 @@ class SystemReader {
   }
 
  private:
-  // Digits left to right. Blobs overlapping horizontally are pieces of one digit (a
-  // thin stroke can split a glyph into separate components).
-  static int number(std::vector<const Blob*> digits) {
-    std::sort(digits.begin(), digits.end(), [](const Blob* a, const Blob* b) { return a->box.x < b->box.x; });
-    int value = 0;
+  // The allowed value whose digits the glyphs support best. Glyphs overlapping
+  // horizontally are pieces of one digit (a thin stroke can split a glyph).
+  static std::optional<int> decode_number(std::vector<const TimeGlyph*> glyphs, const std::vector<int>& allowed) {
+    std::sort(glyphs.begin(), glyphs.end(), [](const TimeGlyph* a, const TimeGlyph* b) { return a->box.x < b->box.x; });
+    std::vector<std::array<double, 10>> digits;
     std::optional<int> covered_until;
-    for (const Blob* d : digits) {
-      const bool same_digit = covered_until && d->box.x < *covered_until - d->box.width / 2;
-      covered_until = std::max(covered_until.value_or(d->box.br().x), d->box.br().x);
-      if (!same_digit) value = value * 10 + (d->kind.back() - '0');
+    for (const TimeGlyph* g : glyphs) {
+      const bool same_digit = covered_until && g->box.x < *covered_until - g->box.width / 2;
+      if (!same_digit) digits.push_back({});
+      for (int d = 0; d < 10; ++d) digits.back()[d] += g->digit_mass[d];
+      covered_until = std::max(covered_until.value_or(g->box.br().x), g->box.br().x);
     }
-    return value;
-  }
-
-  static bool plausible(const TimeSignature& t) {
-    const bool power_of_two = t.beat_type > 0 && (t.beat_type & (t.beat_type - 1)) == 0;
-    return t.beats >= 1 && t.beats <= kMaxBeats && power_of_two && t.beat_type <= kMaxBeatType;
+    std::optional<int> best;
+    double best_score = -1;
+    for (int value : allowed) {
+      const std::string text = std::to_string(value);
+      if (text.size() != digits.size()) continue;
+      double score = 0;
+      for (size_t i = 0; i < text.size(); ++i) score += digits[i][text[i] - '0'];
+      if (score > best_score) {
+        best_score = score;
+        best = value;
+      }
+    }
+    return best;
   }
 
   int head_right_of(const Blob& acc) const {

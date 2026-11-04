@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string>
 #include <vector>
 
@@ -34,6 +35,13 @@ struct Blob {
   int staff = -1;    // nearest staff, or -1 when far from every staff
 };
 
+// A time-signature glyph (digit, common or cut time). `digit_mass[d]` is the network's
+// probability mass for digit d over the glyph, so numbers can be decoded under musical
+// constraints (beat types are powers of two) instead of digit by digit.
+struct TimeGlyph : Blob {
+  std::array<double, 10> digit_mass{};
+};
+
 struct PageSymbols {
   std::vector<Notehead> heads;
   std::vector<Stem> stems;
@@ -42,7 +50,7 @@ struct PageSymbols {
   std::vector<Blob> accidentals;  // kind sharp / flat / natural / double_*
   std::vector<Blob> rests;        // kind rest_*
   std::vector<Blob> clefs;        // kind clef_*
-  std::vector<Blob> time_digits;  // kind ts_*
+  std::vector<TimeGlyph> time_digits;  // kind ts_*: the most probable reading
   std::vector<Blob> barlines;
   std::vector<Blob> braces;
   std::vector<Blob> ties;         // ties and slurs

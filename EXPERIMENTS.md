@@ -70,3 +70,6 @@ Infrastructure:
   equal to tuplet_3, so rival suppression dropped real triplets. Only tuplet_3 is extracted
   now (075 0.587→0.755, 083 0.573→0.787). A triplet beamed together with plain notes is
   the 3 notes centred under the number (075 → 0.79).
+- Time signatures decoded under constraints: each glyph keeps per-digit probability mass and a
+  number is the allowed value with the highest total (beats 1–32, beat types powers of two).
+  063 (4/2, the 2 read as 3): 0.58 → 0.819. Remaining: 6 vs 9 near-ties at 20k (066).
