@@ -217,13 +217,13 @@ def render_score_pages(musicxml_path: str, options: dict, target_interline_px: f
     px_per_unit = target_interline_px / (UNITS_PER_INTERLINE_PER_UNIT * options["unit"])
     pages = []
     for page_no in page_numbers[:max_pages]:
-        svg = _layout_svg(tk, tk.renderToSVG(page_no), px_per_unit)
+        svg = layout_svg(tk, tk.renderToSVG(page_no), px_per_unit)
         image, masks = label_page(svg, options["font"], target_interline_px)
         pages.append(RenderedPage(image=image, masks=masks, interline_px=target_interline_px, font=options["font"], svg=svg))
     return pages
 
 
-def _layout_svg(tk: verovio.toolkit, svg: str, px_per_unit: float) -> bytes:
+def layout_svg(tk: verovio.toolkit, svg: str, px_per_unit: float) -> bytes:
     """The page SVG, sized in pixels and self-describing: labeling needs no toolkit."""
     root = etree.fromstring(svg.encode())
     _strip_invisible(root)

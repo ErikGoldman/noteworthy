@@ -224,6 +224,9 @@ Infrastructure:
   to 0.932: on three interleaved voices (017, 0.715 → 0.338) the column timeline overfills
   with no tuplet and plain 16th groups were turned into triplets. Exact kept. The scan
   cases need grace notes recognized as such.
+- Exact rule, rest of the A/B (v5): musescore-100 0.925 → 0.925 (tolerant 0.921); OLiMPiC
+  dev pages 0.565 → **0.569** (tolerant 0.579: +0.01 on scans, but −0.005/−0.004 on the
+  synthetic benchmarks from wrongly tripleted polyphony; exact kept).
 
 ### Zeus comparison (`scripts/compare_zeus.sh`, `eval/zeus_comparison.py`)
 - Zeus (released model, CNN + BiLSTM encoder, attention LSTM decoder, LMX output) runs on
@@ -256,3 +259,42 @@ Infrastructure:
   and a few pieces (05, 17, 18, 20: few or no separators/legible rhythm).
 - v5 (which trained on all 140 pages, dev included, so optimistic): **dev F1 0.296**,
   right pitch timing aside 0.601, over 1,610 scored notes on 20 pages. Print is 0.94.
+
+## 2026-11-04 (afternoon): system-crop transformer (train/seq, train_seq.py)
+- Model: ResNet encoder (stride 32 rows x 16 columns, 384 channels) + 2 transformer
+  encoder layers over the 2D grid (learned row + sinusoidal column positions) + 6-layer
+  transformer decoder (d 384, 8 heads) emitting OLiMPiC's LMX tokens; 26M parameters.
+  Height 256, greedy decoding. Augmentation: random vertical margins, rotation ±1°,
+  horizontal scale 0.85-1.15, stroke weight, binarization, capture_degradation.
+- Data: OLiMPiC synthetic (15k Lieder accompaniment systems, MuseScore renders; Zeus's
+  training set), GrandStaff-LMX (41.6k piano excerpts, Verovio renders; images from
+  grfia.dlsi.ua.es), and our own PDMX system crops (build_seq_dataset.py: two-staff
+  parts cut into 2-6-measure systems with OLiMPiC's split_part_to_systems, rendered alone
+  with Verovio under random fonts and engraving options, LMX by OLiMPiC's linearizer).
+- Scored on OLiMPiC scanned dev crops (eval/seq_predict.py writes Zeus-layout
+  predictions; note F1 by olimpic_benchmark.py --predictions on the 658 crops of songs
+  without a PDMX/ASAP copy; SER over all 1,438).
+
+### Smashcima first look (not yet used)
+- smashcima 1.1.2 installs, but: its MUSCIMA++ v1.0 download URL (LINDAT) now returns an
+  HTML page (the GitHub v1.0 release works); it needs OpenCV 4 contrib only (OpenCV 5
+  changed findNonZero's shape; plain + contrib OpenCV together lose cv2.ximgproc).
+- Renders a whole page per call (8-18 s on one core, even for one system). Picks a random
+  writer from all 50 MUSCIMA++ writers, including our 7 test writers: its writer domain
+  must be restricted to training writers.
+- On an OLiMPiC system in 5 sharps it drew no key signature, so image and LMX disagree;
+  usable as-is only for systems without key signatures. Parked behind the printed
+  transformer experiments.
+
+### State when paused (15:26, the user needed the PC)
+- PDMX system crops: 67,361 systems from 20,644 training scores (data/seq_pdmx). Three
+  scores hung inside Verovio and blocked the pool; the builder was stopped and the list
+  written from the finished directories. TODO: a per-score watchdog like build_dataset.py's.
+  Forked workers lose Verovio's fonts ("font resources are not available"): spawn.
+- Run A (OLiMPiC synthetic x2 + GrandStaff, 80k steps planned): stopped at step 8,500;
+  last checkpoint step 5,000, dev SER 46.4% on the first 300 scanned dev crops (Zeus on
+  all dev: 15.8%). Resumes from runs/seq_a/last.pt. It ran at 125 samples/s alone and
+  60-80 while the crop builder shared the CPU.
+- Next: finish run A, score it against Zeus on the 658 clean dev crops (note F1, SER),
+  then run B with the PDMX crops (monitored with --dev-samples data/olimpic_dev_clean.txt,
+  since PDMX holds copies of other dev songs).

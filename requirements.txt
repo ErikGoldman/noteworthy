@@ -13,3 +13,4 @@ tqdm==4.70.1
 verovio==6.4.0
 mung==1.2.1           # MUSCIMA++ graphs: handwritten benchmark ground truth
 scikit-image==0.26.0  # required by mung
+levenshtein==0.27.5  # token edit distance (SER) of the sequence model

@@ -4,6 +4,7 @@
 usage: olimpic_benchmark.py systems|pages --binary NOTEWORTHY --model MODEL.onnx --out DIR
                                           [--split dev|test] [--jobs N] [--threads T]
        olimpic_benchmark.py systems --predictions DIR --out DIR [--split dev|test]
+       olimpic_benchmark.py list [--split dev|test]
 
   systems  each OLiMPiC system crop is recognized alone and scored against its piano
            ground truth. Tests reading real engravings and scan noise. A crop shows no
@@ -12,6 +13,8 @@ usage: olimpic_benchmark.py systems|pages --binary NOTEWORTHY --model MODEL.onnx
            With --predictions, another recognizer's MusicXML for each crop is scored
            instead (DIR/samples/<song>/<system>.musicxml; see zeus_comparison.py).
            The samples scored are listed in OUT/scored_samples.txt.
+  list     prints the samples that may be scored (no copy in our training sources), e.g.
+           for monitoring a model trained on PDMX (train_seq.py --dev-samples).
   pages    each song's full IMSLP pages are recognized in order as one score, so page
            layout (finding staves and systems among the voice part, lyrics, titles and
            neighbouring songs) and context carried across systems and pages are tested
@@ -194,17 +197,22 @@ def bench_pages(args: argparse.Namespace) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["systems", "pages"])
+    ap.add_argument("mode", choices=["systems", "pages", "list"])
     ap.add_argument("--binary")
     ap.add_argument("--model")
     ap.add_argument("--predictions", type=Path, help="score these instead of recognizing (systems only)")
-    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--out", type=Path)
     ap.add_argument("--split", choices=["dev", "test"], default="dev")
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--threads", type=int, default=2)
     args = ap.parse_args()
+    if args.mode == "list":
+        print("\n".join(split_samples(args.split)[0]))
+        return
     if not args.predictions and not (args.binary and args.model):
         ap.error("--binary and --model are needed unless --predictions is given")
+    if args.out is None:
+        ap.error("--out is needed")
     if args.predictions and args.mode != "systems":
         ap.error("--predictions works with systems only")
     (bench_systems if args.mode == "systems" else bench_pages)(args)
