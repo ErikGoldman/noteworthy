@@ -91,7 +91,7 @@ void write_symbol_debug(const fs::path& path, const cv::Mat& page, const std::ve
     cv::circle(vis, h.center, 5, color, -1);
     cv::putText(vis, std::to_string(h.position), h.center + cv::Point2f(6, -6), cv::FONT_HERSHEY_SIMPLEX, 0.35, color, 1);
   }
-  for (const auto& it : omr::build_items(symbols, interline)) {
+  for (const auto& it : omr::build_items(symbols, staves, interline)) {
     const std::string label = std::to_string(it.value.base) + std::string(it.value.dots, '.') + (it.beam_group ? "b" : "");
     const float y = it.is_rest() ? staves[it.page_staff].bottom(it.x) + 30 : symbols.heads[it.heads.front()].center.y + 22;
     cv::putText(vis, label, cv::Point2f(it.x - 8, y), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(120, 0, 120), 1);

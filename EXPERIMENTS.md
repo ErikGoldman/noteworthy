@@ -81,3 +81,8 @@ Infrastructure:
   relabel_dataset.py now rewrites images as well as masks; synth_v2 to be re-rasterized
   after the v2 run. (The verovio-100 benchmark renders still show the box; kept for
   comparability until re-baselined.)
+- Rests carry a voice side (raised → upper voice, lowered → lower voice, by engraving
+  convention), used with stem direction for polyphony detection and voice chains.
+  Spot checks: 003 0.712→0.998, 086 0.697→0.848.
+- v2 @20k with tuplet/time-signature/voice-side changes: **verovio-100 0.887 (from 0.872),
+  musescore-100 0.861 (from 0.852)**. Onset errors 1174 → 902 (verovio).

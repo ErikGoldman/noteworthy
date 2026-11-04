@@ -31,7 +31,8 @@ struct Timing {
 // those already accepted:
 //   1. consecutive items under one beam follow each other (also across staves),
 //   2. items in the same vertical column start together,
-//   3. consecutive items of one staff and stem-direction voice follow each other.
+//   3. consecutive items of one staff and voice side (stem direction, or a rest moved
+//      up or down for its voice) follow each other.
 // A constraint that would make a group span more than the measure is skipped.
 // Groups left unconnected are placed by interpolating x against placed items and the
 // barlines, then snapped to a multiple of the group's shortest duration.

@@ -358,7 +358,7 @@ std::map<int, Pitch> ScoreBuilder::resolve_pitches(const std::vector<MeasureItem
 }
 
 void ScoreBuilder::add_page(const std::vector<Staff>& staves, const PageSymbols& symbols, double interline) {
-  const std::vector<RhythmItem> items = build_items(symbols, interline);
+  const std::vector<RhythmItem> items = build_items(symbols, staves, interline);
   for (const System& sys : find_systems(staves, symbols, interline)) {
     score_.staves = std::max(score_.staves, static_cast<int>(sys.staves.size()));
     std::vector<RhythmItem> sys_items;

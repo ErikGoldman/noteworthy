@@ -69,7 +69,7 @@ bool staff_is_polyphonic(const std::vector<MeasureItem>& items, int staff, doubl
     for (size_t j = i + 1; j < items.size(); ++j) {
       const RhythmItem& a = *items[i].item;
       const RhythmItem& b = *items[j].item;
-      if (items[i].staff == staff && items[j].staff == staff && a.stem_dir * b.stem_dir < 0 &&
+      if (items[i].staff == staff && items[j].staff == staff && a.voice_side * b.voice_side < 0 &&
           same_column(items[i], items[j], interline)) {
         return true;
       }
@@ -101,7 +101,7 @@ void add_constraints(RelativeOnsets& onsets, const std::vector<MeasureItem>& ite
   for (size_t i = 0; i < items.size(); ++i) {
     const int staff = items[i].staff;
     if (!polyphonic.count(staff)) polyphonic[staff] = staff_is_polyphonic(items, staff, interline);
-    const int voice = polyphonic[staff] ? items[i].item->stem_dir : 0;
+    const int voice = polyphonic[staff] ? items[i].item->voice_side : 0;
     voices[{staff, voice}].push_back(static_cast<int>(i));
   }
   for (auto& [key, members] : voices) chain(onsets, items, members);
@@ -165,18 +165,18 @@ std::vector<Rational> anchor_groups(RelativeOnsets& onsets, const std::vector<Me
   return result;
 }
 
-// Partitions each staff's items into non-overlapping voices, keeping stem directions
+// Partitions each staff's items into non-overlapping voices, keeping voice sides
 // apart when they overlap in time.
 std::vector<int> assign_voices(const std::vector<MeasureItem>& items, const std::vector<Rational>& onsets) {
   std::vector<int> order(items.size());
   std::iota(order.begin(), order.end(), 0);
   std::sort(order.begin(), order.end(), [&](int a, int b) {
     if (onsets[a] != onsets[b]) return onsets[a] < onsets[b];
-    return items[a].item->stem_dir > items[b].item->stem_dir;
+    return items[a].item->voice_side > items[b].item->voice_side;
   });
   struct Lane {
     int staff;
-    int stem_dir;
+    int voice_side;
     Rational end;
   };
   std::vector<Lane> lanes;
@@ -189,7 +189,7 @@ std::vector<int> assign_voices(const std::vector<MeasureItem>& items, const std:
     for (int pass = 0; pass < 2 && chosen < 0; ++pass) {
       for (size_t l = 0; l < lanes.size(); ++l) {
         const bool free = lanes[l].staff == it.staff && lanes[l].end <= onsets[i];
-        const bool same_dir = lanes[l].stem_dir == it.item->stem_dir || it.item->stem_dir == 0;
+        const bool same_dir = lanes[l].voice_side == it.item->voice_side || it.item->voice_side == 0;
         if (free && (pass == 1 || same_dir)) {
           chosen = static_cast<int>(l);
           break;
@@ -197,7 +197,7 @@ std::vector<int> assign_voices(const std::vector<MeasureItem>& items, const std:
       }
     }
     if (chosen < 0) {
-      lanes.push_back({it.staff, it.item->stem_dir, Rational(0)});
+      lanes.push_back({it.staff, it.item->voice_side, Rational(0)});
       lane_slot.push_back(lanes_per_staff[it.staff]++);
       chosen = static_cast<int>(lanes.size()) - 1;
     }

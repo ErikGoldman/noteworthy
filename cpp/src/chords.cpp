@@ -26,6 +26,10 @@ constexpr float kStemlessChordDx = 0.6f;
 constexpr float kSecondDisplacementDx = 1.6f;  // a head displaced beside its neighbour a step away
 constexpr float kTupletBeamOverhang = 1.0f;    // a tuplet number may sit slightly past its group's ends
 constexpr int kNotesInTriplet = 3;
+// A rest's centre normally lies within these distances above/below the middle line (a
+// whole rest hangs from the fourth line); farther means it was moved aside for a voice.
+constexpr float kRestNormalAbove = 1.25f;
+constexpr float kRestNormalBelow = 1.0f;
 
 int find_stem(const Notehead& h, const std::vector<Stem>& stems, float il) {
   int best = -1;
@@ -150,6 +154,7 @@ void add_stemmed_chords(const PageSymbols& symbols, float il, std::vector<int>& 
     RhythmItem item;
     item.heads = heads;
     item.stem_dir = stem.top < min_y - 0.5f * il ? 1 : -1;
+    item.voice_side = item.stem_dir;
     item.x = stem.x - item.stem_dir * kHeadHalfWidth * il;
     // Chords take the page staff of the head nearest the stem's head end.
     const int anchor = item.stem_dir > 0 ? *std::max_element(heads.begin(), heads.end(), [&](int a, int b) {
@@ -202,10 +207,18 @@ void add_stemless_chords(const PageSymbols& symbols, float il, const std::vector
   }
 }
 
-void add_rests(const PageSymbols& symbols, float il, std::vector<RhythmItem>& items) {
+int rest_voice_side(const Blob& rest, const Staff& staff, float il) {
+  const float above_middle = staff.center_y(rest.center.x) - rest.center.y;
+  if (above_middle > kRestNormalAbove * il) return 1;
+  if (above_middle < -kRestNormalBelow * il) return -1;
+  return 0;
+}
+
+void add_rests(const PageSymbols& symbols, const std::vector<Staff>& staves, float il, std::vector<RhythmItem>& items) {
   for (const Blob& r : symbols.rests) {
     if (r.staff < 0) continue;
     RhythmItem item;
+    item.voice_side = rest_voice_side(r, staves[r.staff], il);
     item.x = r.center.x;
     item.page_staff = r.staff;
     item.rest_kind = r.kind;
@@ -279,13 +292,13 @@ void apply_tuplets(const PageSymbols& symbols, float il, std::vector<RhythmItem>
 
 }  // namespace
 
-std::vector<RhythmItem> build_items(const PageSymbols& symbols, double interline) {
+std::vector<RhythmItem> build_items(const PageSymbols& symbols, const std::vector<Staff>& staves, double interline) {
   const float il = static_cast<float>(interline);
   std::vector<RhythmItem> items;
   std::vector<int> stem_of_head(symbols.heads.size(), -1);
   add_stemmed_chords(symbols, il, stem_of_head, items);
   add_stemless_chords(symbols, il, stem_of_head, items);
-  add_rests(symbols, il, items);
+  add_rests(symbols, staves, il, items);
   apply_tuplets(symbols, il, items);
   std::sort(items.begin(), items.end(), [](const RhythmItem& a, const RhythmItem& b) { return a.x < b.x; });
   return items;
