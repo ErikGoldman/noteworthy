@@ -134,3 +134,9 @@ Infrastructure:
   Dice back to present channels only. ONNX now outputs probabilities (C++ no longer applies
   a sigmoid); old checkpoints re-export with plain sigmoids — v3 re-exported, outputs
   unchanged on spot checks. Fine-tune of v3, 20k steps, balanced crops 0.5.
+- v5 @5k: val F1 ts_5 0.87, ts_6 0.86, ts_9 0.87 (v3: 0.70 / 0.35 / 0.28), tuplet_other
+  0.35 (never above 0.09 before). Score 095 now reads 6/8 (v2/v3: 9/8 or 5/8).
+- **v5 final (20k): verovio-100 0.947, musescore-100 0.928** (v3: 0.941 / 0.926); val mean F1
+  0.796 (v3 0.740). Onset errors 782 → 625 (verovio), 501 → 466 (musescore).
+  First-time-signature misreads 30/100 → 2/100 (verovio), 1/97 (musescore); the rest are
+  cut time read as common time, which gives the same measure length.
