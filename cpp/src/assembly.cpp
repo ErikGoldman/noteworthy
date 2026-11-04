@@ -58,6 +58,15 @@ std::vector<MeasureItem> measure_items(const std::vector<RhythmItem>& sys_items,
   return out;
 }
 
+std::vector<StaffPlacement> staff_placements(const std::vector<Staff>& staves, const System& sys, double scale) {
+  std::vector<StaffPlacement> out;
+  const float mid_x = (sys.x_start + sys.x_end) / 2;
+  for (int s : sys.staves) {
+    out.push_back({static_cast<float>(staves[s].top(mid_x) / scale), static_cast<float>(staves[s].bottom(mid_x) / scale)});
+  }
+  return out;
+}
+
 }  // namespace
 
 // Key and time changes drawn at the start of measure k of a system.
@@ -122,7 +131,7 @@ std::map<int, Pitch> ScoreBuilder::resolve_pitches(const std::vector<MeasureItem
   return pitch_of;
 }
 
-void ScoreBuilder::add_page(int page_number, const std::vector<Staff>& staves, const PageSymbols& symbols, double interline) {
+void ScoreBuilder::add_page(const InputPage& page, const std::vector<Staff>& staves, const PageSymbols& symbols, double interline) {
   const std::vector<RhythmItem> items = build_items(symbols, staves, interline);
   bool first_on_page = true;
   for (const System& sys : find_systems(staves, symbols, interline)) {
@@ -136,7 +145,9 @@ void ScoreBuilder::add_page(int page_number, const std::vector<Staff>& staves, c
     for (int k = 0; k < sys.measure_count(); ++k) {
       Measure measure;
       measure.layout.new_system = k == 0;
-      if (std::exchange(first_on_page, false)) measure.layout.new_page = page_number;
+      measure.layout.page = page.number;
+      if (k == 0) measure.layout.staves = staff_placements(staves, sys, page.scale);
+      if (std::exchange(first_on_page, false)) measure.layout.new_page = page.number;
       apply_attribute_changes(reader, k, measure);
       const Rational length = time_->measure_length();
       const std::vector<MeasureItem> mitems = measure_items(sys_items, sys, k, length);

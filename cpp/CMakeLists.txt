@@ -38,6 +38,7 @@ add_library(omr
   src/layout.cpp
   src/rhythm.cpp
   src/assembly.cpp
+  src/layout_json.cpp
   src/key_signature.cpp
   src/system_reader.cpp
   src/musicxml_writer.cpp

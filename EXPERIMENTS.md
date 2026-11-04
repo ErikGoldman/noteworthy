@@ -192,3 +192,24 @@ Infrastructure:
 - Pipeline stages now check their own outputs instead of stamp files: a second
   `./reproduce.sh` downloads nothing, renders nothing, and `train.py` returns at once on a
   finished checkpoint. MuseScore is found via `$MUSESCORE` or PATH.
+
+### Real scans: OLiMPiC (`eval/olimpic_benchmark.py`)
+- OLiMPiC (ÚFAL, CC BY-SA): OpenScore Lieder piano accompaniments with the IMSLP scans
+  they were transcribed from. Its release also ships the IMSLP page images, system boxes
+  and a sample→page map, so both system crops and full pages are scored, all automated
+  (replaces the manual IMSLP download plan; IMSLP blocks scripted downloads).
+- Dev split, songs with any copy in PDMX/ASAP left out (780 of 1,438 systems; most
+  Lieder songs are on PDMX). Test split held out like Night Album.
+- v5, systems (658 crops, 36.5k notes): **F1 0.532**; right pitch in the right measure
+  regardless of timing 0.875.
+- v5, pages (48 songs, the voice staff and lyrics on the page, only annotated piano staves
+  scored): **F1 0.565**; right pitch 0.884; 25 extra measures, none missed, so page
+  layout holds up. Carrying the time signature across systems is worth +0.03 over crops.
+- Error mix is timing: onset 4756, onset+duration 4049, duration 2744 vs missed 1982,
+  extra 2345, semitone 1357. Worst songs are implied triplets (6474359: every pitch
+  right, triplet eighths read as plain eighths once the "3" stops being printed) —
+  the same top failure the OLiMPiC authors report for their end-to-end model.
+- Synthetic-vs-real gap: 0.95 → 0.56. Next: implied tuplets (beam groups whose durations
+  overfill the beat), then a scan-like augmentation check.
+- Recognizer: several inputs are read as consecutive pages; `--layout` writes where each
+  system's staves lie on the input pages (used to score only annotated staves).

@@ -17,8 +17,12 @@ namespace omr {
 // persist across systems and pages until they change.
 class ScoreBuilder {
  public:
-  // page_number: 1-based position of the page in the input, recorded in the output layout.
-  void add_page(int page_number, const std::vector<Staff>& staves, const PageSymbols& symbols, double interline);
+  // Where a page came from, recorded in the output layout.
+  struct InputPage {
+    int number;    // 1-based position in the input
+    double scale;  // the page was resized by this factor before recognition
+  };
+  void add_page(const InputPage& page, const std::vector<Staff>& staves, const PageSymbols& symbols, double interline);
   Score build() &&;
 
  private:

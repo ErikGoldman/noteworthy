@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -9,6 +10,7 @@
 #include "assembly.h"
 #include "chords.h"
 #include "layout.h"
+#include "layout_json.h"
 #include "musicxml_writer.h"
 #include "page_source.h"
 #include "segmenter.h"
@@ -20,7 +22,8 @@ namespace fs = std::filesystem;
 namespace {
 
 struct Options {
-  fs::path input;
+  std::vector<fs::path> inputs;  // consecutive pages of one score
+  fs::path layout;
   fs::path model;
   fs::path output;
   fs::path debug_dir;
@@ -28,7 +31,9 @@ struct Options {
 };
 
 void usage() {
-  std::cerr << "usage: noteworthy INPUT(.pdf|image) --model MODEL.onnx -o OUT.musicxml [--debug DIR] [--threads N]\n";
+  std::cerr << "usage: noteworthy INPUT(.pdf|image)... --model MODEL.onnx -o OUT.musicxml\n"
+               "                  [--layout OUT.json] [--debug DIR] [--threads N]\n"
+               "Several inputs are read as consecutive pages of one score.\n";
 }
 
 bool parse_args(int argc, char** argv, Options& opt) {
@@ -40,17 +45,19 @@ bool parse_args(int argc, char** argv, Options& opt) {
       opt.model = v;
     } else if (a == "-o" && (v = next())) {
       opt.output = v;
+    } else if (a == "--layout" && (v = next())) {
+      opt.layout = v;
     } else if (a == "--debug" && (v = next())) {
       opt.debug_dir = v;
     } else if (a == "--threads" && (v = next())) {
       opt.threads = std::stoi(v);
-    } else if (!a.starts_with("-") && opt.input.empty()) {
-      opt.input = a;
+    } else if (!a.starts_with("-")) {
+      opt.inputs.push_back(a);
     } else {
       return false;
     }
   }
-  return !opt.input.empty() && !opt.model.empty() && !opt.output.empty();
+  return !opt.inputs.empty() && !opt.model.empty() && !opt.output.empty();
 }
 
 cv::Mat normalize_scale(const cv::Mat& page, double target_interline, double& scale_out) {
@@ -109,7 +116,10 @@ int main(int argc, char** argv) {
   }
   try {
     omr::Segmenter segmenter(opt.model, opt.threads);
-    const auto pages = omr::load_pages(opt.input);
+    std::vector<cv::Mat> pages;
+    for (const fs::path& input : opt.inputs) {
+      for (cv::Mat& page : omr::load_pages(input)) pages.push_back(std::move(page));
+    }
     if (!opt.debug_dir.empty()) fs::create_directories(opt.debug_dir);
     omr::ScoreBuilder builder;
     for (size_t p = 0; p < pages.size(); ++p) {
@@ -118,7 +128,7 @@ int main(int argc, char** argv) {
       const omr::SymbolMaps maps = segmenter.run(page);
       const auto staves = omr::detect_staves(maps["staff_line"], segmenter.normalized_interline());
       const omr::PageSymbols symbols = omr::extract_symbols(maps, staves, segmenter.normalized_interline());
-      builder.add_page(static_cast<int>(p + 1), staves, symbols, segmenter.normalized_interline());
+      builder.add_page({static_cast<int>(p + 1), scale}, staves, symbols, segmenter.normalized_interline());
       std::cerr << "page " << p + 1 << ": scale " << scale << ", " << staves.size() << " staves, "
                 << symbols.heads.size() << " noteheads\n";
       if (!opt.debug_dir.empty()) {
@@ -132,7 +142,8 @@ int main(int argc, char** argv) {
       }
     }
     const omr::Score score = std::move(builder).build();
-    std::ofstream(opt.output) << omr::to_musicxml(score, opt.input.stem().string());
+    std::ofstream(opt.output) << omr::to_musicxml(score, opt.inputs.front().stem().string());
+    if (!opt.layout.empty()) std::ofstream(opt.layout) << omr::to_layout_json(score);
     std::cerr << score.measures.size() << " measures written to " << opt.output << "\n";
   } catch (const std::exception& e) {
     std::cerr << "error: " << e.what() << "\n";

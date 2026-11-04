@@ -37,7 +37,8 @@ download() {
   mv "$dest.partial" "$dest"
 }
 
-# Unpacks ARCHIVE (zip or tar.gz) and moves the listed top-level entries into DEST_DIR.
+# Unpacks ARCHIVE (zip or tar.gz) and moves the listed top-level entries into DEST_DIR,
+# in order, so the last entry's presence means all are in place.
 unpack() {
   local archive=$1 dest=$2
   shift 2
@@ -47,6 +48,6 @@ unpack() {
     *.zip) unzip -q "$archive" -d "$tmp" ;;
     *) tar xzf "$archive" -C "$tmp" ;;
   esac
-  for entry in "$@"; do mv "$tmp/$entry" "$dest/$entry"; done
+  for entry in "$@"; do rm -rf "${dest:?}/$entry" && mv "$tmp/$entry" "$dest/$entry"; done
   rm -rf "$tmp"
 }

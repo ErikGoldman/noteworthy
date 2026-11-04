@@ -62,10 +62,19 @@ struct ClefChange {
   Rational onset;  // 0 = at the measure start; the measure length = just before its end barline
 };
 
+// Vertical extent of a staff on the input page, in input pixels (top line to bottom line,
+// at the middle of the staff).
+struct StaffPlacement {
+  float top = 0;
+  float bottom = 0;
+};
+
 // Where a measure sits in the source's layout, for tools that relate output to pages.
 struct LayoutBreak {
   bool new_system = false;
   std::optional<int> new_page;  // 1-based page number of the input, on a page's first measure
+  int page = 0;                 // 1-based page number of the input
+  std::vector<StaffPlacement> staves;  // on a system's first measure: its staves, by staff number - 1
 };
 
 struct Measure {

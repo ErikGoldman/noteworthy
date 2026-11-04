@@ -35,4 +35,21 @@ cpp/build/noteworthy score.pdf --model runs/finetune/model.onnx -o score.musicxm
 - `eval/` benchmarks and error analysis; `EXPERIMENTS.md` is the experiment log
 - `scripts/` the stages `reproduce.sh` runs
 
-MUSCIMA++ is CC BY-NC-SA 4.0, so models trained with it are for non-commercial use.
+## Data and licenses
+
+`reproduce.sh` downloads these; none are redistributed here.
+
+| data | used for | license |
+|---|---|---|
+| [PDMX](https://zenodo.org/records/15571083) (MusicXML from MuseScore.com) | training renders, benchmarks | the scores used are public domain or CC0 |
+| [ASAP](https://github.com/fosfrancesco/asap-dataset) (classical piano MusicXML) | training renders | CC BY-NC-SA 4.0 |
+| [MUSCIMA++ 2.0](https://github.com/OMR-Research/muscima-pp) and [CVC-MUSCIMA](http://www.cvc.uab.es/cvcmuscima/) (handwritten pages) | training | CC BY-NC-SA 4.0 |
+| [OLiMPiC](https://github.com/ufal/olimpic-icdar24) (IMSLP scans of [OpenScore Lieder](https://github.com/OpenScore/Lieder) songs, with piano transcriptions) | benchmarks only | CC BY-SA 4.0; the Lieder transcriptions themselves are CC0 |
+
+ASAP and MUSCIMA++ are non-commercial (NC), so models trained by this pipeline are for
+non-commercial use. OLiMPiC is share-alike (SA): anything redistributed that is derived
+from it must carry the same license; it is only evaluated on here. Its scans come from
+IMSLP, where works are public domain in Canada and in most countries for these 19th- and
+early 20th-century editions, but check local copyright before redistributing images.
+
+Night Album, used as a held-out test, is copyrighted and not included.
