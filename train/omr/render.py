@@ -22,6 +22,7 @@ import numpy as np
 import verovio
 from lxml import etree
 
+from .fonts import use_smufl_fonts
 from .channels import CHANNEL_INDEX, CHANNELS, GLYPH_CHANNEL, TUPLET_GLYPH_CHANNEL, pack_masks
 
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -237,6 +238,7 @@ def _layout_svg(tk: verovio.toolkit, svg: str, px_per_unit: float) -> bytes:
 
 def label_page(svg: bytes, font: str, interline_px: float) -> tuple[np.ndarray, np.ndarray]:
     """Page image (H, W) uint8 and packed channel masks of a laid-out page SVG."""
+    use_smufl_fonts()
     root = etree.fromstring(svg)
     inner = root.find(f"{{{SVG_NS}}}svg")
     width, height = int(root.get("width").removesuffix("px")), int(root.get("height").removesuffix("px"))

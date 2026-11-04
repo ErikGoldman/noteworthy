@@ -73,3 +73,11 @@ Infrastructure:
 - Time signatures decoded under constraints: each glyph keeps per-digit probability mass and a
   number is the allowed value with the highest total (beats 1–32, beat types powers of two).
   063 (4/2, the 2 read as 3): 0.58 → 0.819. Remaining: 6 vs 9 near-ties at 20k (066).
+- Found: Verovio sets music symbols inside text (the note of "♩ = 120") in the SMuFL font
+  as text; with no such font installed cairo drew an empty box, so training never showed
+  a tempo-mark note. MuseScore prints a real note there and the network reads it as one
+  (069: spurious first note shifts every onset of the measure). Fix: omr/fonts.py extracts
+  Verovio's embedded WOFF2 fonts into data/fonts and points fontconfig at them.
+  relabel_dataset.py now rewrites images as well as masks; synth_v2 to be re-rasterized
+  after the v2 run. (The verovio-100 benchmark renders still show the box; kept for
+  comparability until re-baselined.)
