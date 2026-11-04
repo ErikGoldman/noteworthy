@@ -112,7 +112,7 @@ std::optional<int> SystemReader::key_signature(int k, int current_fifths, const 
     const KeySpelling key = spell_key(key_accidental_steps(k, n, carried));
     std::optional<int> reading;
     if (k == 0) {
-      reading = key.fifths;
+      reading = key.counted_fifths;
     } else if (key.fifths != 0 && key.exact) {
       reading = key.fifths;
     } else if (key.fifths == 0 && key.exact && cancels_key(key.natural_steps, current_fifths)) {

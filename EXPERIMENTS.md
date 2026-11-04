@@ -98,3 +98,15 @@ Infrastructure:
   the first note used to override the note's own natural).
 - Barlines with no note or rest before them (start-repeat after clef/key/time) no longer
   open an empty measure that shifted the whole page: 064 0.30 → 0.90.
+
+### v2 final (runs/v2: 60k steps; val mean F1 0.712 @60k, best 0.721 @30k)
+- model_last (60k), before the key fix below: **verovio-100 0.920**, musescore-100 0.856.
+  The verovio jump (0.887 → 0.920) is mostly the opening-barline fix (whole-page measure
+  shifts); semitone errors on musescore doubled (242 → 521).
+- Cause: strict key spelling at system starts. MuseScore's flats (Leland) put the note
+  reference a step off for this pipeline, so the ordered run stopped early (4 flats read
+  as 2). System starts now count accidentals again; strict spelling is kept for
+  mid-system changes only. MuseScore spot checks: 077 0.675→0.795, 099 0.771→0.922,
+  059 0.770→0.919, 080 0.307→0.433.
+- synth_v2 re-rasterized (fonts + ottava line styles); mask packing 8.3 s → 2.3 s per page.
+- v3 started: fine-tune of v2 last.pt, 20k steps, lr 5e-4, --balanced-crops 0.5.

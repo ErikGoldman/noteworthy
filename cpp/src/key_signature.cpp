@@ -24,19 +24,21 @@ int key_alter(int fifths, int diatonic) {
 
 KeySpelling spell_key(const std::vector<std::pair<int, int>>& alter_and_step) {
   KeySpelling out;
-  int altered = 0, run = 0, sign = 0;
+  int altered = 0, run = 0, sign = 0, sharps = 0, flats = 0;
   for (const auto& [alter, step] : alter_and_step) {
     if (alter == 0) {
       out.natural_steps.push_back(step);
       continue;
     }
     ++altered;
+    (alter > 0 ? sharps : flats)++;
     if (sign == 0) sign = alter > 0 ? 1 : -1;
     const int* order = sign > 0 ? kSharpOrder : kFlatOrder;
     if ((alter > 0) == (sign > 0) && run < 7 && order[run] == step) ++run;
   }
   out.fifths = sign * run;
   out.exact = run == altered;
+  out.counted_fifths = sharps >= flats ? sharps : -flats;
   return out;
 }
 

@@ -9,11 +9,14 @@ namespace omr {
 // diatonic step (C4 = 0, any octave).
 int key_alter(int fifths, int diatonic);
 
-// How a row of accidentals reads as a key signature: the longest run of sharps or flats
-// following the standard order. `exact` when every sharp and flat is part of that run.
+// How a row of accidentals reads as a key signature. `fifths` is the longest run of
+// sharps or flats following the standard order, `exact` when every sharp and flat is
+// part of it. `counted_fifths` just counts the more common of sharps and flats, which
+// tolerates misplaced glyph positions.
 struct KeySpelling {
   int fifths = 0;
   bool exact = true;
+  int counted_fifths = 0;
   std::vector<int> natural_steps;
 };
 
