@@ -114,7 +114,7 @@ def convert_page(xml_path: Path, image_path: Path, out_stem: Path) -> None:
     cv2.imwrite(str(out_stem.with_suffix(".png")), image)
     np.savez_compressed(out_stem.with_suffix(".npz"), masks=pack_masks(masks))
     out_stem.with_suffix(".json").write_text(json.dumps({
-        "source": xml_path.name, "font": "handwritten", "interline_px": interline, "options": {}}))
+        "source": str(xml_path.resolve()), "font": "handwritten", "interline_px": interline, "options": {}}))
 
 
 def main() -> None:

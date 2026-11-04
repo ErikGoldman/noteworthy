@@ -16,7 +16,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from score_events import NoteEvent, parse_musicxml
-from synthetic_benchmark import is_validation
+from synthetic_benchmark import held_out_scores
 
 
 def by_measure(events: list[NoteEvent]) -> list[list[NoteEvent]]:
@@ -103,7 +103,7 @@ def main() -> None:
     ap.add_argument("--count", type=int, default=100)
     args = ap.parse_args()
 
-    scores = [Path(l.strip()) for l in Path(args.scores).read_text().splitlines() if l.strip() and is_validation(l.strip())]
+    scores = held_out_scores(args.scores)
     total = Counter()
     worst = []
     for i, score in enumerate(scores[: args.count]):

@@ -9,7 +9,8 @@ source "$(dirname "$0")/common.sh"
 
 MUSCIMA_WEIGHT=20  # handwritten pages are few; each counts this many times
 
-# train_stage NAME STEPS [train.py options]. An interrupted stage resumes from its last checkpoint.
+# train_stage NAME STEPS [train.py options]. A stage with a checkpoint resumes from it;
+# train.py returns at once when that checkpoint already reached STEPS.
 train_stage() {
   local name=$1 steps=$2
   shift 2
@@ -21,11 +22,11 @@ train_stage() {
     2>&1 | tee -a "$NW_RUNS/$name.log"
 }
 
-export_model() {
-  "$PY" "$ROOT/train/export_onnx.py" "$NW_RUNS/finetune/last.pt" "$NW_RUNS/finetune/model.onnx"
-}
-
 mkdir -p "$NW_RUNS"
-step train-base train_stage base "$NW_BASE_STEPS"
-step train-finetune train_stage finetune "$NW_FINETUNE_STEPS" --init "$NW_RUNS/base/last.pt" --lr 5e-4 --balanced-crops 0.5
-step export-model export_model
+train_stage base "$NW_BASE_STEPS"
+train_stage finetune "$NW_FINETUNE_STEPS" --init "$NW_RUNS/base/last.pt" --lr 5e-4 --balanced-crops 0.5
+model="$NW_RUNS/finetune/model.onnx"
+if [ ! "$model" -nt "$NW_RUNS/finetune/last.pt" ]; then
+  "$PY" "$ROOT/train/export_onnx.py" "$NW_RUNS/finetune/last.pt" "$model"
+fi
+log "model ready: $model"

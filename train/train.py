@@ -17,7 +17,6 @@ from omr.heads import EXCLUSIVE_FAMILIES, loss, probabilities
 from omr.dataset import PageCrops, collate_crops, init_worker, list_pages, split_by_source, to_model_input
 from omr.model import UNet
 
-VAL_FRACTION = 0.05
 VAL_CROPS = 512
 CROPS_PER_PAGE = 4
 
@@ -67,7 +66,7 @@ def main() -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     pages = [p for spec in args.data for p in weighted_pages(spec)]
-    train_pages, val_pages = split_by_source(pages, VAL_FRACTION)
+    train_pages, val_pages = split_by_source(pages)
     print(f"{len(train_pages)} train pages, {len(val_pages)} val pages")
 
     if args.batch % CROPS_PER_PAGE:
@@ -93,6 +92,9 @@ def main() -> None:
         opt.load_state_dict(ckpt["opt"])
         sched.load_state_dict(ckpt["sched"])
         start_step = ckpt["step"]
+        if start_step >= args.steps:
+            print(f"{args.resume} already trained to step {start_step}; nothing to do")
+            return
     print(f"{sum(p.numel() for p in model.parameters()) / 1e6:.1f}M parameters")
 
     log = (out / "log.jsonl").open("a")

@@ -12,14 +12,15 @@ Current scope: notes and rhythm of engraved piano music.
 
 This sets up the Python environment, downloads the training sources (PDMX, ASAP,
 MUSCIMA++; about 6 GB), renders the synthetic training pages, trains the network,
-builds the C++ recognizer and runs the benchmarks. Finished steps are recorded in
-`data/.stamps`, so an interrupted run picks up where it stopped. Settings (page and
+builds the C++ recognizer and runs the benchmarks. Every stage skips work already
+done, so it is safe to rerun at any time; an interrupted run picks up where it stopped. Settings (page and
 step counts, data locations) are environment variables listed in `scripts/common.sh`;
 `reproduce.sh` shows a minutes-long smoke configuration.
 
 Requirements: Linux, an NVIDIA GPU, about 40 GB of disk, and
 `git curl unzip cmake g++ libopencv-dev` plus [uv](https://docs.astral.sh/uv/).
-The MuseScore benchmark also needs MuseScore 4 (under WSL, its Windows install).
+The MuseScore benchmark also needs MuseScore 4, on PATH or named by `$MUSESCORE` (under
+WSL, the Windows install's `MuseScore4.exe` works).
 
 ## Recognize a score
 

@@ -3,8 +3,8 @@
 usage: synthetic_benchmark.py --scores LIST.txt --binary NOTEWORTHY --model MODEL.onnx --out DIR
                               [--count N] [--degrade] [--renderer verovio|musescore]
 
-Scores are restricted to the validation split used in training (same hash rule), so the
-network has never seen them. Page 1 of each score is rendered, recognized by the C++
+Scores are restricted to held-out ones (omr.held_out), which the network never trained
+on; copies of the same pieces are kept out of training too (see train/list_scores.py). Page 1 of each score is rendered, recognized by the C++
 tool, and compared with the source MusicXML on the measures of that page.
 
 Training pages all come from Verovio, so the musescore renderer (a different engraver
@@ -17,11 +17,9 @@ from __future__ import annotations
 
 import argparse
 import io
-import json
 import subprocess
 import sys
 import tempfile
-import zlib
 from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from pathlib import Path
@@ -34,19 +32,21 @@ from PIL import Image
 
 from score_events import parse_musicxml
 
+import musescore
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "train"))
 from omr.augment import capture_degradation  # noqa: E402
+from omr.held_out import is_held_out  # noqa: E402
 
-VAL_FRACTION = 0.05  # must match train.py
 INTERLINE_PX = 24.0
 UNITS_PER_INTERLINE = 180.0  # Verovio default unit (9) * 20
-MUSESCORE = Path("/mnt/c/Program Files/MuseScore 4/bin/MuseScore4.exe")
 MUSESCORE_SPATIUM_MM = 1.75  # default interline
 MUSESCORE_DPI = round(INTERLINE_PX * 25.4 / MUSESCORE_SPATIUM_MM)
 
 
-def is_validation(source: str) -> bool:
-    return (zlib.crc32(source.encode()) % 1000) / 1000.0 < VAL_FRACTION
+def held_out_scores(score_list: str | Path) -> list[Path]:
+    """Held-out scores of a list, in list order."""
+    return [Path(line) for line in Path(score_list).read_text().split("\n") if line and is_held_out(Path(line))]
 
 
 def render_verovio(score: Path) -> tuple[np.ndarray, int]:
@@ -66,11 +66,8 @@ def render_verovio(score: Path) -> tuple[np.ndarray, int]:
 
 def render_musescore(scores: dict[int, Path], work: Path) -> dict[int, tuple[np.ndarray, int] | str]:
     """Page 1 of each score via one MuseScore batch job (a process start costs seconds)."""
-    windows = lambda p: subprocess.run(["wslpath", "-w", str(p)], capture_output=True, text=True, check=True).stdout.strip()
-    job = [{"in": windows(score), "out": [windows(work / f"{i:03d}.png"), windows(work / f"{i:03d}.mpos")]}
-           for i, score in scores.items()]
-    (work / "job.json").write_text(json.dumps(job))
-    subprocess.run([str(MUSESCORE), "-r", str(MUSESCORE_DPI), "-j", windows(work / "job.json")], capture_output=True)
+    conversions = [(score, [work / f"{i:03d}.png", work / f"{i:03d}.mpos"]) for i, score in scores.items()]
+    musescore.run_batch(conversions, work / "job.json", ["-r", str(MUSESCORE_DPI)])
     out: dict[int, tuple[np.ndarray, int] | str] = {}
     for i in scores:
         page, positions = work / f"{i:03d}-1.png", work / f"{i:03d}.mpos"
@@ -140,7 +137,7 @@ def main() -> None:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    scores = [Path(l.strip()) for l in Path(args.scores).read_text().splitlines() if l.strip() and is_validation(l.strip())]
+    scores = held_out_scores(args.scores)
 
     measure_counts = prepare_pages(scores, args.count, out, args.renderer, args.degrade)
 

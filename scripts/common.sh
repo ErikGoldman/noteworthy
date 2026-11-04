@@ -16,34 +16,37 @@ NW_TRAIN_WORKERS=${NW_TRAIN_WORKERS:-$(( $(nproc) < 10 ? $(nproc) : 10 ))}
 NW_BENCH_COUNT=${NW_BENCH_COUNT:-100}
 
 RAW="$NW_DATA/raw"
-STAMPS="$NW_DATA/.stamps"
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 
-# Runs a named step once: a stamp records success, so re-running the pipeline skips
-# finished steps and redoes an interrupted one. Delete the stamp to force a redo.
-step() {
-  local name=$1
-  shift
-  if [ -e "$STAMPS/$name" ]; then
-    log "$name: done earlier, skipping"
-    return
-  fi
-  log "$name: starting"
-  "$@"
-  mkdir -p "$STAMPS"
-  touch "$STAMPS/$name"
-  log "$name: finished"
-}
+# Each stage checks for its own outputs and skips work already done, so the pipeline can
+# be rerun at any point without downloading or recomputing finished parts. Outputs are
+# written under a temporary name and moved into place, so an interrupted step never
+# looks finished.
 
-# Downloads URL to DEST and checks its md5; a partial or corrupt file is never left at DEST.
+# Downloads URL to DEST unless DEST already has the right md5.
 download() {
   local url=$1 dest=$2 md5=$3
   if [ -e "$dest" ] && echo "$md5  $dest" | md5sum -c --quiet - 2>/dev/null; then
     return
   fi
   mkdir -p "$(dirname "$dest")"
+  log "downloading $url"
   curl -fL --retry 3 -C - -o "$dest.partial" "$url"
   echo "$md5  $dest.partial" | md5sum -c --quiet - || { echo "checksum mismatch for $url" >&2; exit 1; }
   mv "$dest.partial" "$dest"
+}
+
+# Unpacks ARCHIVE (zip or tar.gz) and moves the listed top-level entries into DEST_DIR.
+unpack() {
+  local archive=$1 dest=$2
+  shift 2
+  local tmp="$dest/.unpack"
+  rm -rf "$tmp" && mkdir -p "$tmp"
+  case "$archive" in
+    *.zip) unzip -q "$archive" -d "$tmp" ;;
+    *) tar xzf "$archive" -C "$tmp" ;;
+  esac
+  for entry in "$@"; do mv "$tmp/$entry" "$dest/$entry"; done
+  rm -rf "$tmp"
 }

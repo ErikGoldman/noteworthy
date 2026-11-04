@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import zlib
 from pathlib import Path
 
 import cv2
@@ -12,6 +11,7 @@ from torch.utils.data import Dataset
 
 from .augment import augment
 from .channels import CHANNELS, map_packed, unpack_masks
+from .held_out import is_held_out
 
 # The C++ pipeline rescales every page so its staff interline equals this.
 NORMALIZED_INTERLINE_PX = 20.0
@@ -43,13 +43,12 @@ def list_pages(root: str | Path) -> list[Path]:
     return sorted(p.with_suffix("") for p in Path(root).glob("*.json"))
 
 
-def split_by_source(pages: list[Path], val_fraction: float) -> tuple[list[Path], list[Path]]:
-    """Split so that no source score appears in both train and val."""
+def split_by_source(pages: list[Path]) -> tuple[list[Path], list[Path]]:
+    """(train, val): pages of held-out source scores go to val, so no score is in both."""
     train, val = [], []
     for page in pages:
-        source = json.loads(page.with_suffix(".json").read_text())["source"]
-        bucket = (zlib.crc32(source.encode()) % 1000) / 1000.0
-        (val if bucket < val_fraction else train).append(page)
+        source = Path(json.loads(page.with_suffix(".json").read_text())["source"])
+        (val if is_held_out(source) else train).append(page)
     return train, val
 
 

@@ -177,3 +177,18 @@ Infrastructure:
   labels → v3 → v5 softmax heads), so a reproduced model will differ somewhat from v5.
 - Regenerated PDMX lists are byte-identical; the ASAP list is now sorted (it was in
   filesystem order), which changes which scores the render samples.
+
+### Held-out rule and deduplication (breaks comparability with earlier results)
+- Held-out scores are now chosen by hash of file name + size (`train/omr/held_out.py`),
+  not absolute path, so every checkout and data location holds out the same scores.
+- Copies of held-out pieces are dropped from training (`train/omr/pieces.py`: equal
+  distinctive title words, composers not contradicting): 228 of 20,872 listed scores
+  (re-uploads and arrangements, e.g. several "Megalovania", Schubert D 899). Lieder
+  benchmark candidates exclude any song with a copy in PDMX or ASAP.
+- Consequence: v5 trained on 91 of the new verovio/musescore-100 scores, so v5 cannot be
+  benchmarked on them. All numbers above are on the old split; the next reference is a
+  fresh `./reproduce.sh` model. `data/synth_v2` was sampled from the old list
+  (`data/render_scores_synth_v2.txt`) and should not be used for new held-out comparisons.
+- Pipeline stages now check their own outputs instead of stamp files: a second
+  `./reproduce.sh` downloads nothing, renders nothing, and `train.py` returns at once on a
+  finished checkpoint. MuseScore is found via `$MUSESCORE` or PATH.

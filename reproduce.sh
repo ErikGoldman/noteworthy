@@ -4,8 +4,9 @@
 #   ./reproduce.sh
 #
 # Stages (each in scripts/): Python environment, raw data download, training pages,
-# training, C++ build, benchmark. Finished steps are recorded under data/.stamps, so
-# re-running after an interruption continues where it stopped.
+# training, C++ build, benchmark. Each stage skips what is already done, so the command
+# can be rerun at any time (after an interruption, or to pick up a new stage) without
+# downloading or recomputing finished parts.
 #
 # A full run downloads about 6 GB, needs about 40 GB of disk and an NVIDIA GPU, and
 # takes on the order of a day. Settings are environment variables (scripts/common.sh);

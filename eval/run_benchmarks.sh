@@ -5,7 +5,7 @@
 #
 # RENDER_CACHE_DIR keeps rendered pages between runs (one subdirectory per renderer),
 # so repeated runs only redo recognition. The MuseScore benchmark runs only where
-# MuseScore 4 is installed (see synthetic_benchmark.py).
+# MuseScore 4 is found (see musescore.py).
 set -euo pipefail
 source "$(dirname "$0")/../scripts/common.sh"
 
@@ -17,10 +17,10 @@ scores="$NW_DATA/pdmx_piano.txt"
 
 cd "$ROOT/eval"
 renderers=(verovio)
-if "$PY" -c "import sys; from synthetic_benchmark import MUSESCORE; sys.exit(not MUSESCORE.exists())" 2>/dev/null; then
+if "$PY" -c "import sys, musescore; sys.exit(musescore.find() is None)"; then
   renderers+=(musescore)
 else
-  echo "MuseScore 4 not found: skipping the musescore benchmark"
+  echo "MuseScore 4 not found (set MUSESCORE or put it on PATH): skipping the musescore benchmark"
 fi
 
 mkdir -p "$cache"
