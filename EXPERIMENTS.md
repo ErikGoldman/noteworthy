@@ -110,3 +110,11 @@ Infrastructure:
   059 0.770→0.919, 080 0.307→0.433.
 - synth_v2 re-rasterized (fonts + ottava line styles); mask packing 8.3 s → 2.3 s per page.
 - v3 started: fine-tune of v2 last.pt, 20k steps, lr 5e-4, --balanced-crops 0.5.
+- **Root cause found for rare-class false positives.** v2 @60k vs @20k with the same binary:
+  verovio-100 0.920 vs 0.921, onset errors 1346 vs 858. 30% of first time signatures were
+  misread (6/8 → 9/8 or 5/8, 4/4 → 9/1 or 5/1). On a "6", ts_5, ts_6, ts_9, ts_common and
+  ts_cut all fire with near-equal mass, though the labels never overlap. The soft Dice term
+  was computed only for channels present in the batch, so rare channels were almost never
+  penalized for false positives (BCE averaged over 45 channels × all pixels is too weak).
+  This also explains tuplet_other on 3s and clef_c specks on digits. Fix: Dice over all
+  channels (absent → 1 − 1/(mass+1)). v4 = fine-tune of v3 with the corrected loss.

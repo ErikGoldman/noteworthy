@@ -29,15 +29,20 @@ def weighted_pages(spec: str) -> list[Path]:
 
 
 def loss_fn(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """BCE for calibration plus per-channel soft Dice so rare symbols (rests, flags) are not drowned out."""
+    """BCE for calibration plus per-channel soft Dice so rare symbols (rests, flags) are not
+    drowned out.
+
+    Dice covers every channel, including those absent from the batch, where it reduces to
+    1 - 1 / (predicted mass + 1). Restricting it to present channels (as v1-v3 did) leaves
+    rare classes almost unpenalized for false positives, and the network learned to fire
+    them on anything similar: ts_5/ts_9/ts_cut on a 6, tuplet_other on a 3."""
     bce = F.binary_cross_entropy_with_logits(logits, target)
     prob = torch.sigmoid(logits)
     dims = (0, 2, 3)
     inter = (prob * target).sum(dims)
     denom = prob.sum(dims) + target.sum(dims)
-    present = target.sum(dims) > 0
     dice = 1 - (2 * inter + 1) / (denom + 1)
-    return bce + dice[present].mean() if present.any() else bce
+    return bce + dice.mean()
 
 
 @torch.no_grad()
