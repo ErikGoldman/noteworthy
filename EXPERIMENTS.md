@@ -167,3 +167,13 @@ Infrastructure:
   score stays held out.
 - At 633 notes this score can no longer separate models (5 errors); the PDMX benchmarks
   remain the development signal.
+
+### Reproducible pipeline (`./reproduce.sh`)
+- One command from a fresh clone: environment, downloads (md5-checked, ASAP pinned),
+  score lists, render, MUSCIMA++ conversion, training, export, C++ build, benchmarks.
+  Smoke configuration (64 pages, 300 steps) runs end to end in about 10 minutes.
+- Recipe = base 60k steps from scratch + fine-tune 20k (lr 5e-4, balanced crops 0.5)
+  with the current code. v5's own lineage differed (v2 sigmoid heads on pre-font-fix
+  labels → v3 → v5 softmax heads), so a reproduced model will differ somewhat from v5.
+- Regenerated PDMX lists are byte-identical; the ASAP list is now sorted (it was in
+  filesystem order), which changes which scores the render samples.

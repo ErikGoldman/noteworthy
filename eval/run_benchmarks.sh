@@ -4,22 +4,31 @@
 # usage: eval/run_benchmarks.sh MODEL.onnx RENDER_CACHE_DIR [JOBS] [THREADS_PER_JOB]
 #
 # RENDER_CACHE_DIR keeps rendered pages between runs (one subdirectory per renderer),
-# so repeated runs only redo recognition.
+# so repeated runs only redo recognition. The MuseScore benchmark runs only where
+# MuseScore 4 is installed (see synthetic_benchmark.py).
 set -euo pipefail
+source "$(dirname "$0")/../scripts/common.sh"
 
 model=$(realpath "$1")
 cache=$(realpath -m "$2")
 jobs=${3:-3}
 threads=${4:-0}
-root=$(cd "$(dirname "$0")/.." && pwd)
-python="$root/.venv/bin/python"
+scores="$NW_DATA/pdmx_piano.txt"
 
-cd "$root/eval"
-for renderer in verovio musescore; do
+cd "$ROOT/eval"
+renderers=(verovio)
+if "$PY" -c "import sys; from synthetic_benchmark import MUSESCORE; sys.exit(not MUSESCORE.exists())" 2>/dev/null; then
+  renderers+=(musescore)
+else
+  echo "MuseScore 4 not found: skipping the musescore benchmark"
+fi
+
+mkdir -p "$cache"
+for renderer in "${renderers[@]}"; do
   out="$cache/$renderer"
-  "$python" synthetic_benchmark.py --renderer "$renderer" --scores ../data/pdmx_piano.txt \
-    --binary ../cpp/build/noteworthy --model "$model" --out "$out" --count 100 --jobs "$jobs" --threads "$threads" \
+  "$PY" synthetic_benchmark.py --renderer "$renderer" --scores "$scores" \
+    --binary "$ROOT/cpp/build/noteworthy" --model "$model" --out "$out" --count "$NW_BENCH_COUNT" --jobs "$jobs" --threads "$threads" \
     > "$out.log" 2>&1 || { echo "$renderer benchmark failed, see $out.log"; exit 1; }
   echo "== $renderer: $(grep 'overall F1' "$out.log")"
-  "$python" diagnose.py "$out" ../data/pdmx_piano.txt | head -13
+  "$PY" diagnose.py "$out" "$scores" --count "$NW_BENCH_COUNT" | head -13
 done
