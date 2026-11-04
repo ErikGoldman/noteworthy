@@ -36,6 +36,11 @@ def dataset_items(spec: str):
     return samples(Path(root), split_names(Path(root), split)) * int(weight[0] if weight else 1)
 
 
+def plain(options: dict) -> dict:
+    """Paths as strings: torch.load's default weights_only mode rejects other classes."""
+    return {k: str(v) if isinstance(v, Path) else v for k, v in options.items()}
+
+
 def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
     model.eval()
     errors = total = 0
@@ -117,7 +122,7 @@ def main() -> None:
                 log.write(json.dumps({"step": step, "loss": loss.item(), "dev_ser": dev_ser}) + "\n")
                 log.flush()
                 state = {"model": model.state_dict(), "opt": opt.state_dict(), "sched": sched.state_dict(),
-                         "step": step, "best": min(best, dev_ser), "args": vars(args) | {"out": str(args.out)}}
+                         "step": step, "best": min(best, dev_ser), "args": plain(vars(args))}
                 torch.save(state, args.out / "last.pt")
                 if dev_ser < best:
                     best = dev_ser
