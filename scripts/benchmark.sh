@@ -2,6 +2,7 @@
 # Benchmarks the trained model (see EXPERIMENTS.md):
 #   verovio/musescore-100  held-out PDMX scores, rendered
 #   OLiMPiC dev            real IMSLP scans, as system crops and as full pages
+#   mutopia dev            piano pieces beyond OLiMPiC's genre, engraved by LilyPond
 #   handwritten dev        MUSCIMA++ pages (writer-dependent test set)
 #   Night Album            when its PDF is present (it is not distributed)
 # OLiMPiC test and the writer-independent MUSCIMA++ pages are held out like Night Album
@@ -21,6 +22,9 @@ for mode in systems pages; do
   (cd "$ROOT/eval" && "$PY" olimpic_benchmark.py "$mode" --binary "$binary" --model "$model" \
     --out "$NW_RUNS/benchmark/olimpic-$mode" --jobs "$jobs" --threads "$threads") | tee -a "$report"
 done
+echo "== mutopia dev" | tee -a "$report"
+(cd "$ROOT/eval" && "$PY" mutopia_benchmark.py --binary "$binary" --model "$model" \
+  --out "$NW_RUNS/benchmark/mutopia" --jobs "$jobs" --threads "$threads") | tee -a "$report"
 echo "== handwritten dev" | tee -a "$report"
 (cd "$ROOT/eval" && "$PY" handwritten_benchmark.py --binary "$binary" --model "$model" \
   --out "$NW_RUNS/benchmark/handwritten" --jobs "$jobs" --threads "$threads") | tee -a "$report"

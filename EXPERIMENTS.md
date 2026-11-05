@@ -381,7 +381,7 @@ Infrastructure:
   stricter check, by composer and catalogue number.
 - Truth from the MIDI (notes, durations, time signatures) plus \partial from the source,
   compared with v5 reading the PDF: bars equal on 4 of 5, off by one on the other; notes
-  within 6; pitch in the right measure 0.955-1.000. MIDI repeats are not unrolled.
+  within 6; pitch in the right measure 0.955-1.000.
 - F1 0.993 Chopin, 0.961 Beethoven, 0.879 Kumar, 0.661 Burgmuller, 0.236 Schumann. In the two
   worst, traced by hand, the errors are v5's: unmarked triplets read as eighths
   (Schumann, Kinderscenen 1), and 50 invented 1/6 durations in a piece with no tuplets
@@ -390,5 +390,24 @@ Infrastructure:
   rule earns its place. Likely a fingering 3 read as a tuplet numeral: the source has one
   on the first note of such groups (r16 g-3 ( fis e)), 10 in all, against 12 measures with
   invented triplets. Consistent, not proven; no fix tried.
-- These 5 pieces have had their errors read, so they can only ever be dev.
+- MIDI repeats were not unrolled in these 5; other sources use \unfoldRepeats (see below).
 - Run B step 35,000: dev SER 10.6% on the 658 clean crops (11.9% at 30,000; Zeus 14.9% on the same crops).
+- Run B step 40,000: dev SER 10.8% on the 658 clean crops (10.6% at 35,000): first step without improvement.
+- Run B step 45,000: dev SER 10.2% on the 658 clean crops (10.8% at 40,000).
+
+### Mutopia benchmark (eval/mutopia_benchmark.py, "print, varied repertoire" row)
+- Selection (select_mutopia.py, run once, list committed): composers absent from ASAP and
+  GrandStaff, then a melody check against all 20,644 training scores (top-note interval
+  8-grams; 10% shared with one score makes a copy). It flagged 15 of 43 candidates that
+  title matching had passed, up to exact copies, including Burgmuller's Op. 100 No. 18.
+- Two earlier scores (0.623, 0.624) were wrong and are void: the truth failed on unfolded
+  repeats, cadenzas, "\partial8" without a space, mid-piece pickups, grace notes (they
+  sound as notes and shift their neighbours) and bar-line-free scores. Sources with these
+  are now rejected, from the source and MIDI only, plus any piece with onsets off a written
+  grid. So the set tests no grace notes, free time or played-out repeats.
+- Composers whose results were read stay in dev; test is only composers never looked at.
+  Result: 10 dev pieces, 7 test pieces from 6 composers.
+- v5 on dev: F1 0.646 [0.585, 0.774], 8,176 notes; pitch in the right measure 0.948. Bars
+  agree within 4 on every piece. Timing is the gap: sampled by hand, Sousa's errors are v5's
+  (eighth rests between 6/8 chords dropped, so later onsets shift). Rendered print at 0.938
+  did not show this.

@@ -23,7 +23,7 @@ from note_scoring import gt_notes
 
 ROWS = {"rendered print, Verovio": "verovio", "rendered print, MuseScore": "musescore",
         "real scans, system crops": "olimpic-systems", "real scans, whole pages": "olimpic-pages",
-        "handwriting": "handwritten"}
+        "print, varied repertoire": "mutopia", "handwriting": "handwritten"}
 TEST_ONLY_ROWS = {"Night Album": "night-album"}
 RESAMPLES = 2000
 

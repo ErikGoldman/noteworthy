@@ -12,6 +12,8 @@
 #              (CC BY-SA 4.0) for training the sequence model
 #   GrandStaff piano excerpts (images) with GrandStaff-LMX transcriptions (CC BY-SA 4.0),
 #              for training the sequence model
+#   Mutopia    benchmark only: piano pieces engraved by LilyPond (CC or public domain),
+#              with sources, PDFs and MIDI (eval/mutopia_pieces.txt)
 #   Transcoda  benchmark only: its authors' trained model (CC BY 4.0), to compare against
 #
 # A source already in place is not fetched again. Archives are deleted once unpacked.
@@ -29,6 +31,9 @@ OLIMPIC_REPO=https://github.com/ufal/olimpic-icdar24.git
 OLIMPIC_COMMIT=f4f45ac523ebe09832342270a68b1b4368f63da2
 ZEUS_MODEL=https://github.com/ufal/olimpic-icdar24/releases/download/zeus-release/zeus-olimpic-1.0-2024-02-12.model.tar.gz
 GRANDSTAFF_IMAGES=https://grfia.dlsi.ua.es/musicdocs/grandstaff.tgz
+MUTOPIA_REPO=https://github.com/MutopiaProject/MutopiaProject.git
+MUTOPIA_COMMIT=2144afd6f52d56c5b6995b8b589ef1268b3139f0
+MUTOPIA_FILES=https://www.mutopiaproject.org/ftp
 TRANSCODA_REVISION=b529f8aa5d996d9224df3395b5b92d0867343c91
 TRANSCODA_MODEL=https://huggingface.co/btrkeks/transcoda-59M-zeroshot-v1/resolve/$TRANSCODA_REVISION
 
@@ -84,7 +89,6 @@ if [ ! -d "$RAW/olimpic/code/zeus-olimpic-1.0-2024-02-12.model" ]; then
   unpack "$RAW/olimpic/code/zeus.tgz" "$RAW/olimpic/code" zeus-olimpic-1.0-2024-02-12.model
   rm "$RAW/olimpic/code/zeus.tgz"
 fi
-log "raw data ready"
 
 while read -r file md5; do
   download "$TRANSCODA_MODEL/$file" "$RAW/transcoda/b529f8a/$file" "$md5"
@@ -101,3 +105,12 @@ done <<'FILES'
   tokenizer_config.json 138bf24fefffb08643d3bb5d52c72f79
   vision_frontend.py 58d977b416979c208f209f15eec4e067
 FILES
+
+checkout "$MUTOPIA_REPO" "$MUTOPIA_COMMIT" "$RAW/mutopia/repo"
+while read -r _ piece pdf_md5 midi_md5; do
+  name=$(basename "$piece")
+  download "$MUTOPIA_FILES/$piece/$name-a4.pdf" "$RAW/mutopia/pieces/$name-a4.pdf" "$pdf_md5"
+  download "$MUTOPIA_FILES/$piece/$name.mid" "$RAW/mutopia/pieces/$name.mid" "$midi_md5"
+done < "$ROOT/eval/mutopia_pieces.txt"
+
+log "raw data ready"
