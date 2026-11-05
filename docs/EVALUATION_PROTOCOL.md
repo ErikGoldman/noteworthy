@@ -1,0 +1,73 @@
+# Evaluation protocol
+
+Written before the final evaluation. Changing anything here after that run is a new
+experiment, to be reported as one alongside the original result.
+
+## The claim under test
+
+Zero-shot transcription of real scans of engraved piano music, by OMR-NED, against systems
+with public weights. Orchestral, quartet and handwritten music are outside it.
+
+## The system
+
+- Sequence model: the clean retrain. `runs/seq_clean/last.pt`, the final step of its fixed
+  schedule, with no checkpoint selection: `best.pt` is chosen on real scans, so it is not used.
+- Training data: OLiMPiC synthetic, GrandStaff, PDMX crops without held-out scores or
+  `license_conflict` scores. All synthetic. No labelled real scans.
+- Pipeline: `eval/seq_pages.py` at the commit that adds this file's frozen tag, reading each
+  system at `CROP_HEIGHT_RATIOS` and restoring tuplets (`eval/lmx_tuplets.py`).
+- Layout: the v5 U-Net in `cpp/`, used only to find systems.
+
+## What was developed on real scans (disclosed)
+
+No model weights were fitted to real scans, but these choices were made looking at OLiMPiC's
+scanned dev split and Mutopia dev: `CROP_HEIGHT_RATIOS`, the rules in `lmx_tuplets.py`,
+`rewind_to_measure_start`, and the decision to read twice. The U-Net model was trained with
+PDMX scores flagged `license_conflict`, and on handwritten pages (MUSCIMA++).
+
+Earlier looks at held-out data: Polish was run once with run C (OMR-NED 37.24). The final
+Polish run is therefore a second look, and is reported as such. Night Album has been scored
+for v5 and Transcoda.
+
+## Benchmarks
+
+Each runs once, on the frozen system. Numbers only; errors are not read.
+
+| benchmark | pages | gold | notes |
+|---|---|---|---|
+| Polish (`btrkeks/polish-scores`) | 112 | corrected `**kern` | also reported on gold as published |
+| OLiMPiC scanned test | 100 songs | LMX and MusicXML | crops and pages; Zeus is the baseline |
+| Mutopia test | 7 pieces | MIDI | note F1, not OMR-NED |
+| SMB pianoform, if access is granted | 469 | `**kern` | pages sharing 0.10 or more of their melody fragments with one training piece reported apart |
+
+The synthetic Verovio benchmark is not used for any claim: its sources overlap our training.
+
+## Metric
+
+OMR-NED from the authors' `src/evaluation/omr_ned.py` at Transcoda commit d4e2e68, unchanged,
+with musicdiff 5.0.2, music21 9.9.1 and converter21 3.5.0. A page that fails to parse, compare
+or finish in 900 s, or that has no prediction, scores 100. Scores are means over pages.
+MusicXML predictions are compared directly with the `**kern` gold (floor 0.54 on Polish).
+
+Comparisons are paired, with a 95% range from 5,000 resamples of pages (of songs or pieces
+where those are the unit). A difference counts only if its range excludes zero. Every page
+stays in the mean, including pages with more staves than the system reads.
+
+## Baselines
+
+Each runs with its authors' recommended settings, through the same scorer, and is reported
+whether or not it helps our case: Transcoda 59M at beam 3, and every other public system we
+can run. A published number is quoted only as published, never as a comparison on corrected
+gold. Models fine-tuned on a benchmark are not zero-shot baselines.
+
+## Overlap
+
+Before scoring, each benchmark is checked for copies of training pieces with
+`select_mutopia.melody_grams`: the share of a page's or song's fragments found in one training
+piece, 0.10 as the threshold, on the known copy in OLiMPiC dev (share 0.81) as positive control.
+Results are given with and without flagged pages. Polish: 7 pages flagged, none at 0.26.
+OLiMPiC test: 4 songs flagged, none at 0.26.
+
+## Reporting
+
+All rows are published, including those we lose. Predictions and per-page scores go with them.

@@ -59,7 +59,9 @@ SOURCES = OLIMPIC / "sources"
 # --- which songs count -----------------------------------------------------------------
 
 # Retitled in PDMX, so metadata misses them; found by comparing melodies staff by staff.
-COPIES_FOUND_BY_MELODY = {"6472842"}  # Haydn, The Mermaid's Song: "Now The Dancing Sunbeams Play"
+# Haydn, The Mermaid's Song ("Now The Dancing Sunbeams Play"), and a song sharing 0.48 of its
+# melody fragments with one training piece.
+COPIES_FOUND_BY_MELODY = {"6472842", "6654137"}
 
 
 def lieder_piece(path: str) -> Piece:

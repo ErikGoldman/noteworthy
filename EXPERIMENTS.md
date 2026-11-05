@@ -579,3 +579,9 @@ Infrastructure:
   recommend leaving them out. 2,896 of our 20,456 PDMX scores carry the flag, 7,278 of 64,067
   crops (11.4%). The builder now skips them, and the README overstated this. The clean
   retrain restarted on 56,789 PDMX crops. Run C and the U-Net model still contain them.
+- Melody check on OLiMPiC test: 100 songs, best share max 0.195, 4 at 0.10, none at 0.26. The
+  same script on dev finds the known copy at 0.81, so it can find copies. It also finds
+  6654137 at 0.48, which had passed the metadata filter into the clean dev list and scores
+  0.975 against 0.924: now excluded, leaving 46 songs. Dev numbers above include it.
+- docs/EVALUATION_PROTOCOL.md: the final run's rules, written before it. The final model is
+  last.pt, not best.pt: best.pt is selected on real scans, Transcoda claims no such selection.
