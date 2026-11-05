@@ -41,11 +41,14 @@ def split_names(root: Path, split: str) -> list[str]:
     return (root / f"samples.{split}.txt").read_text().split()
 
 
-def load_scaled(path: Path, height: int = HEIGHT) -> np.ndarray:
-    """Grayscale, black ink on white, scaled to `height`."""
-    image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+def scale_to_height(image: np.ndarray, height: int = HEIGHT) -> np.ndarray:
     width = min(MAX_WIDTH, max(1, round(image.shape[1] * height / image.shape[0])))
     return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
+
+
+def load_scaled(path: Path, height: int = HEIGHT) -> np.ndarray:
+    """Grayscale, black ink on white, scaled to `height`."""
+    return scale_to_height(cv2.imread(str(path), cv2.IMREAD_GRAYSCALE), height)
 
 
 def augment(rng: np.random.Generator, image: np.ndarray) -> np.ndarray:

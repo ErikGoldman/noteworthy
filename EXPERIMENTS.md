@@ -443,3 +443,11 @@ Infrastructure:
   (all in noise). H4, beams or flags outrank a head read as hollow (scan song 6499366: sixteenths
   read as halves): crops 0.544, +0.009 [0.000, +0.020]; Mutopia dev 0.803, +0.158 [+0.032, +0.312]
   over v5; rendered 0.941; handwriting 0.290.
+
+### Sequence model on whole pages (eval/seq_pages.py)
+- Layout from the recognizer finds systems; last two staves cropped, cut at the emptiest row
+  towards each neighbour; transcribed; measures joined. A first 0.545 was void: layout
+  coordinates are input pixels, debug pages are normalized, so crops were misplaced.
+- Run B on Mutopia dev, no tuning for pages: F1 0.750 [0.549, 0.942], right pitch 0.920; 8 of 10
+  pieces at 0.85+, Handel 1.000. Kumar's two pieces (5/4, 8/4, 12/4; a third of the notes):
+  0.37, 0.42. +0.059 [-0.024, +0.163] over Transcoda; v5 with its fixes is 0.803, tuned here.
