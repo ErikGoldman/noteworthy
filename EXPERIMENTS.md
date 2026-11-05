@@ -368,3 +368,8 @@ Infrastructure:
   handwriting 0.296 [0.214, 0.386] (20 pieces, trained on, so optimistic). Night Album 0.992
   is one piece and has no range. MuseScore 4 is not installed here: that row was not run.
 - Crops read 0.537 where 0.532 was logged earlier: not explained yet.
+- Zeus re-run on dev, scored the same way: crops F1 0.767 [0.699, 0.828], +0.230
+  [+0.155, +0.318] over v5, reproducing the earlier 0.767. Zeus's SER on the 658 clean
+  crops: 14.9% (15.8% on all dev), the like-for-like figure for run B's 11.9% at step
+  30,000. Caveats: run B's best.pt is picked on these crops, and its SER drops gold tokens
+  outside the vocabulary. Note F1 is the deciding number and comes when training ends.
