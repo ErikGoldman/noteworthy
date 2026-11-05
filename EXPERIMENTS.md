@@ -424,3 +424,18 @@ Infrastructure:
 - Run B step 55,000: dev SER 9.0% on the 658 crops (10.1% at 50,000).
 - Run B step 60,000: dev SER 8.2% on the 658 crops (9.0% at 55,000).
 - Run B step 65,000: dev SER 8.0% on the 658 crops (8.2% at 60,000).
+- H3, stemless heads read as quarters: a whole note has no stem, and a LilyPond whole read as
+  filled became a quarter. Any stemless head is now a whole. Mutopia dev 0.791 -> 0.799
+  (Little Toy Lost 0.653 -> 0.881), no piece worse. Scan regression check pending.
+- Real scans: crops are bimodal (80 above 0.9, 99 below 0.2). Songs with 30%+ tuplets, 3
+  songs, 3,815 notes: F1 0.195, tuplet share 0.74 in truth, 0.07 in output. Rule misses them:
+  a bass note plus five eighths under one beam is not a group of 3 or 6, and the long note
+  breaks the timeline. Needs two voices under one beam: left alone, as the transformer
+  would replace this code. Kumar's vase (atonal, 208 semitone errors) left alone too.
+- Run B step 70,000: dev SER 8.2% on the 658 crops (8.0% at 65,000): levelling off.
+- Run B step 75,000: dev SER 8.2% on the 658 crops: flat since 65,000.
+- Run B done (80k steps; best.pt step 65,000, dev SER 8.0%, last 8.4%; SER 8.55% over all 1,438
+  dev crops, Zeus 15.8%). **Note F1 on the 626 clean crops: 0.878 [0.822, 0.924]**: Zeus 0.767,
+  v5 0.536; +0.111 [+0.074, +0.156] over Zeus, +0.343 [+0.275, +0.416] over v5.
+- Lead holds on the 34 songs outside the melody check's printed top 14 (2 more at 10%+ were
+  not printed): run B 0.880, Zeus 0.764, v5 0.585; +[0.070, 0.171]. Not explained by copies.
