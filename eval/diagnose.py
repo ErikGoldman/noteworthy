@@ -39,10 +39,12 @@ def align_measures(gt: list[list[NoteEvent]], pred: list[list[NoteEvent]]) -> li
     n, m = len(gt), len(pred)
     gap = 0.9
     cost = [[0.0] * (m + 1) for _ in range(n + 1)]
+    # Summed, not i * gap: the walk back below compares costs with ==, and a border that
+    # rounds differently sends it past the table's edge, where it never ends.
     for i in range(1, n + 1):
-        cost[i][0] = i * gap
+        cost[i][0] = cost[i - 1][0] + gap
     for j in range(1, m + 1):
-        cost[0][j] = j * gap
+        cost[0][j] = cost[0][j - 1] + gap
     for i in range(1, n + 1):
         for j in range(1, m + 1):
             cost[i][j] = min(cost[i - 1][j - 1] + measure_cost(gt[i - 1], pred[j - 1]),
