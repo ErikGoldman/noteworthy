@@ -4,7 +4,7 @@ sequence model (train_seq.py).
 usage: build_seq_dataset.py --scores LIST.txt --out DIR [--systems-per-score K] [--workers W]
                             [--unmarked-tuplets]
 
-Held-out scores (omr.held_out) are left out. Each two-staff (piano) part is cut into systems of a few measures, which OLiMPiC's code
+Held-out scores (omr.held_out) and PDMX scores with a license conflict are left out. Each two-staff (piano) part is cut into systems of a few measures, which OLiMPiC's code
 turns into self-contained parts: clefs and key repeated at each system start, the time
 signature only where the score prints one (split_part_to_systems), as an engraver lays
 them out. K random systems per score are rendered alone with Verovio under random
@@ -39,10 +39,12 @@ import verovio
 
 from omr.fonts import use_smufl_fonts
 from omr.held_out import is_held_out
+from omr.pieces import pdmx_license_conflicts
 from omr.render import FONTS, UNITS_PER_INTERLINE_PER_UNIT, layout_svg
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(Path(os.environ.get("NW_DATA", ROOT / "data")) / "raw" / "olimpic" / "code" / "repo"))
+DATA = Path(os.environ.get("NW_DATA", ROOT / "data"))
+sys.path.insert(0, str(DATA / "raw" / "olimpic" / "code" / "repo"))
 from app.linearization.Linearizer import Linearizer  # noqa: E402
 from app.symbolic.part_to_score import part_to_score  # noqa: E402
 from app.symbolic.split_part_to_systems import split_part_to_systems  # noqa: E402
@@ -202,8 +204,10 @@ def main() -> None:
     sources = args.scores.read_text().split("\n")
     hung_log = args.out / "hung.txt"
     hung = set(hung_log.read_text().split("\n")) if hung_log.exists() else set()
+    conflicts = pdmx_license_conflicts(DATA / "raw" / "pdmx")
     jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets)
-            for i, s in enumerate(sources) if s.strip() and s not in hung and not is_held_out(Path(s))]
+            for i, s in enumerate(sources)
+            if s.strip() and s not in hung and not is_held_out(Path(s)) and Path(s).name not in conflicts]
     total = 0
     # "spawn", not fork: Verovio keeps its font resources in C++ static state that forked
     # workers cannot use ("font resources are not available"); see build_dataset.py.

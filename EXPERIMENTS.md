@@ -572,3 +572,10 @@ Infrastructure:
   scans, 469 pianoform, CC BY-NC) would be a far larger test, but is gated: manual approval
   under a person's own account. Its KernScores sources overlap GrandStaff, so it would need
   the melody check first.
+
+### Toward a credible claim
+
+- PDMX flags scores whose public license disagrees with the one in the file, and its authors
+  recommend leaving them out. 2,896 of our 20,456 PDMX scores carry the flag, 7,278 of 64,067
+  crops (11.4%). The builder now skips them, and the README overstated this. The clean
+  retrain restarted on 56,789 PDMX crops. Run C and the U-Net model still contain them.

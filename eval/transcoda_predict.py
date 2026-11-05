@@ -1,6 +1,6 @@
 """Transcoda (btrkeks/transcoda-59M-zeroshot-v1) on page images, for comparison.
 
-usage: transcoda_predict.py MODEL_DIR --out DIR [--joined NAME] PAGE.png [...]
+usage: transcoda_predict.py MODEL_DIR --out DIR [--joined NAME] [--beams N] PAGE.png [...]
 
 Runs in its own environment, .venv-transcoda (requirements-transcoda.txt): the model's
 code needs torchtune, which needs an older torch than ours. MODEL_DIR is a download of
@@ -12,7 +12,7 @@ given order as one score, for a multi-page ground truth. Without the grammar con
 the model can break **kern's spine rules, and the 2048-token limit can cut a line short;
 only the part of a page before the first such error is converted.
 
-Decoding is the model card's headline setting: beam search of width 3, repetition
+Decoding defaults to the model card's headline setting: beam search of width 3, repetition
 penalty 1.1, at most 2048 tokens, without the project repository's grammar constraint.
 Preprocessing follows the card: width 1050, white-padded or top-cropped to height 1485.
 """
@@ -41,10 +41,10 @@ def preprocess(path: Path) -> torch.Tensor:
     return ((torch.from_numpy(pixels).permute(2, 0, 1).float() / 255 - 0.5) / 0.5)[None]
 
 
-def transcribe(model, tokenizer, page: Path) -> str:
+def transcribe(model, tokenizer, page: Path, beams: int) -> str:
     with torch.no_grad():
         out = model.generate(pixel_values=preprocess(page), image_sizes=torch.tensor([[HEIGHT, WIDTH]]),
-                             max_length=2048, do_sample=False, num_beams=3, length_penalty=1.0,
+                             max_length=2048, do_sample=False, num_beams=beams, length_penalty=1.0,
                              repetition_penalty=1.1)
     return tokenizer.decode(out[0], skip_special_tokens=True)
 
@@ -117,6 +117,7 @@ def main() -> None:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--joined")
     ap.add_argument("--threads", type=int, default=8)
+    ap.add_argument("--beams", type=int, default=3)
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
     model = AutoModelForCausalLM.from_pretrained(args.model, trust_remote_code=True).eval()
@@ -127,7 +128,7 @@ def main() -> None:
         kern_path = args.out / f"{page.stem}.krn"
         if not kern_path.exists():
             started = time.time()
-            kern_path.write_text(transcribe(model, tokenizer, page) + "\n")
+            kern_path.write_text(transcribe(model, tokenizer, page, args.beams) + "\n")
             print(f"{page.stem}: {time.time() - started:.0f} s", flush=True)
         score = to_score(kern_path.read_text())
         write_musicxml(score, args.out / f"{page.stem}.musicxml")

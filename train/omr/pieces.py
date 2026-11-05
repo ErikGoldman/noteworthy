@@ -72,6 +72,14 @@ def pdmx_pieces(pdmx_root: Path) -> dict[str, list[Piece]]:
     return out
 
 
+def pdmx_license_conflicts(pdmx_root: Path) -> set[str]:
+    """MXL file names of scores whose public license disagrees with the one inside the file.
+    PDMX's authors recommend leaving these out."""
+    csv.field_size_limit(1 << 30)
+    with (pdmx_root / "PDMX.csv").open() as f:
+        return {Path(row["mxl"]).name for row in csv.DictReader(f) if row["license_conflict"] == "True"}
+
+
 def asap_pieces(asap_root: Path) -> dict[str, list[Piece]]:
     """Pieces of each ASAP score, by score path relative to the ASAP root."""
     with (asap_root / "metadata.csv").open() as f:
