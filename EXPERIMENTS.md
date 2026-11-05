@@ -468,3 +468,28 @@ Infrastructure:
 - Run B on Mutopia dev with the rewind: 0.843 [0.731, 0.946], Kumar 0.64, 0.66; +0.152 [+0.062,
   +0.242] over Transcoda's 0.691; +0.039 [-0.014, +0.083] over tuned v5. The rewind came from
   these pieces, so the Mutopia test split decides.
+
+### Unmarked tuplets (H6, H7)
+
+- Crop builder stalled for two hours: CairoError cannot be unpickled, so one reaching the pool
+  killed its result thread. seq_tuplets: 10,491 crops of systems with tuplets, numbers hidden
+  (first kept half the time). seq_pdmx lost its 3,325 held-out crops.
+- H6 (renders always print the number, so train on crops without): run C, 25k steps from run
+  B, tuplets at weight 2, dev SER 7.69%. Mostly refuted: crops 0.916, +0.001 [-0.007, +0.008];
+  tuplet-token recall 0.743 to 0.760, precision 0.898 to 0.924. `6in4` stays 0 of 521 although
+  the training data holds over 12,000. Crops flip all or nothing between runs (6474359/p8-s1
+  went 1.000 to 0.000). Pages +0.024 [-0.001, +0.055], Mutopia +0.010 [+0.001, +0.016] may
+  be extra training rather than tuplets: control run (same steps, no seq_tuplets) pending.
+- The crops show why: pitches and beams are read perfectly, only the ratio is dropped; no
+  number is printed, and 0 of 24 crops of 6801790 show a time signature. Only the bar's
+  arithmetic tells.
+- H7 (eval/lmx_tuplets.py, restore tuplets where a voice overfills and 3/6-note groups fill
+  it exactly): first version F1-neutral, gains cancelled by one song (6982743: rest + three
+  16ths, read as a triplet). Added: a tuplet starts on a multiple of its span; the bar is at
+  least the longest voice without candidates. On 4,000 OLiMPiC training crops 4 correct ones
+  change; 823 of 1,924 measures with stripped tuplets return. Measures where all voices are
+  unmarked stay out of reach of a lone crop.
+  Run C + H7 vs run C: crops 0.924, +0.008 [-0.000, +0.025]; pages 0.896, +0.005 [-0.008,
+  +0.018]; Mutopia 0.851, -0.001 [-0.003, +0.000]. Tuplet recall 0.827, precision 0.925. The
+  rules were tuned on dev crops; Mutopia, not tuned on, shows no gain. A narrow fix for one
+  engraving habit, not a general one. Page rows rescored from saved LMX.

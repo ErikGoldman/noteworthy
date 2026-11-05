@@ -14,10 +14,13 @@ import argparse
 import os
 import sys
 import xml.etree.ElementTree as ET
+from fractions import Fraction
 from pathlib import Path
 
 import Levenshtein
 import torch
+
+from lmx_tuplets import imply_tuplets
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
@@ -48,12 +51,14 @@ def rewind_to_measure_start(part: ET.Element) -> None:
                 position = 0
 
 
-def delinearize(lmx: str) -> str:
-    """MusicXML of an LMX string. A sequence the delinearizer cannot parse becomes an empty
-    part, as OLiMPiC's TEDn evaluation treats it (its error reporting itself can crash)."""
+def delinearize(lmx: str, bar: Fraction | None = None) -> str:
+    """MusicXML of an LMX string, unmarked tuplets restored (bar: see imply_tuplets). A sequence
+    the delinearizer cannot parse becomes an empty part, as OLiMPiC's TEDn evaluation treats it
+    (its error reporting itself can crash)."""
     delinearizer = Delinearizer(errout=None)
+    restored = imply_tuplets(lmx, bar)
     try:
-        delinearizer.process_text(lmx)
+        delinearizer.process_text(restored)
         part = delinearizer.part_element
         rewind_to_measure_start(part)
     except Exception:

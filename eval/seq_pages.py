@@ -33,6 +33,7 @@ from note_scoring import report, score
 from olimpic_benchmark import SOURCES, song_document, song_of, song_systems, song_truth, split_samples
 from results_file import save_results
 from score_events import NoteEvent, parse_musicxml
+from lmx_tuplets import written_bar
 from seq_predict import delinearize, load_model
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -128,12 +129,13 @@ def measure_count(musicxml: str) -> int:
 
 def joined_events(lmx_of_systems: list[str], work: Path) -> list[NoteEvent]:
     """The systems as one score, measures numbered on across them."""
-    events, offset = [], 0
+    events, offset, bar = [], 0, None
     work.mkdir(parents=True, exist_ok=True)
     for k, lmx in enumerate(lmx_of_systems):
         path = work / f"system{k}.musicxml"
         path.with_suffix(".lmx").write_text(lmx + "\n")
-        musicxml = delinearize(lmx)
+        bar = written_bar(lmx.split()) or bar
+        musicxml = delinearize(lmx, bar)
         path.write_text(musicxml)
         events += [NoteEvent(e.measure + offset, e.onset, e.midi, e.duration, e.staff) for e in parse_musicxml(path)]
         offset += measure_count(musicxml)
