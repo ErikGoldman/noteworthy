@@ -1,6 +1,6 @@
 """Transcoda (btrkeks/transcoda-59M-zeroshot-v1) on page images, for comparison.
 
-usage: transcoda_predict.py MODEL_DIR --out DIR [--joined NAME] [--beams N] PAGE.png [...]
+usage: transcoda_predict.py MODEL_DIR --out DIR [--joined NAME] [--beams N] [--kern-only] PAGE.png [...]
 
 Runs in its own environment, .venv-transcoda (requirements-transcoda.txt): the model's
 code needs torchtune, which needs an older torch than ours. MODEL_DIR is a download of
@@ -118,6 +118,7 @@ def main() -> None:
     ap.add_argument("--joined")
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--beams", type=int, default=3)
+    ap.add_argument("--kern-only", action="store_true", help="OMR-NED needs only **kern; music21 can hang on malformed output")
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
     model = AutoModelForCausalLM.from_pretrained(args.model, trust_remote_code=True).eval()
@@ -130,6 +131,8 @@ def main() -> None:
             started = time.time()
             kern_path.write_text(transcribe(model, tokenizer, page, args.beams) + "\n")
             print(f"{page.stem}: {time.time() - started:.0f} s", flush=True)
+        if args.kern_only:
+            continue
         score = to_score(kern_path.read_text())
         write_musicxml(score, args.out / f"{page.stem}.musicxml")
         scores.append(score)

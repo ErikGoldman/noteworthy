@@ -585,3 +585,9 @@ Infrastructure:
   0.975 against 0.924: now excluded, leaving 46 songs. Dev numbers above include it.
 - docs/EVALUATION_PROTOCOL.md: the final run's rules, written before it. The final model is
   last.pt, not best.pt: best.pt is selected on real scans, Transcoda claims no such selection.
+- The gap to Transcoda's published Polish numbers is a constant: greedy 67.42 against 65.76
+  (+1.66), beam 65.50 against 63.97 (+1.53), and beam gains 1.92 here, 1.79 in the paper. So the
+  method reproduces, with something fixed differing, probably the page set (102 in the paper,
+  112 in the file) or later gold curation. Corrected gold: greedy 54.09, beam 51.30. Beam stays
+  the baseline, its best. One greedy shard hung in music21's conversion of a malformed
+  prediction, which OMR-NED does not need: --kern-only.
