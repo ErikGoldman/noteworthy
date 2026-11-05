@@ -532,3 +532,9 @@ Infrastructure:
   kern: the beamed conversion of the gold scores 0.54 that way (median page 0).
 - A first scoring of Transcoda gave 74.05 and 62.59: 31 pages had no prediction, after my
   MusicXML export crashed two shards behind an exit code of 0. Void.
+
+- H10 (train on crops cut near the system at empty rows, so framing stops mattering): run D, as
+  the control but for that. Dev SER 7.81% (control 7.57%). One read: crops 0.926, pages 0.896,
+  Mutopia 0.861, each within noise of the control's. Two reads: pages 0.924, Mutopia 0.860,
+  -0.002 [-0.010, +0.007] and -0.001 [-0.007, +0.005]. Two reads still give pages +0.028, so
+  the training change does not replace them, and run C, run D and the control tie. Dropped.
