@@ -559,3 +559,9 @@ Infrastructure:
 - Not settled: 120M variant unscored (60.7 published on the flawed gold; weights not on
   Hugging Face under the author's account). No check yet that Polish pieces are absent from
   GrandStaff or PDMX, which both systems trained on. 112 pages from one archive.
+- Overlap of Polish with our training data: select_mutopia's melody check (8 intervals of the top
+  notes, crops pooled by piece) against PDMX/ASAP render list, GrandStaff and OLiMPiC, 92,471
+  files, 2,257 unparsed. Best share per page: median 0.03, max 0.20; none at 0.26, where copies
+  began. 7 pages reach the 0.10 threshold; on the other 105, ours 37.91, Transcoda 52.02,
+  -14.11 [-18.62, -9.28]. Overlap does not explain the lead. Musetrainer and OpenScore
+  Quartets, which only Transcoda trained on, were not checked.
