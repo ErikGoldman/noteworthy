@@ -5,6 +5,8 @@ usage: seq_pages.py CHECKPOINT mutopia --binary NOTEWORTHY --model MODEL.onnx --
                     [--split dev|test] [--batch N]
        seq_pages.py CHECKPOINT olimpic --layouts DIR --out DIR [--split dev|test] [--batch N]
        seq_pages.py CHECKPOINT pages --pages DIR --binary NOTEWORTHY --model MODEL.onnx --out DIR
+       seq_pages.py CHECKPOINT rendered --pages DIR --scores LIST --binary NOTEWORTHY --model MODEL.onnx
+                    --out DIR [--count N] [--split dev|test]
 
 Mutopia PDFs are rendered by the recognizer, so its normalized debug pages are cropped; OLiMPiC
 scans are cropped as they are, with the layouts olimpic_benchmark.py pages left behind.
@@ -36,6 +38,7 @@ from results_file import save_results
 from score_events import NoteEvent, parse_musicxml
 from lmx_tuplets import bar_fill, written_bar
 from seq_predict import delinearize, load_model
+from synthetic_benchmark import f1_counts, held_out_scores, split_scores
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
@@ -235,6 +238,24 @@ def bench_mutopia(args, model, vocab, device) -> dict[str, Counter]:
     return results
 
 
+def bench_rendered(args, model, vocab, device) -> dict[str, Counter]:
+    """synthetic_benchmark.py's pages, truth and matching, so its row compares with the recognizer's."""
+    scores = split_scores(held_out_scores(args.scores), args.count, args.split)
+    results = {}
+    for i, score_path in enumerate(scores):
+        page, measures = args.pages / f"{i:03d}.png", args.pages / f"{i:03d}.measures"
+        if not measures.exists():
+            continue
+        layout, pages = layout_of(args, [page], args.out / "work" / page.stem)
+        systems = piano_systems(layout, page_scales(layout))
+        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch)
+        truth = [e for e in parse_musicxml(score_path) if e.measure < int(measures.read_text())]
+        correct, predicted, gold = f1_counts(truth, joined_events(lmx, args.out / "work" / page.stem / "systems"))
+        results[score_path.name] = Counter(correct=correct, pred=predicted, missed=gold - correct)
+        print(page.stem, dict(results[score_path.name]), flush=True)
+    return results
+
+
 def bench_olimpic(args, model, vocab, device) -> dict[str, Counter]:
     samples, _ = split_samples(args.split)
     results = {}
@@ -257,11 +278,13 @@ def bench_olimpic(args, model, vocab, device) -> dict[str, Counter]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("checkpoint", type=Path)
-    ap.add_argument("source", choices=["mutopia", "olimpic", "pages"])
+    ap.add_argument("source", choices=["mutopia", "olimpic", "pages", "rendered"])
     ap.add_argument("--binary", help="mutopia: finds the systems")
     ap.add_argument("--model", help="mutopia: the recognizer's model")
     ap.add_argument("--layouts", type=Path, help="olimpic: <song>.json from olimpic_benchmark.py pages")
-    ap.add_argument("--pages", type=Path, help="pages: a directory of page images")
+    ap.add_argument("--pages", type=Path, help="pages, rendered: a directory of page images")
+    ap.add_argument("--scores", help="rendered: the list given to synthetic_benchmark.py")
+    ap.add_argument("--count", type=int, default=100, help="rendered: as for synthetic_benchmark.py")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--split", choices=["dev", "test"], default="dev")
     ap.add_argument("--batch", type=int, default=16)
@@ -272,7 +295,8 @@ def main() -> None:
     if args.source == "pages":
         transcribe_pages(args, model, vocab, device)
         return
-    results = (bench_mutopia if args.source == "mutopia" else bench_olimpic)(args, model, vocab, device)
+    bench = {"mutopia": bench_mutopia, "olimpic": bench_olimpic, "rendered": bench_rendered}[args.source]
+    results = bench(args, model, vocab, device)
     save_results(results, args.out / "results.json", lambda item: item)
     report(results, "pieces", show_worst=args.split != "test")
 
