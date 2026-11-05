@@ -179,3 +179,13 @@ def imply_tuplets(lmx: str, bar: Fraction | None = None) -> str:
     for at, token in sorted(insertions, reverse=True):
         tokens.insert(at, token)
     return " ".join(tokens)
+
+
+def bar_fill(lmx: str) -> float:
+    """The share of voices that fill the bar once tuplets are restored: a check of a reading
+    that needs no ground truth, since a misread rhythm rarely still adds up."""
+    tokens = imply_tuplets(lmx).split()
+    measures = measures_of(tokens)
+    bar = written_bar(tokens) or likely_bar(measures)
+    fills = [v.total() == bar for measure in measures for v in measure if v.notes and not v.measure_rest]
+    return sum(fills) / len(fills) if fills else 0.0

@@ -8,7 +8,7 @@ usage: seq_pages.py CHECKPOINT mutopia --binary NOTEWORTHY --model MODEL.onnx --
 Mutopia PDFs are rendered by the recognizer, so its normalized debug pages are cropped; OLiMPiC
 scans are cropped as they are, with the layouts olimpic_benchmark.py pages left behind.
 The model reads two-staff systems, so a system's last two staves are taken (the voice of a
-song sits above the piano). The U-Net model is used only for finding systems. Results go
+song sits above the piano), at each of CROP_HEIGHT_RATIOS. The U-Net model is used only for finding systems. Results go
 to DIR/results.json for scorecard.py, in the row's own directory:
   DIR=$RUN/mutopia or $RUN/olimpic-pages
 """
@@ -33,7 +33,7 @@ from note_scoring import report, score
 from olimpic_benchmark import SOURCES, song_document, song_of, song_systems, song_truth, split_samples
 from results_file import save_results
 from score_events import NoteEvent, parse_musicxml
-from lmx_tuplets import written_bar
+from lmx_tuplets import bar_fill, written_bar
 from seq_predict import delinearize, load_model
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,6 +45,11 @@ from train_seq import VOCABULARY  # noqa: E402
 NORMALIZED_INTERLINE_PX = 20.0  # the U-Net's; see train/omr/dataset.py
 MARGIN_INTERLINES = 7.0     # how far from the staves a crop may reach for high notes
 SIDE_MARGIN_INTERLINES = 1.0
+# Crop height over system height, tried in this order. 2.06 is OLiMPiC's crops, median over
+# the dev songs: crops are scaled to one height, so a tighter crop shows larger staves than
+# the model trained on. It helps most systems and wrecks a few, which the tight crop (0: no
+# padding) reads well, so each system is read at both and the better reading kept.
+CROP_HEIGHT_RATIOS = (2.06, 0.0)
 INK = 128
 
 
@@ -80,7 +85,7 @@ def emptiest_row(page: np.ndarray, start: float, end: float) -> int:
     return int(candidates[np.abs(candidates - (start + end) / 2).argmin()])
 
 
-def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float) -> np.ndarray:
+def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float, height_ratio: float) -> np.ndarray:
     """The system's band, kept off its neighbours (`above` and `below`: their nearest staff
     edges, in pixels of `page`), trimmed to the ink at the sides."""
     interline = (system.bottom_staff[1] - system.bottom_staff[0]) / 4 * system.scale
@@ -93,17 +98,24 @@ def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float
     if len(columns) == 0:
         return band
     margin = int(SIDE_MARGIN_INTERLINES * interline)
-    return band[:, max(0, columns[0] - margin):columns[-1] + margin]
+    return padded_to_height(band[:, max(0, columns[0] - margin):columns[-1] + margin],
+                            round(height_ratio * (last_line - first_line)))
 
 
-def page_crops(pages: list[np.ndarray], systems: list[SystemCrop]) -> list[np.ndarray]:
+def padded_to_height(crop: np.ndarray, height: int) -> np.ndarray:
+    """White above and below rather than more of the page, which would bring in the neighbours."""
+    missing = max(0, height - crop.shape[0])
+    return cv2.copyMakeBorder(crop, missing // 2, missing - missing // 2, 0, 0, cv2.BORDER_CONSTANT, value=255)
+
+
+def page_crops(pages: list[np.ndarray], systems: list[SystemCrop], height_ratio: float) -> list[np.ndarray]:
     crops = []
     for i, system in enumerate(systems):
         page = pages[system.page - 1]
         same_page = lambda k: 0 <= k < len(systems) and systems[k].page == system.page
         above = systems[i - 1].bottom_staff[1] * system.scale if same_page(i - 1) else 0.0
         below = systems[i + 1].top_staff[0] * system.scale if same_page(i + 1) else float(page.shape[0])
-        crops.append(crop_system(page, system, above, below))
+        crops.append(crop_system(page, system, above, below, height_ratio))
     return crops
 
 
@@ -120,6 +132,17 @@ def transcribe(model, vocab: Vocab, crops: list[np.ndarray], device, batch: int)
         for i, tokens in zip(chosen, predicted):
             out[i] = vocab.decode(tokens)
     return out
+
+
+def best_readings(model, vocab: Vocab, pages: list[np.ndarray], systems: list[SystemCrop], wanted, device,
+                  batch: int) -> list[str]:
+    """LMX of each wanted system: of its reading at each crop height, the one that fills its
+    bars best, the earlier height among equals. Neighbours bound a crop, wanted or not."""
+    readings = []
+    for ratio in CROP_HEIGHT_RATIOS:
+        crops = [c for s, c in zip(systems, page_crops(pages, systems, ratio)) if wanted(s)]
+        readings.append(transcribe(model, vocab, crops, device, batch))
+    return [max(reads, key=bar_fill) for reads in zip(*readings)]
 
 
 def measure_count(musicxml: str) -> int:
@@ -159,7 +182,7 @@ def bench_mutopia(args, model, vocab, device) -> dict[str, Counter]:
         name = Path(piece).name
         layout, pages = layout_of(args, [MUTOPIA / "pieces" / f"{name}-a4.pdf"], args.out / "work" / name)
         systems = piano_systems(layout, page_scales(layout))
-        lmx = transcribe(model, vocab, page_crops(pages, systems), device, args.batch)
+        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch)
         source = (MUTOPIA / "repo" / "ftp" / piece / f"{name}.ly").read_text(errors="replace")
         truth = midi_events(MUTOPIA / "pieces" / f"{name}.mid", pickup_quarters(source))
         results[piece] = score(truth, joined_events(lmx, args.out / "work" / name / "systems"))
@@ -180,9 +203,7 @@ def bench_olimpic(args, model, vocab, device) -> dict[str, Counter]:
         pages = [cv2.imread(str(image), cv2.IMREAD_GRAYSCALE) for image in images]
         inside = lambda s: any(b["top"] <= sum(s.bottom_staff) / 2 <= b["top"] + b["height"] for b in boxes[s.page - 1])
         all_systems = piano_systems(layout, defaultdict(lambda: 1.0))
-        crops = page_crops(pages, all_systems)
-        kept = [c for s, c in zip(all_systems, crops) if inside(s)]
-        lmx = transcribe(model, vocab, kept, device, args.batch)
+        lmx = best_readings(model, vocab, pages, all_systems, inside, device, args.batch)
         results[song] = score(song_truth(annotated), joined_events(lmx, args.out / "work" / song / "systems"))
         print(song, dict(results[song].most_common(3)), flush=True)
     return results

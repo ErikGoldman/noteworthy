@@ -493,3 +493,22 @@ Infrastructure:
   +0.018]; Mutopia 0.851, -0.001 [-0.003, +0.000]. Tuplet recall 0.827, precision 0.925. The
   rules were tuned on dev crops; Mutopia, not tuned on, shows no gain. A narrow fix for one
   engraving habit, not a general one. Page rows rescored from saved LMX.
+
+### Control, crop framing and reading selection (H8, H9)
+
+- Control for H6: 25k steps from run B without seq_tuplets, dev SER 7.57%. Run C (with) beats
+  it by +0.002 crops, +0.006 pages, +0.001 Mutopia, all inside noise. H6 refuted outright:
+  run C's gains over run B came from more training. Only the tuplet repair (H7) is real.
+- H8: page crops were tighter than OLiMPiC's, 1.53 against 2.06 times the system height at
+  the median of 643 crops, so staves reached the model about 40% larger. White padding, run
+  C + H7 on pages: 1.8 gives 0.909, 2.06 gives 0.915, 2.3 gives 0.914 (from 0.896); none
+  clear of noise. Mutopia falls: -0.009, -0.008, -0.038. Padding is not uniformly good: 33
+  songs rise and 12 fall, Traviata_08 loses 87 notes, 6011095 loses 248, while Kumar gains 48.
+  Staff size at the input does not explain the split (Mutopia 10.7 px, OLiMPiC pages 11.0).
+- H9: read each system padded and unpadded, keep the reading whose voices fill their bars
+  (lmx_tuplets.bar_fill, no ground truth needed; padded wins ties). Failing reads break bars:
+  6011095 falls from 1.00 to 0.38 on several systems when padded.
+  vs unpadded: pages 0.925, +0.030 [+0.015, +0.051]; Mutopia 0.860, +0.009 [+0.001, +0.018].
+  Four framings: 0.931 and 0.861 at twice the cost; not taken. Reproduced end to end.
+  vs run B: pages +0.059 [+0.025, +0.099], Mutopia +0.018 [+0.001, +0.031]; crops +0.009
+  [-0.004, +0.026]. Selection doubles inference. Pages now match the crops (0.924).
