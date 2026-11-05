@@ -25,4 +25,7 @@ uv pip install -q --python "$PY" --index-url "$TORCH_INDEX" -r "$ROOT/requiremen
 uv pip install -q --python "$PY" -r "$ROOT/requirements.txt"
 [ -x "$ZEUS_PY" ] || uv venv "$ROOT/.venv-zeus" --python 3.11 -q
 uv pip install -q --python "$ZEUS_PY" -r "$ROOT/requirements-zeus.txt"
+[ -x "$TRANSCODA_PY" ] || uv venv "$ROOT/.venv-transcoda" --python 3.12 -q
+uv pip install -q --python "$TRANSCODA_PY" --index-strategy unsafe-best-match \
+  --extra-index-url https://download.pytorch.org/whl/cpu -r "$ROOT/requirements-transcoda.txt"
 log "python environment ready"

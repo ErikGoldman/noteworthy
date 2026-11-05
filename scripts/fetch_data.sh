@@ -12,6 +12,7 @@
 #              (CC BY-SA 4.0) for training the sequence model
 #   GrandStaff piano excerpts (images) with GrandStaff-LMX transcriptions (CC BY-SA 4.0),
 #              for training the sequence model
+#   Transcoda  benchmark only: its authors' trained model (CC BY 4.0), to compare against
 #
 # A source already in place is not fetched again. Archives are deleted once unpacked.
 set -euo pipefail
@@ -28,6 +29,8 @@ OLIMPIC_REPO=https://github.com/ufal/olimpic-icdar24.git
 OLIMPIC_COMMIT=f4f45ac523ebe09832342270a68b1b4368f63da2
 ZEUS_MODEL=https://github.com/ufal/olimpic-icdar24/releases/download/zeus-release/zeus-olimpic-1.0-2024-02-12.model.tar.gz
 GRANDSTAFF_IMAGES=https://grfia.dlsi.ua.es/musicdocs/grandstaff.tgz
+TRANSCODA_REVISION=b529f8aa5d996d9224df3395b5b92d0867343c91
+TRANSCODA_MODEL=https://huggingface.co/btrkeks/transcoda-59M-zeroshot-v1/resolve/$TRANSCODA_REVISION
 
 download "$PDMX_RECORD/PDMX.csv/content" "$RAW/pdmx/PDMX.csv" 30392ccf38bb63ce70e7afae70f9c88c
 if [ ! -d "$RAW/pdmx/mxl" ]; then
@@ -82,3 +85,19 @@ if [ ! -d "$RAW/olimpic/code/zeus-olimpic-1.0-2024-02-12.model" ]; then
   rm "$RAW/olimpic/code/zeus.tgz"
 fi
 log "raw data ready"
+
+while read -r file md5; do
+  download "$TRANSCODA_MODEL/$file" "$RAW/transcoda/b529f8a/$file" "$md5"
+done <<'FILES'
+  config.json 0618595302f62804e5a91d990f1641d3
+  configuration_transcoda.py c7b02494bb76a12a5e1ac1b52502448a
+  encoder.py eaac77672a86c5884aa23f3fa7a3793b
+  frontends.py 3036d17150816df7fa9da84a456f59da
+  generation_config.json 19e59b52c8844dcee524c3eb4ba7a7b2
+  model.safetensors c501a672d8a0afa1f4420a1152aea835
+  modeling_transcoda.py 9f5666b88d6c614c3a6328ab6d47907c
+  special_tokens_map.json 10c2fbdc1ca5ac8f0312bebcfb4a3e74
+  tokenizer.json 3de8e02236440f73774af2466e892cda
+  tokenizer_config.json 138bf24fefffb08643d3bb5d52c72f79
+  vision_frontend.py 58d977b416979c208f209f15eec4e067
+FILES

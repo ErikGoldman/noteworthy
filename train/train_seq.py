@@ -29,6 +29,7 @@ from seq.vocab import PAD, Vocab
 
 ROOT = Path(__file__).resolve().parent.parent
 VOCABULARY = ROOT / "train" / "seq" / "vocabulary.txt"
+GPU_MEMORY_FRACTION = 0.85
 
 
 def dataset_items(spec: str):
@@ -72,6 +73,11 @@ def main() -> None:
     args = ap.parse_args()
 
     device = torch.device("cuda")
+    # Under WSL the driver silently backs GPU allocations beyond the card with system
+    # memory, and training then runs several times slower. Batches vary in width and
+    # length, so PyTorch's cache keeps growing until it gets there; a cap makes it free
+    # cached blocks instead.
+    torch.cuda.set_per_process_memory_fraction(GPU_MEMORY_FRACTION)
     vocab = Vocab.load(VOCABULARY)
     train_items = [s for spec in args.data for s in dataset_items(spec)]
     dev_root, dev_split = args.dev.split(":")

@@ -298,3 +298,54 @@ Infrastructure:
 - Next: finish run A, score it against Zeus on the 658 clean dev crops (note F1, SER),
   then run B with the PDMX crops (monitored with --dev-samples data/olimpic_dev_clean.txt,
   since PDMX holds copies of other dev songs).
+
+### Resumed (evening): run B first
+- The per-score watchdog is in (d4c18f1). Run B started before run A, since it is the
+  configuration the pipeline ships (scripts/train_seq.sh → runs/seq): synthetic x2 +
+  GrandStaff + PDMX crops, 139,018 training samples, 80k steps, dev = the 658 clean dev
+  crops. 123 samples/s, about 4.3 h. Run A (Zeus's training data only) stays the
+  ablation, parked at step 5,000.
+- Lost ~15 min: training crawled (100 steps in 9+ min) right after a side evaluation of
+  run A on the GPU ran out of memory, until restarted from step 5,000. The cause was not
+  established: memory spilling to shared system memory was a guess, never measured, and
+  training later slowed again (52 s per 100 steps, step ~14,600) with no side job. Resuming
+  also failed: the checkpoint's args held a Path, which torch.load's weights_only default
+  rejects (fixed, 02ad620). Keep other GPU jobs off this 16 GB card during training.
+- Run B step 5,000: dev SER 70.3% on the 658 clean crops (run A, step 5,000: 46.4% on
+  the first 300 of all dev crops; not the same crops, so not comparable yet).
+
+### ONNX export of the sequence model (export_seq_onnx.py, 57b632b)
+- encoder.onnx + decoder.onnx (next-token logits from the whole prefix, no KV cache),
+  contract in metadata (vocabulary, bos/eos, height, width multiple, input encoding).
+  The TorchScript exporter froze the encoder's cell count into the attention reshapes;
+  the dynamo exporter (onnxscript) keeps it dynamic. Greedy tokens equal PyTorch's on
+  real crops (192 and 177 tokens).
+- CPU speed without a KV cache: ~6 s per system (while training shared the CPU); a page
+  of 6 systems would take ~40 s. A KV-cache decoder is needed before shipping in C++.
+- Run B step 10,000: dev SER 28.6% on the 658 clean crops (from 70.3% at 5,000).
+
+### WSL crash, 18:47: a scoring bug, not training
+- Run B step 15,000: dev SER 21.0% on the 658 clean crops. Restarted there with a PyTorch
+  memory cap (GPU_MEMORY_FRACTION 0.85); it ran at ~104 samples/s to step 18,200. The cap
+  is an unproven remedy: any restart also restored speed for thousands of steps.
+- Scoring Transcoda's handwritten pages took one Python to 43 GB (kernel log: global OOM,
+  anon-rss 43,074,688 kB); WSL shut down at 18:49. Lost: steps 15,000-18,200.
+- Cause: align_measures compared costs with == on a border computed as i * gap, which
+  rounds differently from (i - 1) * gap + gap from i = 7. With few predicted measures the
+  walk back left the table: an endless loop on w05_p011, IndexError on five other pages.
+  Fixed (9179997), and those pages now score. The bug could also have mis-paired measures
+  silently in earlier benchmarks, wherever 7+ leading ground-truth measures went unmatched.
+- Lesson: run new scoring code under ulimit -v and timeout beside long jobs.
+
+### Transcoda against ours (eval/transcoda_predict.py)
+- btrkeks/transcoda-59M-zeroshot-v1 at b529f8a, its own venv, CPU, beam 3, no grammar
+  constraint (the model card's headline setting): 17-49 s per printed page, ~90 s per
+  handwritten page with training beside it. **kern to MusicXML by music21, scored by our
+  note F1. Pages keep only what precedes the first break of **kern's spine rules.
+- Control, 6 held-out Verovio pages: Transcoda F1 0.968, v5 0.982 (2,019 notes). The
+  conversion and scoring work. Small, and Transcoda trained on PDMX and on Verovio renders,
+  so this checks the path and ranks nothing.
+- Handwritten dev, 20 pages, 1,610 notes: Transcoda **F1 0.031**, pitch aside from timing
+  0.104. 7 pages give no scorable notes: all rests, grace-note loops, or invalid **kern.
+  It never trained on handwriting; v5's 0.296 is on pages it trained on. Neither number
+  says who reads handwriting better on unseen pages.
