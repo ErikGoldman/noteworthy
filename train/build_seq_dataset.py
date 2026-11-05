@@ -2,13 +2,18 @@
 sequence model (train_seq.py).
 
 usage: build_seq_dataset.py --scores LIST.txt --out DIR [--systems-per-score K] [--workers W]
+                            [--unmarked-tuplets]
 
-Each two-staff (piano) part is cut into systems of a few measures, which OLiMPiC's code
+Held-out scores (omr.held_out) are left out. Each two-staff (piano) part is cut into systems of a few measures, which OLiMPiC's code
 turns into self-contained parts: clefs and key repeated at each system start, the time
 signature only where the score prints one (split_part_to_systems), as an engraver lays
 them out. K random systems per score are rendered alone with Verovio under random
 engraving options and cropped to their ink with random margins. Their LMX comes from
 OLiMPiC's linearizer, as for the OLiMPiC and GrandStaff-LMX datasets.
+
+With --unmarked-tuplets only systems with tuplets are taken, drawn without their numbers
+(the first may stay): engravers mark the first triplets of a passage and leave the rest,
+and a model that only ever saw numbers reads the others as plain notes.
 
 Writes DIR/samples/<score index>/s<k>.png + .lmx, and DIR/samples.train.txt listing
 every sample. A score's directory is written whole or not at all, so an interrupted
@@ -33,6 +38,7 @@ import numpy as np
 import verovio
 
 from omr.fonts import use_smufl_fonts
+from omr.held_out import is_held_out
 from omr.render import FONTS, UNITS_PER_INTERLINE_PER_UNIT, layout_svg
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,6 +53,7 @@ INTERLINE_PX = (14.0, 26.0)
 MARGIN_INTERLINES = (0.5, 3.0)
 HUNG_SCORE_S = 300         # a score not done by then is hung inside Verovio
 PART_NAME_HIDDEN = 0.85    # only a score's first system shows the instrument name
+KEEP_FIRST_TUPLET_NUMBER = 0.5
 
 
 def load_musicxml(path: Path) -> ET.Element:
@@ -83,6 +90,18 @@ def break_into_systems(part: ET.Element, rng: random.Random) -> None:
 def hide_part_name(score: ET.Element) -> None:
     for name in score.iter("part-name"):
         name.text = ""
+
+
+def has_tuplets(part: ET.Element) -> bool:
+    return part.find(".//time-modification") is not None
+
+
+def hide_tuplet_numbers(score: ET.Element, rng: random.Random) -> None:
+    starts = [t for t in score.iter("tuplet") if t.get("type") == "start"]
+    keep_first = rng.random() < KEEP_FIRST_TUPLET_NUMBER
+    for tuplet in starts[1:] if keep_first else starts:
+        tuplet.set("show-number", "none")
+        tuplet.set("bracket", "no")
 
 
 def linearize(part: ET.Element) -> str:
@@ -123,9 +142,9 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random) -> np.
     return cv2.copyMakeBorder(crop, m[0], m[1], m[2], m[3], cv2.BORDER_CONSTANT, value=255)
 
 
-def build_score(job: tuple[int, str, Path, int]) -> int:
+def build_score(job: tuple[int, str, Path, int, bool]) -> int:
     """Renders up to K systems of one score; returns how many."""
-    index, source, out, k = job
+    index, source, out, k, unmarked_tuplets = job
     target = out / "samples" / f"{index:06d}"
     if target.exists():
         return len(list(target.glob("*.lmx")))
@@ -136,6 +155,8 @@ def build_score(job: tuple[int, str, Path, int]) -> int:
             return 0
         break_into_systems(part, rng)
         systems = [s for page in split_part_to_systems(part) for s in page.systems]
+        if unmarked_tuplets:
+            systems = [s for s in systems if has_tuplets(s.part)]
     except Exception:
         return 0
     rng.shuffle(systems)
@@ -153,6 +174,8 @@ def build_score(job: tuple[int, str, Path, int]) -> int:
             score = part_to_score(system.part).getroot()
             if rng.random() < PART_NAME_HIDDEN:
                 hide_part_name(score)
+            if unmarked_tuplets:
+                hide_tuplet_numbers(score, rng)
             musicxml = ET.tostring(score, encoding="unicode", xml_declaration=True)
         except Exception:
             continue
@@ -174,11 +197,13 @@ def main() -> None:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--systems-per-score", type=int, default=4)
     ap.add_argument("--workers", type=int, default=os.cpu_count())
+    ap.add_argument("--unmarked-tuplets", action="store_true")
     args = ap.parse_args()
     sources = args.scores.read_text().split("\n")
     hung_log = args.out / "hung.txt"
     hung = set(hung_log.read_text().split("\n")) if hung_log.exists() else set()
-    jobs = [(i, s, args.out, args.systems_per_score) for i, s in enumerate(sources) if s.strip() and s not in hung]
+    jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets)
+            for i, s in enumerate(sources) if s.strip() and s not in hung and not is_held_out(Path(s))]
     total = 0
     # "spawn", not fork: Verovio keeps its font resources in C++ static state that forked
     # workers cannot use ("font resources are not available"); see build_dataset.py.
@@ -197,7 +222,9 @@ def main() -> None:
         pool.terminate()
     for partial in (args.out / "samples").glob("*.partial"):
         shutil.rmtree(partial)
-    names = sorted(f"samples/{p.parent.name}/{p.stem}" for p in (args.out / "samples").glob("[0-9]*/*.lmx"))
+    kept = {f"{job[0]:06d}" for job in jobs}
+    names = sorted(f"samples/{p.parent.name}/{p.stem}" for p in (args.out / "samples").glob("[0-9]*/*.lmx")
+                   if p.parent.name in kept)
     (args.out / "samples.train.txt").write_text("\n".join(names) + "\n")
     print(f"{len(names)} systems from {len(jobs)} scores")
 

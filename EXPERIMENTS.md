@@ -455,3 +455,13 @@ Infrastructure:
   99.55% of gold backups return to the measure start (7,708 of 7,743), so delinearize now
   forces that. Run B crops 0.878 -> 0.916 [0.871, 0.953], +0.038 [+0.023, +0.057], no retraining.
   The same rewind lifts Zeus 0.767 -> 0.803; run B's lead stands: +0.113 [+0.080, +0.155].
+- Mistake found: build_seq_dataset read render_scores.txt whole, and that list keeps held-out
+  scores. 3,325 of 67,392 crops (4.9%, 862 scores) were held out, so run B saw rendered-print
+  benchmark pieces: its rendered row cannot be trusted. OLiMPiC and Mutopia unaffected (both
+  screened against the full list). Builder fixed; a clean run needs training from scratch.
+- Remaining run B error: median crop 0.982, 413 of 626 at 0.95+; four songs hold most of it,
+  unmarked tuplets written as plain notes. H6: renders always print the number, so the model
+  never learned tuplets without one. Testing: tuplet systems drawn with numbers hidden.
+- Run B on OLiMPiC whole pages (layouts from v5's page run, rewind fix): **F1 0.867 [0.821,
+  0.909]**, right pitch 0.945; +0.297 [+0.245, +0.345] over v5's 0.570. Crops 0.916, so the layout
+  step costs about 0.05.

@@ -2,6 +2,7 @@
 
 usage: train_seq.py --data ROOT:SPLIT[:WEIGHT] [...] --dev ROOT:SPLIT --out DIR
                     [--steps N] [--batch B] [--lr LR] [--dev-count N] [--eval-every N]
+                    [--init CHECKPOINT]
 
 Each --data entry is a directory of <sample>.png + <sample>.lmx with a
 samples.<SPLIT>.txt list (OLiMPiC, GrandStaff-LMX); WEIGHT repeats it in the mix. --dev is
@@ -9,7 +10,7 @@ decoded greedily every --eval-every steps (its first --dev-count samples) and sc
 symbol error rate, SER: token edit distance over gold length, as in the OLiMPiC paper.
 --dev-samples restricts it to listed samples: for a model trained on PDMX, the OLiMPiC
 songs without a copy there (eval/olimpic_benchmark.py list).
-Resumes from OUT/last.pt.
+Resumes from OUT/last.pt; --init starts a new run from another run's weights.
 """
 from __future__ import annotations
 
@@ -70,6 +71,7 @@ def main() -> None:
     ap.add_argument("--max-tokens", type=int, default=1024)
     ap.add_argument("--dev-count", type=int, default=300)
     ap.add_argument("--eval-every", type=int, default=5000)
+    ap.add_argument("--init", type=Path, help="weights to start from, for fine-tuning")
     args = ap.parse_args()
 
     device = torch.device("cuda")
@@ -94,6 +96,8 @@ def main() -> None:
     sched = torch.optim.lr_scheduler.LambdaLR(opt, schedule)
     args.out.mkdir(parents=True, exist_ok=True)
     step, best = 0, float("inf")
+    if args.init and not (args.out / "last.pt").exists():
+        model.load_state_dict(torch.load(args.init, map_location=device)["model"])
     if (args.out / "last.pt").exists():
         state = torch.load(args.out / "last.pt", map_location=device)
         model.load_state_dict(state["model"]), opt.load_state_dict(state["opt"]), sched.load_state_dict(state["sched"])

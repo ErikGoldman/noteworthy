@@ -1,9 +1,12 @@
 """The sequence model (train/seq) on whole pages: the recognizer's layout finds the systems,
 each is cropped and transcribed, and their measures are joined into one score.
 
-usage: seq_pages.py CHECKPOINT mutopia|olimpic --binary NOTEWORTHY --model MODEL.onnx --out DIR
+usage: seq_pages.py CHECKPOINT mutopia --binary NOTEWORTHY --model MODEL.onnx --out DIR
                     [--split dev|test] [--batch N]
+       seq_pages.py CHECKPOINT olimpic --layouts DIR --out DIR [--split dev|test] [--batch N]
 
+Mutopia PDFs are rendered by the recognizer, so its normalized debug pages are cropped; OLiMPiC
+scans are cropped as they are, with the layouts olimpic_benchmark.py pages left behind.
 The model reads two-staff systems, so a system's last two staves are taken (the voice of a
 song sits above the piano). The U-Net model is used only for finding systems. Results go
 to DIR/results.json for scorecard.py, in the row's own directory:
@@ -49,7 +52,7 @@ class SystemCrop:
     page: int                  # 1-based, in the order given to the recognizer
     top_staff: tuple[float, float]       # in the coordinates of the page as given
     bottom_staff: tuple[float, float]
-    scale: float               # to the page as the recognizer saw it, normalized in size
+    scale: float               # from those to the pixels of the page image being cropped
 
 
 def page_scales(layout: dict) -> dict[int, float]:
@@ -60,8 +63,7 @@ def page_scales(layout: dict) -> dict[int, float]:
     return {page: 4 * NORMALIZED_INTERLINE_PX / float(np.median(h)) for page, h in heights.items()}
 
 
-def piano_systems(layout: dict) -> list[SystemCrop]:
-    scales = page_scales(layout)
+def piano_systems(layout: dict, scales: dict[int, float]) -> list[SystemCrop]:
     return [SystemCrop(s["page"], tuple(s["staves"][-2]), tuple(s["staves"][-1]), scales[s["page"]])
             for s in layout["systems"] if len(s["staves"]) >= 2]
 
@@ -79,8 +81,8 @@ def emptiest_row(page: np.ndarray, start: float, end: float) -> int:
 
 def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float) -> np.ndarray:
     """The system's band, kept off its neighbours (`above` and `below`: their nearest staff
-    edges, in normalized page coordinates), trimmed to the ink at the sides."""
-    interline = NORMALIZED_INTERLINE_PX
+    edges, in pixels of `page`), trimmed to the ink at the sides."""
+    interline = (system.bottom_staff[1] - system.bottom_staff[0]) / 4 * system.scale
     first_line, last_line = system.top_staff[0] * system.scale, system.bottom_staff[1] * system.scale
     reach = MARGIN_INTERLINES * interline
     top = emptiest_row(page, max(above, first_line - reach), first_line)
@@ -130,6 +132,7 @@ def joined_events(lmx_of_systems: list[str], work: Path) -> list[NoteEvent]:
     work.mkdir(parents=True, exist_ok=True)
     for k, lmx in enumerate(lmx_of_systems):
         path = work / f"system{k}.musicxml"
+        path.with_suffix(".lmx").write_text(lmx + "\n")
         musicxml = delinearize(lmx)
         path.write_text(musicxml)
         events += [NoteEvent(e.measure + offset, e.onset, e.midi, e.duration, e.staff) for e in parse_musicxml(path)]
@@ -153,7 +156,7 @@ def bench_mutopia(args, model, vocab, device) -> dict[str, Counter]:
     for piece in pieces(args.split):
         name = Path(piece).name
         layout, pages = layout_of(args, [MUTOPIA / "pieces" / f"{name}-a4.pdf"], args.out / "work" / name)
-        systems = piano_systems(layout)
+        systems = piano_systems(layout, page_scales(layout))
         lmx = transcribe(model, vocab, page_crops(pages, systems), device, args.batch)
         source = (MUTOPIA / "repo" / "ftp" / piece / f"{name}.ly").read_text(errors="replace")
         truth = midi_events(MUTOPIA / "pieces" / f"{name}.mid", pickup_quarters(source))
@@ -171,9 +174,10 @@ def bench_olimpic(args, model, vocab, device) -> dict[str, Counter]:
         numbers = sorted({page for _, page, _ in annotated})
         images = [SOURCES / "imslp_pngs" / document[p]["image"] for p in numbers]
         boxes = [[document[p]["systems"][n - 1]["boundingBox"] for _, page, n in annotated if page == p] for p in numbers]
-        layout, pages = layout_of(args, images, args.out / "work" / song)
+        layout = json.loads((args.layouts / f"{song}.json").read_text())
+        pages = [cv2.imread(str(image), cv2.IMREAD_GRAYSCALE) for image in images]
         inside = lambda s: any(b["top"] <= sum(s.bottom_staff) / 2 <= b["top"] + b["height"] for b in boxes[s.page - 1])
-        all_systems = piano_systems(layout)
+        all_systems = piano_systems(layout, defaultdict(lambda: 1.0))
         crops = page_crops(pages, all_systems)
         kept = [c for s, c in zip(all_systems, crops) if inside(s)]
         lmx = transcribe(model, vocab, kept, device, args.batch)
@@ -186,8 +190,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("checkpoint", type=Path)
     ap.add_argument("source", choices=["mutopia", "olimpic"])
-    ap.add_argument("--binary", required=True)
-    ap.add_argument("--model", required=True)
+    ap.add_argument("--binary", help="mutopia: finds the systems")
+    ap.add_argument("--model", help="mutopia: the recognizer's model")
+    ap.add_argument("--layouts", type=Path, help="olimpic: <song>.json from olimpic_benchmark.py pages")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--split", choices=["dev", "test"], default="dev")
     ap.add_argument("--batch", type=int, default=16)
