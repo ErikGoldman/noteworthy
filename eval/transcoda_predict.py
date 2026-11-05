@@ -90,6 +90,14 @@ def to_score(kern: str) -> music21.stream.Score:
         return music21.stream.Score()
 
 
+def write_musicxml(score: music21.stream.Score, path: Path) -> None:
+    """Without the file, the page scores as empty; the **kern beside it is still good."""
+    try:
+        score.write("musicxml", path)
+    except Exception as e:  # music21 raises many kinds on what it parsed from malformed **kern
+        print(f"  no MusicXML for {path.stem}: {type(e).__name__}: {str(e)[:100]}", file=sys.stderr)
+
+
 def joined(scores: list[music21.stream.Score]) -> music21.stream.Score:
     """The pages' parts concatenated measure by measure; a page with fewer parts leaves the
     other parts' measures out, so measure alignment sees them as missed."""
@@ -122,7 +130,7 @@ def main() -> None:
             kern_path.write_text(transcribe(model, tokenizer, page) + "\n")
             print(f"{page.stem}: {time.time() - started:.0f} s", flush=True)
         score = to_score(kern_path.read_text())
-        score.write("musicxml", args.out / f"{page.stem}.musicxml")
+        write_musicxml(score, args.out / f"{page.stem}.musicxml")
         scores.append(score)
     if args.joined:
         joined(scores).write("musicxml", args.out / f"{args.joined}.musicxml")

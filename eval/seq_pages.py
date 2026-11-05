@@ -4,6 +4,7 @@ each is cropped and transcribed, and their measures are joined into one score.
 usage: seq_pages.py CHECKPOINT mutopia --binary NOTEWORTHY --model MODEL.onnx --out DIR
                     [--split dev|test] [--batch N]
        seq_pages.py CHECKPOINT olimpic --layouts DIR --out DIR [--split dev|test] [--batch N]
+       seq_pages.py CHECKPOINT pages --pages DIR --binary NOTEWORTHY --model MODEL.onnx --out DIR
 
 Mutopia PDFs are rendered by the recognizer, so its normalized debug pages are cropped; OLiMPiC
 scans are cropped as they are, with the layouts olimpic_benchmark.py pages left behind.
@@ -165,6 +166,50 @@ def joined_events(lmx_of_systems: list[str], work: Path) -> list[NoteEvent]:
     return events
 
 
+def drop_repeated_signatures(part: ET.Element, in_force: dict[tuple, str]) -> None:
+    """Removes clefs, keys and times equal to those in force: a system restates its clefs and
+    key, which in one continuous score are not new symbols."""
+    for attributes in part.iter("attributes"):
+        for element in list(attributes):
+            if element.tag not in ("clef", "key", "time"):
+                continue
+            slot = (element.tag, element.get("number"))
+            content = ET.tostring(element, encoding="unicode").strip()
+            if in_force.get(slot) == content:
+                attributes.remove(element)
+            in_force[slot] = content
+
+
+def joined_musicxml(lmx_of_systems: list[str]) -> str:
+    """The systems as one score. Each keeps its own <divisions>, which apply until replaced."""
+    joined, in_force, bar = None, {}, None
+    for lmx in lmx_of_systems:
+        bar = written_bar(lmx.split()) or bar
+        score = ET.fromstring(delinearize(lmx, bar))
+        part = score.find("part")
+        drop_repeated_signatures(part, in_force)
+        if joined is None:
+            joined, target = score, part
+        else:
+            target.extend(part.findall("measure"))
+    if joined is None:
+        return ""
+    for number, measure in enumerate(target.findall("measure"), 1):
+        measure.set("number", str(number))
+    return ET.tostring(joined, encoding="unicode", xml_declaration=True)
+
+
+def transcribe_pages(args, model, vocab, device) -> None:
+    """<page>.musicxml for each image of a directory, for a scorer outside this environment."""
+    args.out.mkdir(parents=True, exist_ok=True)
+    for image in sorted(args.pages.glob("*.png")):
+        layout, pages = layout_of(args, [image], args.out / "work" / image.stem)
+        systems = piano_systems(layout, page_scales(layout))
+        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch)
+        (args.out / f"{image.stem}.musicxml").write_text(joined_musicxml(lmx))
+        print(image.stem, f"{len(systems)} systems", flush=True)
+
+
 def layout_of(args, inputs: list[Path], work: Path) -> tuple[dict, list[np.ndarray]]:
     """Systems found by the recognizer, and the pages they refer to, as it saw them."""
     work.mkdir(parents=True, exist_ok=True)
@@ -212,10 +257,11 @@ def bench_olimpic(args, model, vocab, device) -> dict[str, Counter]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("checkpoint", type=Path)
-    ap.add_argument("source", choices=["mutopia", "olimpic"])
+    ap.add_argument("source", choices=["mutopia", "olimpic", "pages"])
     ap.add_argument("--binary", help="mutopia: finds the systems")
     ap.add_argument("--model", help="mutopia: the recognizer's model")
     ap.add_argument("--layouts", type=Path, help="olimpic: <song>.json from olimpic_benchmark.py pages")
+    ap.add_argument("--pages", type=Path, help="pages: a directory of page images")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--split", choices=["dev", "test"], default="dev")
     ap.add_argument("--batch", type=int, default=16)
@@ -223,6 +269,9 @@ def main() -> None:
     device = torch.device("cuda")
     vocab = Vocab.load(VOCABULARY)
     model = load_model(args.checkpoint, vocab, device)
+    if args.source == "pages":
+        transcribe_pages(args, model, vocab, device)
+        return
     results = (bench_mutopia if args.source == "mutopia" else bench_olimpic)(args, model, vocab, device)
     save_results(results, args.out / "results.json", lambda item: item)
     report(results, "pieces", show_worst=args.split != "test")

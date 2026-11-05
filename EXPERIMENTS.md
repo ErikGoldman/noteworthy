@@ -512,3 +512,23 @@ Infrastructure:
   Four framings: 0.931 and 0.861 at twice the cost; not taken. Reproduced end to end.
   vs run B: pages +0.059 [+0.025, +0.099], Mutopia +0.018 [+0.001, +0.031]; crops +0.009
   [-0.004, +0.026]. Selection doubles inference. Pages now match the crops (0.924).
+
+### OMR-NED on Transcoda's Polish benchmark (eval/omr_ned.py)
+
+- Transcoda's own metric, on its own real-scan benchmark: btrkeks/polish-scores at 5542822,
+  112 pages, 105 with two spines, evaluation only. Treated like Night Album: never trained or
+  tuned on, numbers only. Their omr_ned.py runs unchanged, versions from their uv.lock.
+- Its published gold cannot be scored as it stands: 34 of 112 pages score 100 against
+  themselves (mean 30.36). The kern has no header or terminator, _ensure_kern_header sizes the
+  terminator from the first line, these pages end with another spine count, and the strict
+  gold parse then returns an empty score. Written out correctly, gold against itself is 0.00.
+- Transcoda at b529f8a, beam 3, CPU, all 112 pages, no page failed to score:
+  gold as published 65.50 (published: 63.97); terminated gold **51.30**. The 78 unaffected
+  pages score 51.75 either way. So the published figure very likely carries the bug, and the
+  model is about 14 points better than reported. 51.30 is the bar. The 1.53 left over is
+  unexplained; the paper speaks of 102 scans, the file holds 112.
+- Published gold MusicXML has no beams (357 of 419 differences on a page), so it differs from
+  the kern by 9.44 and is not a fair target. Our MusicXML is compared directly with the gold
+  kern: the beamed conversion of the gold scores 0.54 that way (median page 0).
+- A first scoring of Transcoda gave 74.05 and 62.59: 31 pages had no prediction, after my
+  MusicXML export crashed two shards behind an exit code of 0. Void.

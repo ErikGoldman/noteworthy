@@ -1,0 +1,5 @@
+# .venv-musicdiff: eval/omr_ned.py. Versions from the Transcoda repository's uv.lock.
+musicdiff==5.0.2
+music21==9.9.1
+converter21==3.5.0
+pyarrow
