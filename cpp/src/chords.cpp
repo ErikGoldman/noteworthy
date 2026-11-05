@@ -117,11 +117,14 @@ int dot_count(const std::vector<Blob>& dots, const std::vector<cv::Point2f>& anc
   return std::min<int>(2, static_cast<int>(columns.size()));
 }
 
+// Only filled heads carry beams or flags, so those outrank the head's look: on a faint scan
+// a filled head can read as hollow.
 int base_for(HeadKind kind, int beams_or_flags) {
+  if (beams_or_flags > 0) return 4 << std::min(beams_or_flags, 3);
   switch (kind) {
     case HeadKind::Whole: return 1;
     case HeadKind::Half: return 2;
-    case HeadKind::Filled: return 4 << std::min(beams_or_flags, 3);
+    case HeadKind::Filled: return 4;
   }
   return 4;
 }
@@ -201,7 +204,7 @@ void add_stemless_chords(const PageSymbols& symbols, float il, const std::vector
     }
     item.x = sum_x / item.heads.size();
     item.page_staff = first.staff;
-    item.value.base = base_for(first.kind, 0);
+    item.value.base = base_for(HeadKind::Whole, 0);  // no stem found: only a whole note has none, whatever the head reads as
     item.value.dots = dot_count(symbols.dots, head_centers(symbols, item.heads), max_x + kHeadHalfWidth * il, il);
     items.push_back(std::move(item));
   }

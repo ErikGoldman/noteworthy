@@ -439,3 +439,7 @@ Infrastructure:
   v5 0.536; +0.111 [+0.074, +0.156] over Zeus, +0.343 [+0.275, +0.416] over v5.
 - Lead holds on the 34 songs outside the melody check's printed top 14 (2 more at 10%+ were
   not printed): run B 0.880, Zeus 0.764, v5 0.585; +[0.070, 0.171]. Not explained by copies.
+- H3 passes the full check: real scans crops +0.007, rendered print +0.003, handwriting -0.006
+  (all in noise). H4, beams or flags outrank a head read as hollow (scan song 6499366: sixteenths
+  read as halves): crops 0.544, +0.009 [0.000, +0.020]; Mutopia dev 0.803, +0.158 [+0.032, +0.312]
+  over v5; rendered 0.941; handwriting 0.290.
