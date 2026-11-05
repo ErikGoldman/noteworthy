@@ -8,6 +8,7 @@ PY="$ROOT/.venv/bin/python"
 ZEUS_PY="$ROOT/.venv-zeus/bin/python"
 TRANSCODA_PY="$ROOT/.venv-transcoda/bin/python"
 MUSICDIFF_PY="$ROOT/.venv-musicdiff/bin/python"
+HOMR_PY="$ROOT/.venv-homr/bin/python"
 NW_DATA=${NW_DATA:-$ROOT/data}
 NW_RUNS=${NW_RUNS:-$ROOT/runs}
 NW_PAGES=${NW_PAGES:-12000}                 # synthetic training pages

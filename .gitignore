@@ -10,3 +10,4 @@ cpp/third_party/pdfium/
 .venv-zeus/
 .venv-transcoda/
 .venv-musicdiff/
+.venv-homr/

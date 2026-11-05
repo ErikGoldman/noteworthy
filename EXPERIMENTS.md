@@ -591,3 +591,25 @@ Infrastructure:
   112 in the file) or later gold curation. Corrected gold: greedy 54.09, beam 51.30. Beam stays
   the baseline, its best. One greedy shard hung in music21's conversion of a malformed
   prediction, which OMR-NED does not need: --kern-only.
+
+### homr and Audiveris on Polish; copisteria found
+
+Polish is a held-out benchmark: numbers only. Corrected gold, the same scorer and pages as ours.
+Paired against run C (37.24), resampling pages:
+
+| System | OMR-NED | Failed | Ours minus it | Ours better on |
+|---|---|---|---|---|
+| homr 0.7.0, defaults | 43.86 | 0 | -6.62 [-11.34, -2.07] | 70/112 |
+| Transcoda 59M, beam 3 | 51.30 | 0 | -14.06 | 78/112 |
+| Audiveris 5.11.0 | 63.60 | 4 | -26.35 [-32.10, -20.77] | 94/112 |
+
+- Audiveris rejected the 1050-wide pages as staffless, so it reads them enlarged 2x. It split
+  22 pages into movements; keeping only the first gave 64.65, joining them 63.60.
+- homr's benchmark passes --no-title, which 0.7.0 does not list.
+- homr's run slowed training from 280 to 50 steps a minute, even at nice 19 on separate cores:
+  CPU baselines wait for training to end.
+- Not a claim yet. homr's Benchmark.md and copisteria's README publish Polish numbers for
+  copisteria (github.com/kobimusic/copisteria, copista-28m, public weights): 26.4 and 31.5,
+  both below our 37.24. The two disagree by 18 points on homr (30.7, 48.3); ours says 43.86.
+  Copisteria's table sits near ours for homr, Transcoda and Audiveris (48.3, 55.1, 62.6).
+  Copisteria has not been run here, and is the baseline that decides a Polish claim.

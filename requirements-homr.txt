@@ -1,0 +1,2 @@
+# .venv-homr: eval/homr_pages.sh.
+homr==0.7.0

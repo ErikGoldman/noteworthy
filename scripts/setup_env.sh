@@ -31,4 +31,6 @@ uv pip install -q --python "$TRANSCODA_PY" --index-strategy unsafe-best-match \
 
 [ -x "$MUSICDIFF_PY" ] || uv venv "$ROOT/.venv-musicdiff" --python 3.12 -q
 uv pip install -q --python "$MUSICDIFF_PY" -r "$ROOT/requirements-omr-ned.txt"
+[ -x "$HOMR_PY" ] || uv venv "$ROOT/.venv-homr" --python 3.12 -q
+uv pip install -q --python "$HOMR_PY" -r "$ROOT/requirements-homr.txt"
 log "python environment ready"

@@ -40,6 +40,7 @@ TRANSCODA_MODEL=https://huggingface.co/btrkeks/transcoda-59M-zeroshot-v1/resolve
 TRANSCODA_REPO=https://github.com/btrkeks/Transcoda.git
 TRANSCODA_COMMIT=d4e2e687d5679ae96ca4aa6f01e06a5b338cd488
 POLISH_SCORES=https://huggingface.co/datasets/btrkeks/polish-scores/resolve/55428225335e21c0e4d77a58b32dbb2b58e25954
+AUDIVERIS_DEB=https://github.com/Audiveris/audiveris/releases/download/5.11.0/Audiveris-5.11.0-ubuntu24.04-x86_64.deb
 
 download "$PDMX_RECORD/PDMX.csv/content" "$RAW/pdmx/PDMX.csv" 30392ccf38bb63ce70e7afae70f9c88c
 if [ ! -d "$RAW/pdmx/mxl" ]; then
@@ -112,6 +113,8 @@ FILES
 
 checkout "$TRANSCODA_REPO" "$TRANSCODA_COMMIT" "$RAW/transcoda_repo/src"
 download "$POLISH_SCORES/data/train-00000-of-00001.parquet" "$RAW/polish_scores/polish.parquet" 8d6f6a9c3ab07e16018d4b7477143a20
+download "$AUDIVERIS_DEB" "$RAW/audiveris/audiveris.deb" 392b146938867806fcc4bdfe8af13ddf
+[ -d "$RAW/audiveris/unpacked" ] || dpkg -x "$RAW/audiveris/audiveris.deb" "$RAW/audiveris/unpacked"
 
 checkout "$MUTOPIA_REPO" "$MUTOPIA_COMMIT" "$RAW/mutopia/repo"
 while read -r _ piece pdf_md5 midi_md5; do
