@@ -546,3 +546,16 @@ Infrastructure:
   OLiMPiC's scans (2 of 171 pages off by over 5%) but not on these pale pages. Instead
   main.cpp retries pages with under two staves at fixed interlines, then sets the scale from
   the staves found. Plumbing 45.64 to 13.45, median about 2.5; one page still fails.
+
+- **Run C + H7 + H9 on Polish, one run, numbers only: OMR-NED 37.24** (median 34.88), all 112
+  pages output, none failed. Transcoda on the same gold: 51.30 (median 50.80). Paired, ours
+  minus Transcoda: -14.06 [-18.51, -9.49], better on 78 of 112 pages. Against the gold as
+  published, with its 34 broken pages at 100: 57.29 against 65.50.
+  Three-spine pages (7), which we read only two staves of: 62.99 against 57.54.
+- Transcoda's kern path gets a wrong terminator on its predictions too, and syntax fixes count
+  as errors (102 of 112 pages), while our MusicXML has neither. Correct terminators: 51.28.
+  Syntax penalty removed as well, kinder than its own metric: 48.72, still -11.48 [-15.89,
+  -6.99], better on 75.
+- Not settled: 120M variant unscored (60.7 published on the flawed gold; weights not on
+  Hugging Face under the author's account). No check yet that Polish pieces are absent from
+  GrandStaff or PDMX, which both systems trained on. 112 pages from one archive.
