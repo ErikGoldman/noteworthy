@@ -28,4 +28,7 @@ uv pip install -q --python "$ZEUS_PY" -r "$ROOT/requirements-zeus.txt"
 [ -x "$TRANSCODA_PY" ] || uv venv "$ROOT/.venv-transcoda" --python 3.12 -q
 uv pip install -q --python "$TRANSCODA_PY" --index-strategy unsafe-best-match \
   --extra-index-url https://download.pytorch.org/whl/cpu -r "$ROOT/requirements-transcoda.txt"
+
+[ -x "$MUSICDIFF_PY" ] || uv venv "$ROOT/.venv-musicdiff" --python 3.12 -q
+uv pip install -q --python "$MUSICDIFF_PY" -r "$ROOT/requirements-omr-ned.txt"
 log "python environment ready"

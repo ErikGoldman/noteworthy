@@ -14,7 +14,8 @@
 #              for training the sequence model
 #   Mutopia    benchmark only: piano pieces engraved by LilyPond (CC or public domain),
 #              with sources, PDFs and MIDI (eval/mutopia_pieces.txt)
-#   Transcoda  benchmark only: its authors' trained model (CC BY 4.0), to compare against
+#   Transcoda  benchmark only: its authors' trained model (CC BY 4.0), to compare against,
+#              their metric's code, and their Polish benchmark (evaluation only)
 #
 # A source already in place is not fetched again. Archives are deleted once unpacked.
 set -euo pipefail
@@ -36,6 +37,9 @@ MUTOPIA_COMMIT=2144afd6f52d56c5b6995b8b589ef1268b3139f0
 MUTOPIA_FILES=https://www.mutopiaproject.org/ftp
 TRANSCODA_REVISION=b529f8aa5d996d9224df3395b5b92d0867343c91
 TRANSCODA_MODEL=https://huggingface.co/btrkeks/transcoda-59M-zeroshot-v1/resolve/$TRANSCODA_REVISION
+TRANSCODA_REPO=https://github.com/btrkeks/Transcoda.git
+TRANSCODA_COMMIT=d4e2e687d5679ae96ca4aa6f01e06a5b338cd488
+POLISH_SCORES=https://huggingface.co/datasets/btrkeks/polish-scores/resolve/55428225335e21c0e4d77a58b32dbb2b58e25954
 
 download "$PDMX_RECORD/PDMX.csv/content" "$RAW/pdmx/PDMX.csv" 30392ccf38bb63ce70e7afae70f9c88c
 if [ ! -d "$RAW/pdmx/mxl" ]; then
@@ -105,6 +109,9 @@ done <<'FILES'
   tokenizer_config.json 138bf24fefffb08643d3bb5d52c72f79
   vision_frontend.py 58d977b416979c208f209f15eec4e067
 FILES
+
+checkout "$TRANSCODA_REPO" "$TRANSCODA_COMMIT" "$RAW/transcoda_repo/src"
+download "$POLISH_SCORES/data/train-00000-of-00001.parquet" "$RAW/polish_scores/polish.parquet" 8d6f6a9c3ab07e16018d4b7477143a20
 
 checkout "$MUTOPIA_REPO" "$MUTOPIA_COMMIT" "$RAW/mutopia/repo"
 while read -r _ piece pdf_md5 midi_md5; do
