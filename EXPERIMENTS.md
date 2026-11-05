@@ -349,3 +349,7 @@ Infrastructure:
   0.104. 7 pages give no scorable notes: all rests, grace-note loops, or invalid **kern.
   It never trained on handwriting; v5's 0.296 is on pages it trained on. Neither number
   says who reads handwriting better on unseen pages.
+- Night Album, one run, numbers only (633 notes): v5 F1 0.992 by both scorers. Transcoda
+  0.379 with measure alignment, 0.046 by evaluate.py's exact measure index. One piece, and
+  its errors stay unread, so how much of the gap is the model and how much is joining
+  its four pages into one score is unknown.
