@@ -177,11 +177,11 @@ def build_score(job: tuple[int, str, Path, int, bool]) -> int:
             if unmarked_tuplets:
                 hide_tuplet_numbers(score, rng)
             musicxml = ET.tostring(score, encoding="unicode", xml_declaration=True)
+            image = render_system(tk, musicxml, rng) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
         except Exception:
+            # Nothing may escape to the pool: CairoError cannot be unpickled, which kills
+            # the pool's result thread and silently stalls every later score.
             continue
-        if not 10 <= len(lmx.split()) <= MAX_TOKENS:
-            continue
-        image = render_system(tk, musicxml, rng)
         if image is None:
             continue
         cv2.imwrite(str(partial / f"s{written}.png"), image)

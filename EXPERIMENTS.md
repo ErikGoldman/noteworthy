@@ -465,3 +465,6 @@ Infrastructure:
 - Run B on OLiMPiC whole pages (layouts from v5's page run, rewind fix): **F1 0.867 [0.821,
   0.909]**, right pitch 0.945; +0.297 [+0.245, +0.345] over v5's 0.570. Crops 0.916, so the layout
   step costs about 0.05.
+- Run B on Mutopia dev with the rewind: 0.843 [0.731, 0.946], Kumar 0.64, 0.66; +0.152 [+0.062,
+  +0.242] over Transcoda's 0.691; +0.039 [-0.014, +0.083] over tuned v5. The rewind came from
+  these pieces, so the Mutopia test split decides.
