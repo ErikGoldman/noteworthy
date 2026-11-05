@@ -60,12 +60,51 @@ bool parse_args(int argc, char** argv, Options& opt) {
   return !opt.inputs.empty() && !opt.model.empty() && !opt.output.empty();
 }
 
-cv::Mat normalize_scale(const cv::Mat& page, double target_interline, double& scale_out) {
-  const double interline = omr::estimate_interline(page);
-  scale_out = target_interline / interline;
-  cv::Mat scaled;
-  cv::resize(page, scaled, cv::Size(), scale_out, scale_out, scale_out < 1 ? cv::INTER_AREA : cv::INTER_LINEAR);
-  return scaled;
+constexpr size_t kEnoughStaves = 2;
+constexpr double kRetryInterlines[] = {7, 9, 11, 13, 16, 20, 26};  // px on the raw page
+
+struct PageReading {
+  double scale;
+  cv::Mat page;
+  omr::SymbolMaps maps;
+  std::vector<omr::Staff> staves;
+};
+
+PageReading read_at_scale(const cv::Mat& raw, double scale, const omr::Segmenter& segmenter) {
+  cv::Mat page;
+  cv::resize(raw, page, cv::Size(), scale, scale, scale < 1 ? cv::INTER_AREA : cv::INTER_LINEAR);
+  omr::SymbolMaps maps = segmenter.run(page);
+  auto staves = omr::detect_staves(maps["staff_line"], segmenter.normalized_interline());
+  return {scale, std::move(page), std::move(maps), std::move(staves)};
+}
+
+double mean_interline(const std::vector<omr::Staff>& staves) {
+  double sum = 0;
+  for (const auto& s : staves) {
+    sum += s.interline((s.x_min() + s.x_max()) / 2);
+  }
+  return sum / staves.size();
+}
+
+// The first scale comes from run lengths after a global threshold, which fail on pale staff
+// lines: the estimate lands far off, and at the wrong scale the segmenter finds no staves. It
+// does tolerate a moderate error, so the search only has to land near the true spacing; the
+// staves found there then give the exact scale. Pages that read well never come here.
+PageReading read_page(const cv::Mat& raw, const omr::Segmenter& segmenter) {
+  const double target = segmenter.normalized_interline();
+  PageReading best = read_at_scale(raw, target / omr::estimate_interline(raw), segmenter);
+  if (best.staves.size() >= kEnoughStaves) return best;
+  bool retried = false;
+  for (const double interline : kRetryInterlines) {
+    PageReading trial = read_at_scale(raw, target / interline, segmenter);
+    if (trial.staves.size() > best.staves.size()) {
+      best = std::move(trial);
+      retried = true;
+    }
+  }
+  if (!retried) return best;
+  PageReading exact = read_at_scale(raw, best.scale * target / mean_interline(best.staves), segmenter);
+  return exact.staves.size() >= best.staves.size() ? exact : best;
 }
 
 void write_staff_debug(const fs::path& path, const cv::Mat& page, const std::vector<omr::Staff>& staves) {
@@ -123,10 +162,7 @@ int main(int argc, char** argv) {
     if (!opt.debug_dir.empty()) fs::create_directories(opt.debug_dir);
     omr::ScoreBuilder builder;
     for (size_t p = 0; p < pages.size(); ++p) {
-      double scale = 1;
-      const cv::Mat page = normalize_scale(pages[p], segmenter.normalized_interline(), scale);
-      const omr::SymbolMaps maps = segmenter.run(page);
-      const auto staves = omr::detect_staves(maps["staff_line"], segmenter.normalized_interline());
+      const auto [scale, page, maps, staves] = read_page(pages[p], segmenter);
       const omr::PageSymbols symbols = omr::extract_symbols(maps, staves, segmenter.normalized_interline());
       builder.add_page({static_cast<int>(p + 1), scale}, staves, symbols, segmenter.normalized_interline());
       std::cerr << "page " << p + 1 << ": scale " << scale << ", " << staves.size() << " staves, "

@@ -538,3 +538,11 @@ Infrastructure:
   Mutopia 0.861, each within noise of the control's. Two reads: pages 0.924, Mutopia 0.860,
   -0.002 [-0.010, +0.007] and -0.001 [-0.007, +0.005]. Two reads still give pages +0.028, so
   the training change does not replace them, and run C, run D and the control tie. Dropped.
+
+- Synthetic plumbing test, 20 two-spine pages of verovio-synth-omr (not a result: its sources
+  overlap our training): 8 pages came out empty. estimate_interline's global threshold loses
+  pale staff lines, so the scale lands far off (0.26 to 1.0 where 1.9 is right) and the
+  segmenter finds no staves. A threshold-free estimate from row autocorrelation did well on
+  OLiMPiC's scans (2 of 171 pages off by over 5%) but not on these pale pages. Instead
+  main.cpp retries pages with under two staves at fixed interlines, then sets the scale from
+  the staves found. Plumbing 45.64 to 13.45, median about 2.5; one page still fails.
