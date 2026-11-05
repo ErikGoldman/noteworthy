@@ -33,6 +33,21 @@ from seq.vocab import Vocab  # noqa: E402
 from train_seq import VOCABULARY  # noqa: E402
 
 
+def rewind_to_measure_start(part: ET.Element) -> None:
+    """Sets every backup to the measure's start. Over 99% of them go there in OLiMPiC's gold,
+    and the model errs on long measures (5/4, 12/4), putting a whole staff after the other."""
+    for measure in part.findall("measure"):
+        position = 0
+        for element in measure:
+            if element.tag == "note" and element.find("chord") is None and element.find("grace") is None:
+                position += int(element.findtext("duration", 0))
+            elif element.tag == "forward":
+                position += int(element.findtext("duration", 0))
+            elif element.tag == "backup":
+                element.find("duration").text = str(position)
+                position = 0
+
+
 def delinearize(lmx: str) -> str:
     """MusicXML of an LMX string. A sequence the delinearizer cannot parse becomes an empty
     part, as OLiMPiC's TEDn evaluation treats it (its error reporting itself can crash)."""
@@ -40,6 +55,7 @@ def delinearize(lmx: str) -> str:
     try:
         delinearizer.process_text(lmx)
         part = delinearizer.part_element
+        rewind_to_measure_start(part)
     except Exception:
         part = ET.Element("part")
     return ET.tostring(part_to_score(part).getroot(), encoding="unicode", xml_declaration=True)

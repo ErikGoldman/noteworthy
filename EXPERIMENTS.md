@@ -451,3 +451,7 @@ Infrastructure:
 - Run B on Mutopia dev, no tuning for pages: F1 0.750 [0.549, 0.942], right pitch 0.920; 8 of 10
   pieces at 0.85+, Handel 1.000. Kumar's two pieces (5/4, 8/4, 12/4; a third of the notes):
   0.37, 0.42. +0.059 [-0.024, +0.163] over Transcoda; v5 with its fixes is 0.803, tuned here.
+- H5, a model's backup falls short: on Kumar's 5/4 and 12/4 the left hand came after the right.
+  99.55% of gold backups return to the measure start (7,708 of 7,743), so delinearize now
+  forces that. Run B crops 0.878 -> 0.916 [0.871, 0.953], +0.038 [+0.023, +0.057], no retraining.
+  The same rewind lifts Zeus 0.767 -> 0.803; run B's lead stands: +0.113 [+0.080, +0.155].
