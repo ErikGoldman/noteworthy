@@ -385,5 +385,10 @@ Infrastructure:
 - F1 0.993 Chopin, 0.961 Beethoven, 0.879 Kumar, 0.661 Burgmuller, 0.236 Schumann. In the two
   worst, traced by hand, the errors are v5's: unmarked triplets read as eighths
   (Schumann, Kinderscenen 1), and 50 invented 1/6 durations in a piece with no tuplets
-  (Burgmuller, Op. 100 No. 18). The latter may be a false positive of imply_tuplets: unchecked.
+  (Burgmuller, Op. 100 No. 18). Not imply_tuplets: with that call disabled Burgmuller stays
+  0.661, while Chopin's Prelude 14, all unmarked triplets, falls from 0.993 to 0.005, so the
+  rule earns its place. Likely a fingering 3 read as a tuplet numeral: the source has one
+  on the first note of such groups (r16 g-3 ( fis e)), 10 in all, against 12 measures with
+  invented triplets. Consistent, not proven; no fix tried.
 - These 5 pieces have had their errors read, so they can only ever be dev.
+- Run B step 35,000: dev SER 10.6% on the 658 clean crops (11.9% at 30,000; Zeus 14.9% on the same crops).
