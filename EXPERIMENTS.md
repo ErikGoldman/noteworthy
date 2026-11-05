@@ -353,3 +353,18 @@ Infrastructure:
   0.379 with measure alignment, 0.046 by evaluate.py's exact measure index. One piece, and
   its errors stay unread, so how much of the gap is the model and how much is joining
   its four pages into one score is unknown.
+- Run B step 20,000: dev SER 18.0% on the 658 clean crops (21.0% at 15,000).
+- Run B step 25,000: dev SER 12.7% on the 658 clean crops (18.0% at 20,000). Zeus's 15.8%
+  is over all 1,438 dev crops, so not yet comparable.
+- Run B step 30,000: dev SER 11.9% on the 658 clean crops (12.7% at 25,000).
+
+### Scorecard (eval/scorecard.py): one row per kind of input, ranges by piece
+- Benchmarks write results.json (per-item tallies with their piece); the scorecard gives
+  F1 with a 95% range from resampling pieces, and with a baseline the change on the same
+  resampled pieces. Held-out PDMX now has a dev (first 100, the pages developed against)
+  and a test split (next 100 sharing no piece with them, not yet run).
+- v5 on dev: rendered Verovio 0.938 [0.914, 0.958] (100 pieces); real scans, crops 0.537
+  [0.464, 0.605] (48 songs); real scans, pages 0.569 [0.494, 0.642] (48 songs);
+  handwriting 0.296 [0.214, 0.386] (20 pieces, trained on, so optimistic). Night Album 0.992
+  is one piece and has no range. MuseScore 4 is not installed here: that row was not run.
+- Crops read 0.537 where 0.532 was logged earlier: not explained yet.

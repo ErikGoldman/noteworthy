@@ -43,6 +43,7 @@ from pathlib import Path
 import yaml
 
 from note_scoring import report, score
+from results_file import save_results
 from score_events import NoteEvent, parse_musicxml
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -82,8 +83,12 @@ def split_samples(split: str) -> tuple[list[str], int]:
     how many were left out as copies of training pieces."""
     samples = (SCANNED / f"samples.{split}.txt").read_text().split()
     excluded = songs_in_training_sources()
-    kept = [s for s in samples if s.split("/")[1] not in excluded]
+    kept = [s for s in samples if song_of(s) not in excluded]
     return kept, len(samples) - len(kept)
+
+
+def song_of(sample: str) -> str:
+    return sample.split("/")[1]
 
 
 def recognize(binary: str, model: str, threads: int, images: list[Path], out: Path) -> str | None:
@@ -116,6 +121,7 @@ def bench_systems(args: argparse.Namespace) -> None:
             else:
                 results[sample] = result
     print(f"{excluded} samples left out as copies of training pieces")
+    save_results(results, args.out / "results.json", song_of)
     report(results, "systems", show_worst=args.split != "test")
 
 
@@ -171,7 +177,7 @@ def annotated_piano_events(prediction: Path, page_boxes: list[list[dict]]) -> li
 
 def bench_pages(args: argparse.Namespace) -> None:
     samples, excluded = split_samples(args.split)
-    songs = sorted({s.split("/")[1] for s in samples})
+    songs = sorted(set(map(song_of, samples)))
 
     def one(song: str) -> Counter | str:
         systems = song_systems(song)
@@ -192,6 +198,7 @@ def bench_pages(args: argparse.Namespace) -> None:
             else:
                 results[song] = result
     print(f"{excluded} samples left out as copies of training pieces")
+    save_results(results, args.out / "results.json", lambda song: song)
     report(results, "songs", show_worst=args.split != "test")
 
 

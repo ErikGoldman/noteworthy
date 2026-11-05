@@ -31,6 +31,7 @@ import cv2
 
 from muscima_truth import page_truth
 from note_scoring import report, score
+from results_file import save_results
 from score_events import parse_musicxml
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +45,11 @@ def write_scan(page: Page, path: Path) -> None:
     """The page as black ink on white, as the recognizer expects (CVC-MUSCIMA is inverted)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(path), 255 - cv2.imread(str(page.image), cv2.IMREAD_GRAYSCALE))
+
+
+def piece_of(page_name: str) -> str:
+    """Page names are w<writer>_p<piece>, and every writer copied the same pieces."""
+    return page_name.split("_")[1]
 
 
 def recognize(page: Page, args: argparse.Namespace) -> Path | str:
@@ -94,6 +100,7 @@ def main() -> None:
                 print(f"{page.name}: failed: {result}")
             else:
                 results[page.name] = result
+    save_results(results, (args.predictions or args.out) / "results.json", piece_of)
     report(results, "pages", show_worst=args.split != "test")
 
 

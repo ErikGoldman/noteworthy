@@ -18,6 +18,6 @@ clean_dev="$NW_DATA/olimpic_dev_clean.txt"
 
 # seq_predict's SER covers all dev crops, including songs with a PDMX copy; the note F1
 # below counts only the clean ones.
-predictions="$NW_RUNS/benchmark/olimpic-seq-dev"
+predictions="$NW_RUNS/seq/benchmark/olimpic-systems"   # compare: scorecard.py $NW_RUNS/seq/benchmark $NW_RUNS/benchmark
 (cd "$ROOT/eval" && "$PY" seq_predict.py "$NW_RUNS/seq/best.pt" --split dev --out "$predictions" \
   && "$PY" olimpic_benchmark.py systems --predictions "$predictions" --out "$predictions") | tee "$NW_RUNS/seq_benchmark.txt"

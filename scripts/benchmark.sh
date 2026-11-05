@@ -27,5 +27,8 @@ echo "== handwritten dev" | tee -a "$report"
 if [ -f "$ROOT/Night Album.pdf" ]; then
   echo "== night album" | tee -a "$report"
   "$binary" "$ROOT/Night Album.pdf" --model "$model" -o "$NW_RUNS/night_album.musicxml" 2>/dev/null
-  (cd "$ROOT/eval" && "$PY" evaluate.py sleepless.gt "$NW_RUNS/night_album.musicxml") | tee -a "$report"
+  (cd "$ROOT/eval" && "$PY" evaluate.py sleepless.gt "$NW_RUNS/night_album.musicxml" \
+    --results "$NW_RUNS/benchmark/night-album/results.json") | tee -a "$report"
 fi
+echo "== scorecard" | tee -a "$report"
+(cd "$ROOT/eval" && "$PY" scorecard.py "$NW_RUNS/benchmark") | tee -a "$report"

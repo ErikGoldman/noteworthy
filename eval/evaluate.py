@@ -1,16 +1,20 @@
 """Compare recognized MusicXML against hand-written ground truth.
 
-usage: evaluate.py GROUND_TRUTH.gt PREDICTED.musicxml [--verbose]
+usage: evaluate.py GROUND_TRUTH.gt PREDICTED.musicxml [--verbose] [--results FILE]
 
 A predicted note matches a ground-truth note when measure, onset, pitch and
 duration all agree. Staff is reported separately: cross-staff writing makes it
-a notational choice rather than a recognition error.
+a notational choice rather than a recognition error. --results also writes the score
+for scorecard.py, with measures aligned as in the other benchmarks.
 """
 from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
+from pathlib import Path
 
+from note_scoring import score
+from results_file import save_results
 from score_events import NoteEvent, parse_gt, parse_musicxml
 
 
@@ -33,10 +37,14 @@ def main() -> None:
     ap.add_argument("ground_truth")
     ap.add_argument("predicted")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--results", type=Path)
     args = ap.parse_args()
 
     gt = parse_gt(args.ground_truth).events()
     pred = parse_musicxml(args.predicted)
+    if args.results:
+        name = Path(args.ground_truth).stem
+        save_results({name: score(gt, pred)}, args.results, lambda _: name)
 
     print(f"ground truth notes: {len(gt)}   predicted notes: {len(pred)}")
     for label, key in [
