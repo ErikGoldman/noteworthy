@@ -13,7 +13,7 @@ clean_dev="$NW_DATA/olimpic_dev_clean.txt"
 # PDMX holds copies of some OLiMPiC songs: monitor on the dev songs without one.
 (cd "$ROOT/eval" && "$PY" olimpic_benchmark.py list --split dev > "$clean_dev")
 (cd "$ROOT/train" && "$PY" train_seq.py --data "$olimpic/olimpic-1.0-synthetic:train:2" "$olimpic/grandstaff-lmx:train" \
-  "$NW_DATA/seq_pdmx:train" --dev "$olimpic/olimpic-1.0-scanned:dev" --dev-samples "$clean_dev" --dev-count 658 \
+  "$NW_DATA/seq_pdmx:train" --dev "$olimpic/olimpic-1.0-scanned:dev" --dev-samples "$clean_dev" --dev-count 626 \
   --out "$NW_RUNS/seq" --steps "$NW_SEQ_STEPS" --workers "$NW_TRAIN_WORKERS") 2>&1 | tee -a "$NW_RUNS/seq.log"
 
 # seq_predict's SER covers all dev crops, including songs with a PDMX copy; the note F1
