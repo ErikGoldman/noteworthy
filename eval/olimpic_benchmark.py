@@ -58,6 +58,10 @@ SOURCES = OLIMPIC / "sources"
 
 # --- which songs count -----------------------------------------------------------------
 
+# Retitled in PDMX, so metadata misses them; found by comparing melodies staff by staff.
+COPIES_FOUND_BY_MELODY = {"6472842"}  # Haydn, The Mermaid's Song: "Now The Dancing Sunbeams Play"
+
+
 def lieder_piece(path: str) -> Piece:
     """Piece of a Lieder song from its repository path, "Last,_First/set/NN_Title"."""
     composer, _, song = path.split("/")
@@ -75,7 +79,8 @@ def songs_in_training_sources() -> set[str]:
     lieder = yaml.safe_load((OLIMPIC / "lieder_scores.yaml").read_text())
     known = PieceIndex([p for pieces in (pdmx_pieces(RAW / "pdmx") | asap_pieces(RAW / "asap")).values() for p in pieces])
     on_pdmx = pdmx_musescore_ids()
-    return {str(k) for k, v in lieder.items() if str(k) in on_pdmx or known.contains(lieder_piece(v["path"]))}
+    by_metadata = {str(k) for k, v in lieder.items() if str(k) in on_pdmx or known.contains(lieder_piece(v["path"]))}
+    return by_metadata | COPIES_FOUND_BY_MELODY
 
 
 def split_samples(split: str) -> tuple[list[str], int]:

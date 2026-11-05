@@ -411,3 +411,12 @@ Infrastructure:
   agree within 4 on every piece. Timing is the gap: sampled by hand, Sousa's errors are v5's
   (eighth rests between 6/8 chords dropped, so later onsets shift). Rendered print at 0.938
   did not show this.
+
+### Melody check of the OLiMPiC clean dev songs
+- Staff by staff against all training scores. One real copy: Haydn's The Mermaid's Song
+  (6472842), retitled in PDMX, 60% of its fragments, 32 crops. Now excluded: 626 crops, 47
+  songs. Lower shares are mostly chance on repeated accompaniment figures (Brahms's
+  Anklange "matched" a Minecraft parody), so 10% does not transfer from Mutopia here.
+- v5 crops 0.536 [0.463, 0.607], pages 0.570 [0.493, 0.645]; Zeus crops 0.767 [0.693, 0.831];
+  Zeus SER 15.15% on the 626. Run B's logged SER still covers the 658, Haydn included.
+- The test split has not had this check.
