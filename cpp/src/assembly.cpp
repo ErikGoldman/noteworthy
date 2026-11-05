@@ -151,6 +151,7 @@ void ScoreBuilder::add_page(const InputPage& page, const std::vector<Staff>& sta
       apply_attribute_changes(reader, k, measure);
       const Rational length = time_->measure_length();
       std::vector<MeasureItem> mitems = measure_items(sys_items, sys, k, length);
+      drop_false_tuplets(mitems, length, interline);
       imply_tuplets(mitems, length, interline);
       const std::vector<Timing> timing = solve_measure(mitems, {length, sys.bounds[k], sys.bounds[k + 1]}, interline);
       const std::map<int, Pitch> pitch_of = resolve_pitches(mitems, sys, reader, explicit_alter, symbols);

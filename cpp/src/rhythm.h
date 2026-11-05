@@ -26,6 +26,10 @@ struct Timing {
   int voice = 1;
 };
 
+// A fingering 3 reads like a tuplet number. A staff's tuplets are dropped when its notes
+// do not fill the measure with them but fill it exactly without them.
+void drop_false_tuplets(std::vector<MeasureItem>& items, Rational measure_length, double interline);
+
 // Engravers mark the first few triplets of a passage and leave the "3" off the rest.
 // An unmarked beam group of 3 or 6 notes of one plain value is made a triplet (or
 // sextuplet) when the staff's notes overfill the measure and making all such groups of

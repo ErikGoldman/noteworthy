@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <set>
 #include <numeric>
 
 namespace omr {
@@ -83,12 +84,30 @@ void chain(RelativeOnsets& onsets, const std::vector<MeasureItem>& items, std::v
   for (size_t k = 1; k < members.size(); ++k) onsets.relate(members[k - 1], members[k], items[members[k - 1]].duration);
 }
 
+// A beam can run over a rest, which then takes its time in the chain of the beamed notes.
+// On a polyphonic staff the rest may belong to another voice, so it is left out.
+void add_rests_under_beam(const std::vector<MeasureItem>& items, double interline, std::vector<int>& members) {
+  const int staff = items[members.front()].staff;
+  if (staff_is_polyphonic(items, staff, interline)) return;
+  const auto [first, last] = std::minmax_element(members.begin(), members.end(), [&](int a, int b) {
+    return items[a].item->x < items[b].item->x;
+  });
+  const float left = items[*first].item->x, right = items[*last].item->x;
+  for (size_t i = 0; i < items.size(); ++i) {
+    const RhythmItem& it = *items[i].item;
+    if (items[i].staff == staff && !it.rest_kind.empty() && left < it.x && it.x < right) members.push_back(static_cast<int>(i));
+  }
+}
+
 void add_constraints(RelativeOnsets& onsets, const std::vector<MeasureItem>& items, double interline) {
   std::map<int, std::vector<int>> beams;
   for (size_t i = 0; i < items.size(); ++i) {
     if (items[i].item->beam_group) beams[items[i].item->beam_group].push_back(static_cast<int>(i));
   }
-  for (auto& [group, members] : beams) chain(onsets, items, members);
+  for (auto& [group, members] : beams) {
+    add_rests_under_beam(items, interline, members);
+    chain(onsets, items, members);
+  }
 
   for (size_t i = 0; i < items.size(); ++i) {
     for (size_t j = i + 1; j < items.size(); ++j) {
@@ -239,6 +258,12 @@ bool could_be_unmarked_tuplet(const std::vector<MeasureItem>& items, const std::
   });
 }
 
+void make_plain(MeasureItem& it) {
+  it.value.tuplet_actual = 1;
+  it.value.tuplet_normal = 1;
+  it.duration = it.value.duration();
+}
+
 void make_triplet(MeasureItem& it) {
   it.value.tuplet_actual = 3;
   it.value.tuplet_normal = 2;
@@ -246,6 +271,21 @@ void make_triplet(MeasureItem& it) {
 }
 
 }  // namespace
+
+void drop_false_tuplets(std::vector<MeasureItem>& items, Rational measure_length, double interline) {
+  std::set<int> staves_with_tuplets;
+  for (const MeasureItem& it : items) {
+    if (it.value.in_tuplet()) staves_with_tuplets.insert(it.staff);
+  }
+  for (int staff : staves_with_tuplets) {
+    if (staff_timeline(items, staff, interline) == measure_length) continue;
+    std::vector<MeasureItem> trial = items;
+    for (MeasureItem& it : trial) {
+      if (it.staff == staff && it.value.in_tuplet()) make_plain(it);
+    }
+    if (staff_timeline(trial, staff, interline) == measure_length) items = std::move(trial);
+  }
+}
 
 void imply_tuplets(std::vector<MeasureItem>& items, Rational measure_length, double interline) {
   std::map<int, std::vector<int>> beams;

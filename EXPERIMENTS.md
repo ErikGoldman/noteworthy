@@ -420,3 +420,7 @@ Infrastructure:
 - v5 crops 0.536 [0.463, 0.607], pages 0.570 [0.493, 0.645]; Zeus crops 0.767 [0.693, 0.831];
   Zeus SER 15.15% on the 626. Run B's logged SER still covers the 658, Haydn included.
 - The test split has not had this check.
+- Run B step 50,000: dev SER 10.1% on the 658 crops (10.2% at 45,000).
+- Run B step 55,000: dev SER 9.0% on the 658 crops (10.1% at 50,000).
+- Run B step 60,000: dev SER 8.2% on the 658 crops (9.0% at 55,000).
+- Run B step 65,000: dev SER 8.0% on the 658 crops (8.2% at 60,000).

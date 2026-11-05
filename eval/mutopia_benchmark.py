@@ -3,6 +3,9 @@ LilyPond, whole PDFs recognized as one score and scored by note F1.
 
 usage: mutopia_benchmark.py --binary NOTEWORTHY --model MODEL.onnx --out DIR
                             [--split dev|test] [--jobs N] [--threads T]
+       mutopia_benchmark.py --predictions DIR [--split dev|test]
+
+With --predictions, another recognizer's DIR/<name>.musicxml is scored instead.
 
 The pieces are listed in mutopia_pieces.txt (select_mutopia.py), with ground truth from
 their MIDI (mutopia_truth.py). They are clean digital engravings: this measures variety
@@ -37,27 +40,39 @@ def pieces(split: str) -> list[str]:
     return [path for row_split, path, *_ in rows if row_split == split]
 
 
-def bench(piece: str, args: argparse.Namespace) -> Counter | str:
-    name = Path(piece).name
+def recognize(name: str, args: argparse.Namespace) -> Path | str:
+    """The recognizer's MusicXML for the piece, or its error."""
     prediction = args.out / f"{name}.musicxml"
     run = subprocess.run([args.binary, str(MUTOPIA / "pieces" / f"{name}-a4.pdf"), "--model", args.model, "-o", str(prediction),
                           "--threads", str(args.threads)], capture_output=True, text=True)
-    if run.returncode != 0:
-        return run.stderr.strip()[-200:]
+    return prediction if run.returncode == 0 else run.stderr.strip()[-200:]
+
+
+def bench(piece: str, args: argparse.Namespace) -> Counter | str:
+    name = Path(piece).name
+    prediction = args.predictions / f"{name}.musicxml" if args.predictions else recognize(name, args)
+    if isinstance(prediction, str):
+        return prediction
+    if not prediction.exists():
+        return f"no prediction {prediction}"
     source = (MUTOPIA / "repo" / "ftp" / piece / f"{name}.ly").read_text(errors="replace")
     return score(midi_events(MUTOPIA / "pieces" / f"{name}.mid", pickup_quarters(source)), parse_musicxml(prediction))
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--binary", required=True)
-    ap.add_argument("--model", required=True)
-    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--binary")
+    ap.add_argument("--model")
+    ap.add_argument("--predictions", type=Path, help="score these instead of recognizing")
+    ap.add_argument("--out", type=Path)
     ap.add_argument("--split", choices=["dev", "test"], default="dev")
     ap.add_argument("--jobs", type=int, default=4)
     ap.add_argument("--threads", type=int, default=2)
     args = ap.parse_args()
-    args.out.mkdir(parents=True, exist_ok=True)
+    if not args.predictions and not (args.binary and args.model and args.out):
+        ap.error("--binary, --model and --out are needed unless --predictions is given")
+    results_dir = args.predictions or args.out
+    results_dir.mkdir(parents=True, exist_ok=True)
     chosen = pieces(args.split)
     results = {}
     with ThreadPoolExecutor(args.jobs) as pool:
@@ -66,7 +81,7 @@ def main() -> None:
                 print(f"{piece}: failed: {result}")
             else:
                 results[piece] = result
-    save_results(results, args.out / "results.json", lambda piece: piece)
+    save_results(results, results_dir / "results.json", lambda piece: piece)
     report(results, "pieces", show_worst=args.split != "test")
 
 
