@@ -373,3 +373,17 @@ Infrastructure:
   crops: 14.9% (15.8% on all dev), the like-for-like figure for run B's 11.9% at step
   30,000. Caveats: run B's best.pt is picked on these crops, and its SER drops gold tokens
   outside the vocabulary. Note F1 is the deciding number and comes when training ends.
+
+### Mutopia as a source of non-Lieder print: prototype on 5 piano pieces
+- Mutopia: at least 515 piano pieces (LilyPond, CC or public domain) with PDF and MIDI. 314
+  single-file ones pass omr.pieces, but that filter is too loose for a test set: it
+  passed Chopin's Prelude 14 and Beethoven Op. 49 No. 2 on title wording. A test set needs a
+  stricter check, by composer and catalogue number.
+- Truth from the MIDI (notes, durations, time signatures) plus \partial from the source,
+  compared with v5 reading the PDF: bars equal on 4 of 5, off by one on the other; notes
+  within 6; pitch in the right measure 0.955-1.000. MIDI repeats are not unrolled.
+- F1 0.993 Chopin, 0.961 Beethoven, 0.879 Kumar, 0.661 Burgmuller, 0.236 Schumann. In the two
+  worst, traced by hand, the errors are v5's: unmarked triplets read as eighths
+  (Schumann, Kinderscenen 1), and 50 invented 1/6 durations in a piece with no tuplets
+  (Burgmuller, Op. 100 No. 18). The latter may be a false positive of imply_tuplets: unchecked.
+- These 5 pieces have had their errors read, so they can only ever be dev.
