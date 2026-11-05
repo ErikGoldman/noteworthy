@@ -565,3 +565,10 @@ Infrastructure:
   began. 7 pages reach the 0.10 threshold; on the other 105, ours 37.91, Transcoda 52.02,
   -14.11 [-18.62, -9.28]. Overlap does not explain the lead. Musetrainer and OpenScore
   Quartets, which only Transcoda trained on, were not checked.
+- SOTA checks: the 120M variant's weights are not public (no GitHub release, only the 59M
+  checkpoint on Hugging Face), so it cannot be rescored. Legato is public but reports 86.73,
+  far behind. Legato 2 appears in a January 2026 article; a search found no weights, and no
+  OMR-NED figures. "M2-OMR" could not be found. PRAIG/SMB (Sheet Music Benchmark: 685 real
+  scans, 469 pianoform, CC BY-NC) would be a far larger test, but is gated: manual approval
+  under a person's own account. Its KernScores sources overlap GrandStaff, so it would need
+  the melody check first.
