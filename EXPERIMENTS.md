@@ -608,8 +608,8 @@ Paired against run C (37.24), resampling pages:
 - homr's benchmark passes --no-title, which 0.7.0 does not list.
 - homr's run slowed training from 280 to 50 steps a minute, even at nice 19 on separate cores:
   CPU baselines wait for training to end.
-- Not a claim yet. homr's Benchmark.md and copisteria's README publish Polish numbers for
-  copisteria (github.com/kobimusic/copisteria, copista-28m, public weights): 26.4 and 31.5,
-  both below our 37.24. The two disagree by 18 points on homr (30.7, 48.3); ours says 43.86.
-  Copisteria's table sits near ours for homr, Transcoda and Audiveris (48.3, 55.1, 62.6).
-  Copisteria has not been run here, and is the baseline that decides a Polish claim.
+- Copisteria (github.com/kobimusic/copisteria at c685f28, copista-28m, defaults), found through
+  homr's Benchmark.md, scored the same way: **26.74**, 0 failed, median 20.35. Ours minus it:
+  +10.51 [+6.48, +14.60], ours better on 32/112. It beats run C, and the published 26.4 and 31.5
+  bracket it. A SOTA claim on Polish is off: the clean model would need to gain over 10 points.
+  It trains on rendered PDMX pages, like us, with no real scans or Polish listed.

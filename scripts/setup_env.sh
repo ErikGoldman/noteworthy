@@ -33,4 +33,6 @@ uv pip install -q --python "$TRANSCODA_PY" --index-strategy unsafe-best-match \
 uv pip install -q --python "$MUSICDIFF_PY" -r "$ROOT/requirements-omr-ned.txt"
 [ -x "$HOMR_PY" ] || uv venv "$ROOT/.venv-homr" --python 3.12 -q
 uv pip install -q --python "$HOMR_PY" -r "$ROOT/requirements-homr.txt"
+[ -x "$COPISTERIA_PY" ] || uv venv "$ROOT/.venv-copisteria" --python 3.12 -q
+(cd "$ROOT" && uv pip install -q --python "$COPISTERIA_PY" -r requirements-copisteria.txt)
 log "python environment ready"

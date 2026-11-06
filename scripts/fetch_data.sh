@@ -40,6 +40,8 @@ TRANSCODA_MODEL=https://huggingface.co/btrkeks/transcoda-59M-zeroshot-v1/resolve
 TRANSCODA_REPO=https://github.com/btrkeks/Transcoda.git
 TRANSCODA_COMMIT=d4e2e687d5679ae96ca4aa6f01e06a5b338cd488
 POLISH_SCORES=https://huggingface.co/datasets/btrkeks/polish-scores/resolve/55428225335e21c0e4d77a58b32dbb2b58e25954
+COPISTERIA_REPO=https://github.com/kobimusic/copisteria
+COPISTERIA_COMMIT=c685f280914d91a694494588d9f6a376d7917eba
 AUDIVERIS_DEB=https://github.com/Audiveris/audiveris/releases/download/5.11.0/Audiveris-5.11.0-ubuntu24.04-x86_64.deb
 
 download "$PDMX_RECORD/PDMX.csv/content" "$RAW/pdmx/PDMX.csv" 30392ccf38bb63ce70e7afae70f9c88c
@@ -113,6 +115,7 @@ FILES
 
 checkout "$TRANSCODA_REPO" "$TRANSCODA_COMMIT" "$RAW/transcoda_repo/src"
 download "$POLISH_SCORES/data/train-00000-of-00001.parquet" "$RAW/polish_scores/polish.parquet" 8d6f6a9c3ab07e16018d4b7477143a20
+checkout "$COPISTERIA_REPO" "$COPISTERIA_COMMIT" "$RAW/copisteria/src"
 download "$AUDIVERIS_DEB" "$RAW/audiveris/audiveris.deb" 392b146938867806fcc4bdfe8af13ddf
 [ -d "$RAW/audiveris/unpacked" ] || dpkg -x "$RAW/audiveris/audiveris.deb" "$RAW/audiveris/unpacked"
 
