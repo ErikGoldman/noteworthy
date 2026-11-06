@@ -887,3 +887,11 @@ All fine-tuned from clean, 288,000 samples each, except that h640 follows h512.
   -0.35 [-1.96, +0.99]. Without bar locking: 21.93, 21.62 (h384), 24.39 (ctrl), 24.91 (copisteria).
 - Note edits, 45 pages, h512 (clean, copisteria): gold unmatched 5,267 (5,385, 5,153); ours unmatched
   2,795 (3,138, 2,520); moved 3,618 (3,676, 1,689); wrong pitch 2,799 (3,496, 1,368).
+
+### Right pitch, wrong time: beam thickness (Polish dev, h512)
+
+93% of this cost sits in bars that do not add up to the page's usual bar, and five pages hold over
+half. Page 051 is hand-copied: single beams as thick as a printed double, read as 16ths. Causal test,
+60 beam-heavy OLiMPiC dev systems drawn by Verovio with beam polygons 2.2 times thicker: eighths read
+as 16ths 0 to 1,317 of 2,016; SER 2.7% to 25.6%. The second-choice duration is no rescue: label
+smoothing saturates probabilities, and only about 10% of durations have a contender.
