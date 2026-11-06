@@ -2,7 +2,7 @@
 sequence model (train_seq.py).
 
 usage: build_seq_dataset.py --scores LIST.txt --out DIR [--systems-per-score K] [--workers W]
-                            [--unmarked-tuplets] [--thick-beams]
+                            [--unmarked-tuplets] [--thick-beams] [--round-heads]
 
 Held-out scores (omr.held_out) and PDMX scores with a license conflict are left out. Each two-staff (piano) part is cut into systems of a few measures, which OLiMPiC's code
 turns into self-contained parts: clefs and key repeated at each system start, the time
@@ -19,6 +19,8 @@ With --thick-beams beams are drawn heavier, as on old plates and in copyists' ha
 a single beam can be as thick as a printed double one. A model that only ever saw thin
 beams counts them by thickness and reads such eighths as 16ths.
 
+With --round-heads filled noteheads are round dots, as in copyists' hands.
+
 Writes DIR/samples/<score index>/s<k>.png + .lmx, and DIR/samples.train.txt listing
 every sample. A score's directory is written whole or not at all, so an interrupted
 run resumes where it stopped. Scores that hang inside Verovio are listed in
@@ -30,10 +32,12 @@ import argparse
 import multiprocessing as mp
 import os
 import random
+import re
 import shutil
 import sys
 import xml.etree.ElementTree as ET
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import cairosvg
@@ -63,6 +67,18 @@ PART_NAME_HIDDEN = 0.85    # only a score's first system shows the instrument na
 KEEP_FIRST_TUPLET_NUMBER = 0.5
 SINGLE_BEAM_THICKENING = (1.0, 2.6)
 STACKED_BEAM_THICKENING = 1.35  # beyond this, stacked beams touch and their number is lost
+ROUND_HEAD_RADIUS_INTERLINES = (0.42, 0.55)
+FILLED_NOTEHEAD = "#E0A4"  # SMuFL noteheadBlack; Verovio appends a per-file suffix
+XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
+SVG_UNITS_PER_INTERLINE = 180
+NOTEHEAD_CENTRE_UNITS = 106  # a glyph is placed by its left edge
+
+
+@dataclass(frozen=True)
+class Style:
+    """Departures from Verovio's engraving, for hands it does not draw."""
+    thick_beams: bool = False
+    round_heads: bool = False
 
 
 def load_musicxml(path: Path) -> ET.Element:
@@ -166,7 +182,22 @@ def thicken_beams(svg: bytes, factor: float) -> bytes:
     return etree.tostring(root)
 
 
-def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, thick_beams: bool = False) -> np.ndarray | None:
+def round_noteheads(svg: bytes, radius_interlines: float) -> bytes:
+    """The SVG with filled noteheads drawn as circles."""
+    root = etree.fromstring(svg)
+    for group in root.iter(f"{{{SVG_NS}}}g"):
+        if "notehead" not in group.get("class", "").split():
+            continue
+        for glyph in group.findall(f"{{{SVG_NS}}}use"):
+            position = re.match(r"translate\(([-\d.]+),\s*([-\d.]+)\)", glyph.get("transform", ""))
+            if position and glyph.get(XLINK_HREF, "").startswith(FILLED_NOTEHEAD):
+                circle = etree.Element(f"{{{SVG_NS}}}circle", cx=str(float(position[1]) + NOTEHEAD_CENTRE_UNITS),
+                                       cy=position[2], r=str(radius_interlines * SVG_UNITS_PER_INTERLINE))
+                group.replace(glyph, circle)
+    return etree.tostring(root)
+
+
+def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style: Style = Style()) -> np.ndarray | None:
     """The system as a grayscale image cropped to its ink plus a random margin."""
     options = engraving_options(rng)
     tk.setOptions(options)
@@ -174,8 +205,10 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, thick_
         return None
     interline = rng.uniform(*INTERLINE_PX)
     svg = layout_svg(tk, tk.renderToSVG(1), interline / (UNITS_PER_INTERLINE_PER_UNIT * options["unit"]))
-    if thick_beams:
+    if style.thick_beams:
         svg = thicken_beams(svg, rng.uniform(*SINGLE_BEAM_THICKENING))
+    if style.round_heads:
+        svg = round_noteheads(svg, rng.uniform(*ROUND_HEAD_RADIUS_INTERLINES))
     use_smufl_fonts()  # music symbols in text (tempo marks) need the SMuFL fonts in cairo
     png = cairosvg.svg2png(bytestring=svg, background_color="white")
     image = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_GRAYSCALE)
@@ -187,9 +220,9 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, thick_
     return cv2.copyMakeBorder(crop, m[0], m[1], m[2], m[3], cv2.BORDER_CONSTANT, value=255)
 
 
-def build_score(job: tuple[int, str, Path, int, bool, bool]) -> int:
+def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
     """Renders up to K systems of one score; returns how many."""
-    index, source, out, k, unmarked_tuplets, thick_beams = job
+    index, source, out, k, unmarked_tuplets, style = job
     target = out / "samples" / f"{index:06d}"
     if target.exists():
         return len(list(target.glob("*.lmx")))
@@ -222,7 +255,7 @@ def build_score(job: tuple[int, str, Path, int, bool, bool]) -> int:
             if unmarked_tuplets:
                 hide_tuplet_numbers(score, rng)
             musicxml = ET.tostring(score, encoding="unicode", xml_declaration=True)
-            image = render_system(tk, musicxml, rng, thick_beams) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
+            image = render_system(tk, musicxml, rng, style) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
         except Exception:
             # Nothing may escape to the pool: CairoError cannot be unpickled, which kills
             # the pool's result thread and silently stalls every later score.
@@ -244,12 +277,14 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=os.cpu_count())
     ap.add_argument("--unmarked-tuplets", action="store_true")
     ap.add_argument("--thick-beams", action="store_true")
+    ap.add_argument("--round-heads", action="store_true")
     args = ap.parse_args()
     sources = args.scores.read_text().split("\n")
     hung_log = args.out / "hung.txt"
     hung = set(hung_log.read_text().split("\n")) if hung_log.exists() else set()
     conflicts = pdmx_license_conflicts(DATA / "raw" / "pdmx")
-    jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets, args.thick_beams)
+    style = Style(args.thick_beams, args.round_heads)
+    jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets, style)
             for i, s in enumerate(sources)
             if s.strip() and s not in hung and not is_held_out(Path(s)) and Path(s).name not in conflicts]
     total = 0
