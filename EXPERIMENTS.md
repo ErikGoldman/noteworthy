@@ -669,7 +669,7 @@ by up to 0.15 on Polish):
 | Polish, three staves, 7 pages | 62.99 (C) | 90.76 | 91.07 | 22.20 |
 | Polish, all 56 | 36.86 (C) | 33.93 | 35.09 | 25.21 |
 | Mutopia, note F1 | 0.860 / 0.857 (C / clean) | 0.867 | 0.861 | 0.783 |
-| Rendered, note F1 | 0.964 (clean) | not run | 0.965 | not run |
+| Rendered, note F1 | 0.964 (clean) | 0.968 | 0.965 | not run |
 
 - Clean against its old self: Mutopia +0.004 [+0.000, +0.015], rendered +0.001 [-0.001, +0.004].
   OLiMPiC pages crop at scale 1 and do not use this path.
