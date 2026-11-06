@@ -774,3 +774,28 @@ End to end, scratch, not in the pipeline: OMR-NED 27.09 to 24.80, change -2.29 [
 better on 26 pages, worse on 23; extra notes 419 to 285, missed 807 to 733, semitone 744 to 758,
 note F1 0.837 to 0.848. Against copisteria's 25.65: -0.84 [-5.96, +4.14], medians 21.68 and 20.15.
 Not yet checked on Mutopia or rendered pages.
+
+### OMR-NED's bar locking
+
+Why bars go unmatched: on page 042 the scorer reports 2,234 while editing each bar in place costs
+644, so it is not finding the cheapest edit. Its bar pairs are not the cause (bar 2: edit 17,
+delete and insert 87), and tuplets are not (unmatched at 5.8% of tuplet bars, 6.3% of others).
+musicdiff first locks identical bars together with a Myers longest common subsequence, then aligns
+only what lies between. Identical bars can lock to the wrong repeat, which forces everything
+between to be deleted and inserted, so reading more bars exactly can raise the score.
+
+Rescored with that step off, everything else unchanged, 49 two-staff pages (Audiveris 47):
+
+| System | OMR-NED as published | Without locking | Median |
+|---|---|---|---|
+| Clean + left margin | 24.80 | 23.26 | 21.53 |
+| Clean | 27.09 | 24.64 | 21.55 |
+| Copisteria | 25.65 | 24.91 | 20.15 |
+| homr | 44.38 | 44.24 | 41.08 |
+| Audiveris | 69.14 | 68.62 | 74.88 |
+
+- Margin's effect without locking: -1.38 [-2.67, -0.31], better on 28 of 49. Resolved, where the
+  published scorer's noise left -2.29 [-4.77, +0.30].
+- Against copisteria without locking: -1.65 [-6.54, +3.07], better on 25 of 49. Still a tie.
+- Transcoda not rescored: its predictions are **kern, not yet run through this path.
+- Locking is musicdiff's design, not a Transcoda change. The headline stays as published.
