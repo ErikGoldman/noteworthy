@@ -719,3 +719,31 @@ Clean model against copisteria, 49 pages. Note F1 over all notes 0.837 against 0
   which we did not train on. That the blurred crops scored higher is unexplained and untested.
 - The first versions of these Polish F1s counted only outright misses in the denominator; the
   numbers above are corrected. Error counts and OMR-NED were not affected.
+
+### Root cause of the semitone errors: tests so far (Polish dev, two-staff pages, clean model)
+
+No retraining; all scratch. Decided with the user: the claim is two-staff piano, no new training
+data until the cause is shown, sealed half and the authors' email wait.
+
+Ruled out:
+- Crowding: per 1,000 notes, 31 to 35 across chord sizes, flat across bar density, 37 and 30 by staff.
+- Contrast: Polish ink is pale (1st percentile 69 against 0). Stretching it: semitone 744 to 737,
+  OMR-NED -0.05 [-1.52, +1.65].
+- Spacing: systems are narrower at model input (776 against 964 pixels). Widening 1.24x: 758,
+  -0.24 [-1.77, +1.05]. Both together: 721, -0.96 [-2.61, +0.48], note F1 0.837 to 0.827.
+- Rare keys: 5 flats or sharps are 7.2% of the mix, and OLiMPiC dev reads every key at 100%,
+  including 55 crops at 5 and 35 at 6.
+- Crop size and context, for key reading: 23 pages with 3 or more accidentals, 112 systems,
+  correct keys nearly unchanged from ratio 1.6 to 2.6, tight, or the first 1 to 2.5 crop-heights only.
+
+Found:
+- 46% of matched semitone errors (239 of 519) come in runs of one pitch and direction within four
+  bars; only 58 are shared with copisteria. They point at system-wide causes.
+- Our key is wrong in 168 of 1,001 measures, copisteria's in 70. Those measures hold 152 of 495
+  errors: 66 per 1,000 notes against 28 where the key is right. Key accuracy by accidentals:
+  1: 0.89, 2: 0.97, 3: 0.85, 4: 0.92, 5: 0.33; copisteria 0.94, 1.00, 1.00, 1.00, 0.61. Gold checked
+  by eye on pages 108 and 110: right. The 5-accidental figures rest on 7 pages.
+- With the key right we still have 27.8 per 1,000 against copisteria's 12.6. Unexplained.
+
+By elimination, what is left for keys is how these engravings look. That is not shown directly.
+Proposed direct test: render fixed music in each font and read the key, which needs no Polish.
