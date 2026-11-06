@@ -613,3 +613,22 @@ Paired against run C (37.24), resampling pages:
   +10.51 [+6.48, +14.60], ours better on 32/112. It beats run C, and the published 26.4 and 31.5
   bracket it. A SOTA claim on Polish is off: the clean model would need to gain over 10 points.
   It trains on rendered PDMX pages, like us, with no real scans or Polish listed.
+
+### Copisteria on dev: is the Polish gap the metric or the data?
+
+Dev, so errors may be read; eval/copisteria_dev.py, copista-28m, defaults, scored by our scorers.
+Change is ours minus copisteria, resampling pieces.
+
+| Dev set | Metric | Clean model | Run C | Copisteria | Clean's change |
+|---|---|---|---|---|---|
+| OLiMPiC crops, 46 songs | note F1 | 0.916 | 0.924 | 0.845 | +0.071 [+0.039, +0.104] |
+| OLiMPiC crops, 46 songs | OMR-NED | 9.89 | not run | 25.10 | -15.21 [-20.14, -9.98] |
+| Mutopia, 10 pieces | note F1 | 0.857 | 0.860 | 0.783 | +0.074 [-0.005, +0.146] |
+
+- Same metric, same crops, and we lead, so OMR-NED alone does not explain Polish. The gap comes
+  with the data or the page pipeline, which Polish's errors would show and may not be read.
+- This does not offset Polish. The comparison favours us: we train on OLiMPiC's train split
+  and its genre, tuned H5, H7 and H9 on these sets, and our MusicXML shares its gold's
+  normalization. Copisteria reads a crop as a one-system page, without the neighbours its
+  evidence model uses. Whole OLiMPiC pages were not run: its MusicXML does not locate the piano
+  staves. Its right pitch is 0.924 on Mutopia, 0.917 on crops: its losses are largely timing.
