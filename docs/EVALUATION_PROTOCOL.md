@@ -42,6 +42,20 @@ Each runs once, on the frozen system. Numbers only; errors are not read.
 
 The synthetic Verovio benchmark is not used for any claim: its sources overlap our training.
 
+## Polish split
+
+Copisteria leads run C on all 112 pages by 10.51, and the cause cannot be found without reading
+errors, so Polish is divided by `eval/polish_split.py` into `eval/polish_split.txt`: 56 dev, 56
+test, from the gold alone, before any error was read, committed first. Pages sharing melodic
+fragments stay on one side; the dataset names no pieces, so this may miss some.
+
+- Dev: errors may be read and fixes tested. It never enters training: the dataset's card says
+  evaluation only, and no Polish page or anything derived from one is trained on.
+- Test: numbers only, and any Polish claim is made on these 56 pages, for every system.
+- A number over all 112 pages is reported only with the note that half were developed against.
+- The card also says Transcoda used no Polish for selection. Ours does, for its fixes, and
+  every report says so.
+
 ## Metric
 
 OMR-NED from the authors' `src/evaluation/omr_ned.py` at Transcoda commit d4e2e68, unchanged,
