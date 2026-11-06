@@ -747,3 +747,30 @@ Found:
 
 By elimination, what is left for keys is how these engravings look. That is not shown directly.
 Proposed direct test: render fixed music in each font and read the key, which needs no Polish.
+
+### OMR-NED by edit type, and why key signatures fail (Polish dev, 49 two-staff pages, clean model)
+
+Edit cost summed over pages, before the margin below. Total 33,312 against copisteria's 32,042.
+Against us: whole bars unmatched (delbar + insbar) 9,536 against 7,649; printed accidentals to
+remove 557 against 124; notes inserted and deleted 4,155 against 3,689; other added marks 1,145
+against 770. For us: beams 1,236 against 2,610; extra part 0 against 1,101; articulations 725
+against 1,229. Ten pages hold 6,747 of our bar cost; on 051, 065, 026 and 093 copisteria pays
+almost none. Why those bars fail to match is not known.
+
+A missed key costs more than one symbol on OMR-NED after all: the model keeps a note's pitch and
+writes a printed accidental on it instead. Pages 108 and 076 hold 200 of the 557.
+
+Key signatures:
+- Width refuted: squeezing crops to 0.7 leaves 5-accidental reads unchanged; binarizing too.
+- The model does read the signature: blanking it gives 0 on 99 of 112 systems, so "0" means it
+  saw nothing it recognized. Blanking the first 0.35 crop-heights kills Polish keys and leaves
+  OLiMPiC's (75 of 80), so Polish signatures sit nearer the crop's left edge.
+- Cause for 1 to 4 accidentals: crops trimmed too tightly at the left. White margin of 0.1
+  crop-heights: 149 to 163 of 169 correct, 3 and 4 accidentals 75 of 75. More margin adds nothing.
+- 5 accidentals unchanged, 12 of 37: a separate cause, unknown. Read as 0 or 6, stable under
+  every transform tried.
+
+End to end, scratch, not in the pipeline: OMR-NED 27.09 to 24.80, change -2.29 [-4.77, +0.30],
+better on 26 pages, worse on 23; extra notes 419 to 285, missed 807 to 733, semitone 744 to 758,
+note F1 0.837 to 0.848. Against copisteria's 25.65: -0.84 [-5.96, +4.14], medians 21.68 and 20.15.
+Not yet checked on Mutopia or rendered pages.
