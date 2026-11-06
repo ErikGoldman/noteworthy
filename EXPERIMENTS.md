@@ -632,3 +632,27 @@ Change is ours minus copisteria, resampling pieces.
   normalization. Copisteria reads a crop as a one-system page, without the neighbours its
   evidence model uses. Whole OLiMPiC pages were not run: its MusicXML does not locate the piano
   staves. Its right pitch is 0.924 on Mutopia, 0.917 on crops: its losses are largely timing.
+
+### Polish dev half: where the gap is
+
+Dev half only (eval/polish_split.txt; docs/EVALUATION_PROTOCOL.md). 56 pages, run C 36.86,
+copisteria 25.21, gap 11.65; note F1 0.789 against 0.913, with 3,214 notes missed against 921.
+
+- Crops were misplaced. seq_pages.page_scales infers a page's scale from staff heights; the
+  recognizer's real factor differs (page 012: 2.22, inferred 2.07), and the error grows down
+  the page, so lower systems lost their bottom staff. Scratch rerun with the true factor
+  (debug page width over input width), no repo change yet:
+
+| Pages | Before | Run C, true scale | Clean, true scale | Copisteria |
+|---|---|---|---|---|
+| Two staves, 49 | 33.13 | 25.67 | 26.99 | 25.65 |
+| Three staves, 7 | 62.99 | 90.76 | 91.07 | 22.20 |
+| All 56 | 36.86 | 33.80 | 35.00 | 25.21 |
+
+- Two-staff pages tie copisteria, run C better on 26 of 49. Medians over all 56: 22.98, 19.26.
+- Three-staff pages get worse: the crops now find the last two staves, as designed, where the
+  drift had landed nearer the top two; the gold's order then favoured that. We read no third
+  staff, and these 7 are the rest of the gap. All 7 fell in dev, so the sealed half has none.
+- Page 026: one 6-staff system where the page has three, so measures are lost whichever crop.
+  Not yet counted across pages.
+- The 37.24 on all 112 pages carries this bug, as does anything else read through this path.
