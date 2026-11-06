@@ -7,6 +7,10 @@ reading a voice's beam groups of 3 and 6 as tuplets fills the measure exactly, t
 
 A crop rarely shows a time signature, so the bar's length defaults to what most of its
 measures say (measure_evidence): an unmarked group only ever lengthens a voice.
+
+The model errs the other way too: reading into a triplet passage, it marks the plain notes
+before it as triplets, and their voice falls short of the bar. Where clearing the marks from
+a voice's first or last notes fills the measure exactly and leaves whole triplets, this does so.
 """
 from __future__ import annotations
 
@@ -21,6 +25,7 @@ LENGTHS = {"maxima": 32, "long": 16, "breve": 8, "whole": 4, "half": 2, "quarter
 TUPLET = re.compile(r"(\d+)in(\d+)$")
 PITCH = re.compile(r"[A-G]\d$")
 TUPLET_OF_GROUP = {3: ("3in2", Fraction(2, 3)), 6: ("6in4", Fraction(2, 3))}
+TWO_THIRDS_TUPLETS = {token for token, _ in TUPLET_OF_GROUP.values()}
 
 
 @dataclass
@@ -28,8 +33,12 @@ class Note:
     duration_at: int  # index of its duration token
     length: Fraction
     advances: bool  # False for chord members and grace notes
-    marked: bool  # already part of a tuplet
+    tuplet_at: int | None  # index of its tuplet token
     beam_group: int | None = None
+
+    @property
+    def marked(self) -> bool:
+        return self.tuplet_at is not None
 
 
 @dataclass
@@ -49,18 +58,18 @@ class Voice:
         return groups
 
 
-def length_at(tokens: list[str], at: int) -> tuple[Fraction, bool]:
-    """A duration token's length with its dots and tuplet ratio, and whether it has a ratio."""
+def length_at(tokens: list[str], at: int) -> tuple[Fraction, int | None]:
+    """A duration token's length with its dots and tuplet ratio, and where the ratio is."""
     base = Fraction(LENGTHS[tokens[at]])
     length, dot = base, Fraction(1, 2)
-    for token in tokens[at + 1:]:
+    for i, token in enumerate(tokens[at + 1:], at + 1):
         ratio = TUPLET.match(token)
         if ratio:
-            return length * int(ratio[2]) / int(ratio[1]), True
+            return length * int(ratio[2]) / int(ratio[1]), i
         if token != "dot":
             break
         length, dot = length + base * dot, dot / 2
-    return length, False
+    return length, None
 
 
 def parse_measure(tokens: list[str], start: int, end: int) -> list[Voice]:
@@ -80,14 +89,14 @@ def parse_measure(tokens: list[str], start: int, end: int) -> list[Voice]:
         elif token in ("forward", "backup", "rest") or PITCH.match(token):
             head = token
         elif token in LENGTHS and head:
-            length, marked = length_at(tokens, i)
+            length, tuplet_at = length_at(tokens, i)
             if head == "backup":
                 voices.append(voice)
                 voice = Voice()
             elif head == "forward":
                 voice.skipped += length
             else:
-                note = Note(i, length, not (chord or grace), marked, group if depth else None)
+                note = Note(i, length, not (chord or grace), tuplet_at, group if depth else None)
                 voice.notes.append(note)
             head, chord, grace = None, False, False
         elif token == "beam:begin":
@@ -167,6 +176,31 @@ def insertions_for(voice: Voice, bar: Fraction) -> list[tuple[int, str]]:
     return [(n.duration_at + 1, token) for notes, token, _ in candidates for n in notes]
 
 
+def two_thirds_events(voice: Voice, tokens: list[str]) -> list[list[Note]]:
+    """The voice's notes marked 3in2 or 6in4, each with the rest of its chord."""
+    events: list[list[Note]] = []
+    for note in voice.notes:
+        if note.advances:
+            events.append([])
+        if events and note.marked and tokens[note.tuplet_at] in TWO_THIRDS_TUPLETS:
+            events[-1].append(note)
+    return [event for event in events if event]
+
+
+def runaway_tuplets(voice: Voice, tokens: list[str], bar: Fraction) -> list[int]:
+    """Where tuplet tokens go away if that makes the voice fill the bar exactly. A plain note
+    is half as long again as its tuplet form."""
+    if voice.measure_rest or voice.total() >= bar:
+        return []
+    events = two_thirds_events(voice, tokens)
+    for count in range(1, len(events) + 1):
+        for cleared, kept in ((events[:count], events[count:]), (events[-count:], events[:-count])):
+            gained = sum((event[0].length / 2 for event in cleared), Fraction(0))
+            if voice.total() + gained == bar and len(kept) % 3 == 0:
+                return [note.tuplet_at for event in cleared for note in event]
+    return []
+
+
 def imply_tuplets(lmx: str, bar: Fraction | None = None) -> str:
     """The LMX with tuplets the bar's arithmetic implies. bar is the length in force from earlier
     systems, for one that does not print its own time signature."""
@@ -175,9 +209,13 @@ def imply_tuplets(lmx: str, bar: Fraction | None = None) -> str:
     bar = written_bar(tokens) or bar or likely_bar(measures)
     if bar is None:
         return lmx
-    insertions = [i for measure in measures for voice in measure for i in insertions_for(voice, bar)]
-    for at, token in sorted(insertions, reverse=True):
-        tokens.insert(at, token)
+    edits = [(at, token) for measure in measures for voice in measure for at, token in insertions_for(voice, bar)]
+    edits += [(at, None) for measure in measures for voice in measure for at in runaway_tuplets(voice, tokens, bar)]
+    for at, token in sorted(edits, key=lambda edit: edit[0], reverse=True):
+        if token is None:
+            del tokens[at]
+        else:
+            tokens.insert(at, token)
     return " ".join(tokens)
 
 

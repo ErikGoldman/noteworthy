@@ -895,3 +895,14 @@ half. Page 051 is hand-copied: single beams as thick as a printed double, read a
 60 beam-heavy OLiMPiC dev systems drawn by Verovio with beam polygons 2.2 times thicker: eighths read
 as 16ths 0 to 1,317 of 2,016; SER 2.7% to 25.6%. The second-choice duration is no rescue: label
 smoothing saturates probabilities, and only about 10% of durations have a contender.
+
+### Tuplet marks that run on, and gold the parser damages (Polish dev, b512)
+
+- `imply_tuplets` is not the cause of the triplet errors: without it, OMR-NED 23.21 against 22.96.
+- The model marks plain notes before a triplet passage as triplets, so the voice falls short. Clearing
+  marks from a voice's first or last notes where that fills the bar exactly and leaves whole triplets:
+  33 voices, 9 pages all better, 22.96 to 22.44 on saved reads.
+- 7% of voices still miss the bar afterwards.
+- Published gold: 8 merges on 6 open pages join voices of different staves. music21 then loses notes:
+  15,534 of 16,149 parsed; 16,045 after moving the merges. Against repaired gold: ours 20.22,
+  copisteria 23.49, -3.26 [-8.60, +1.68].
