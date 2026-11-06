@@ -813,3 +813,8 @@ seq_pages adds 0.1 crop-heights of white on the left. Clean model, dev:
 
 The first OLiMPiC run ended in a traceback that was not kept; a rerun passed. Cause unknown.
 Scratch's 24.80 and the pipeline's 24.99 differ by the rounding of margins and a fresh layout pass.
+
+Edit cost with locking off, after the margin, 49 pages. Total 29,002 against copisteria's 31,178.
+Bars 5,096 against 6,384; beams 1,407 against 2,603; extra part 0 against 1,101; removed marks 742
+against 1,146. Copisteria ahead only on notes added or removed, 3,782 against 4,145, and added
+marks, 782 against 844. Printed accidentals to remove are now level, 139 against 124.
