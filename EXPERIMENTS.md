@@ -636,7 +636,7 @@ Change is ours minus copisteria, resampling pieces.
 ### Polish dev half: where the gap is
 
 Dev half only (eval/polish_split.txt; docs/EVALUATION_PROTOCOL.md). 56 pages, run C 36.86,
-copisteria 25.21, gap 11.65; note F1 0.789 against 0.913, with 3,214 notes missed against 921.
+copisteria 25.21, gap 11.65; note F1 0.747 against 0.866, with 3,214 notes missed against 921.
 
 - Crops were misplaced. seq_pages.page_scales infers a page's scale from staff heights; the
   recognizer's real factor differs (page 012: 2.22, inferred 2.07), and the error grows down
@@ -680,7 +680,7 @@ by up to 0.15 on Polish):
 
 ### Polish dev, two-staff pages after the crop fix: what remains
 
-Clean model against copisteria, 49 pages. Note F1 over all notes 0.892 against 0.909.
+Clean model against copisteria, 49 pages. Note F1 over all notes 0.837 against 0.864.
 
 - Semitone errors are the clearest difference: 744 against 251. Missed notes (807, 880), timing
   (about 1,017, 1,032) are level; extra notes 419 against 247.
@@ -693,8 +693,8 @@ Clean model against copisteria, 49 pages. Note F1 over all notes 0.892 against 0
 
 - H11 refuted, scratch only, nothing adopted. Each system's first key set to the page's majority
   (24 of 265 systems changed), clean model, 49 two-staff pages: OMR-NED 27.09 to 27.03, change
-  -0.06 [-0.16, +0.02], but semitone errors rose from 744 to 907 and note F1 fell from 0.892 to
-  0.886. Why they rose is not known; real key changes between systems would do it.
+  -0.06 [-0.16, +0.02], but semitone errors rose from 744 to 907 and note F1 fell from 0.837 to
+  0.827. Why they rose is not known; real key changes between systems would do it.
 
 - Semitone errors with matching onset and duration, clean against copisteria, 49 two-staff
   pages: 519 against 225. No single cause: invented accidental 194 against 116, missed accidental
@@ -712,3 +712,10 @@ Clean model against copisteria, 49 pages. Note F1 over all notes 0.892 against 0
   [-0.21, +0.38]. By thirds, per 1,000 notes: 55.4, 28.7, 53.9, not a trend; copisteria 13.6, 7.7,
   24.4. All these pages are low resolution, so this cannot show that low resolution does not
   matter. Direct test, not run: blur OLiMPiC dev crops down to 9 pixels and compare.
+- Direct resolution test: refuted. OLiMPiC dev crops, clean model, shrunk to Polish's scale (median
+  height 836 to 310) and enlarged back: note F1 0.916 to 0.925, semitone errors 734 to 710 on 34,544
+  notes. Blur alone does not make our accidentals fail. Polish's rate is about twice OLiMPiC's
+  (47 against 21 per 1,000), so the cause is something else about those scans or engravings,
+  which we did not train on. That the blurred crops scored higher is unexplained and untested.
+- The first versions of these Polish F1s counted only outright misses in the denominator; the
+  numbers above are corrected. Error counts and OMR-NED were not affected.
