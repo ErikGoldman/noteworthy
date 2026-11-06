@@ -865,3 +865,25 @@ same bar reads right, then a step off. 57 of 68 multi-note events shift together
 - Longer training: 12,000 more steps at the same settings, OMR-NED 25.01, step errors 382. No change.
 - Tight crops: 391. Weak test, since the model never trained on them and the staves hardly grow.
 - Pure rhythm errors are rare: only 51 bar-staves have right pitches at wrong onsets.
+
+### Notehead errors: input pixels are the cause (Polish dev, 49 two-staff pages)
+
+All fine-tuned from clean, 288,000 samples each, except that h640 follows h512.
+
+| Run | Input height, rows | OLiMPiC crops | Mutopia | OMR-NED | One-step | Wrong pitch | Moved |
+|---|---|---|---|---|---|---|---|
+| ctrl | 256, 8 | 0.923 | 0.886 | 25.01 | 382 | 3,871 | 4,314 |
+| r16 | 256, 16 | 0.920 | 0.875 | 25.35 | 352 | 3,668 | 4,048 |
+| h384 | 384, 12 | 0.922 | 0.885 | 23.21 | 285 | 3,260 | 3,458 |
+| h512 | 512, 16 | 0.932 | 0.882 | 22.87 | 201 | 2,799 | 3,618 |
+
+- More rows on the same pixels do little; more pixels do. Dose response on one-step errors.
+- Clean renders read at 256 show no ledger effect: 1.8 per 1,000 outside the staff, 2.2 inside, on
+  224 OLiMPiC dev systems; scans of those pieces 32 and 9.8, on all dev systems. The limit is
+  resolution on old engravings, not resolution alone.
+- Refuted: short ledger lines. Verovio's shortest and thinnest, 4.8 against 2.6 per 1,000 (120 systems).
+- Errors concentrate in pieces: 6011095 alone has 160 of them, dense chord stacks on old plates.
+- h512 against ctrl: -2.15 [-4.76, -0.07]; against copisteria -2.78 [-7.99, +2.12]; against h384
+  -0.35 [-1.96, +0.99]. Without bar locking: 21.93, 21.62 (h384), 24.39 (ctrl), 24.91 (copisteria).
+- Note edits, 45 pages, h512 (clean, copisteria): gold unmatched 5,267 (5,385, 5,153); ours unmatched
+  2,795 (3,138, 2,520); moved 3,618 (3,676, 1,689); wrong pitch 2,799 (3,496, 1,368).

@@ -29,7 +29,7 @@ import onnx
 import onnxruntime
 import torch
 
-from seq.data import HEIGHT, MAX_WIDTH, WIDTH_MULTIPLE
+from seq.data import WIDTH_MULTIPLE, max_width
 from seq.model import Seq2Seq
 from seq.vocab import BOS, EOS, Vocab
 from train_seq import VOCABULARY
@@ -54,7 +54,7 @@ class NextToken(torch.nn.Module):
 
 
 def export(model: Seq2Seq, out: Path) -> None:
-    image, widths = torch.rand(2, 1, HEIGHT, 4 * WIDTH_MULTIPLE), torch.tensor([4 * WIDTH_MULTIPLE, 2 * WIDTH_MULTIPLE])
+    image, widths = torch.rand(2, 1, model.height, 4 * WIDTH_MULTIPLE), torch.tensor([4 * WIDTH_MULTIPLE, 2 * WIDTH_MULTIPLE])
     memory, padding = model.encode(image, widths)
     torch.onnx.export(Encoder(model), (image, widths), out / "encoder.onnx", input_names=["image", "widths"],
                       output_names=["memory", "memory_padding"],
@@ -69,11 +69,11 @@ def export(model: Seq2Seq, out: Path) -> None:
                       opset_version=18, dynamo=True)
 
 
-def add_metadata(path: Path, vocab: Vocab, max_tokens: int) -> None:
+def add_metadata(path: Path, vocab: Vocab, model: Seq2Seq) -> None:
     proto = onnx.load(path)
     for key, value in {
-        "vocabulary": json.dumps(vocab.tokens), "bos": str(BOS), "eos": str(EOS), "height": str(HEIGHT),
-        "width_multiple": str(WIDTH_MULTIPLE), "max_width": str(MAX_WIDTH), "max_tokens": str(max_tokens),
+        "vocabulary": json.dumps(vocab.tokens), "bos": str(BOS), "eos": str(EOS), "height": str(model.height),
+        "width_multiple": str(WIDTH_MULTIPLE), "max_width": str(max_width(model.height)), "max_tokens": str(model.max_tokens),
         "input": "float32 NCHW grayscale, value = 1 - pixel / 255 (paper = 0, ink = 1), zero padding",
     }.items():
         entry = proto.metadata_props.add()
@@ -95,7 +95,7 @@ def greedy_onnx(out: Path, image: np.ndarray, widths: np.ndarray, steps: int) ->
 def check_against_torch(model: Seq2Seq, out: Path, steps: int = 40) -> None:
     """Greedy tokens from ONNX Runtime must equal PyTorch's on a random batch, padding included."""
     torch.manual_seed(0)
-    image = torch.rand(2, 1, HEIGHT, 12 * WIDTH_MULTIPLE)
+    image = torch.rand(2, 1, model.height, 12 * WIDTH_MULTIPLE)
     widths = torch.tensor([12 * WIDTH_MULTIPLE, 7 * WIDTH_MULTIPLE])
     image[1, :, :, 7 * WIDTH_MULTIPLE:] = 0
     expected = [t[:steps] for t in model.generate(image, widths, max_tokens=steps + 1)]
@@ -117,7 +117,7 @@ def main() -> None:
     torch.backends.mha.set_fastpath_enabled(False)  # its fused layer kernels have no ONNX form
     with torch.no_grad():
         export(model, out)
-    add_metadata(out / "encoder.onnx", vocab, model.max_tokens)
+    add_metadata(out / "encoder.onnx", vocab, model)
     check_against_torch(model, out)
     print(f"exported {checkpoint} (step {state['step']}) to {out}")
 
