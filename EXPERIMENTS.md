@@ -706,3 +706,9 @@ Clean model against copisteria, 49 pages. Note F1 over all notes 0.892 against 0
 - So the delinearizer's carry rules are not the problem; it is the model's reading of small
   marks and line positions. Polish pages have about 9 pixels between staff lines; whether that
   low resolution is why is untested.
+
+- Resolution, first check: no support, but a weak test. Staff spacing on the 49 pages runs only
+  8.6 to 12.0 pixels, median 9.4. Rank correlation with the clean model's semitone rate 0.10
+  [-0.21, +0.38]. By thirds, per 1,000 notes: 55.4, 28.7, 53.9, not a trend; copisteria 13.6, 7.7,
+  24.4. All these pages are low resolution, so this cannot show that low resolution does not
+  matter. Direct test, not run: blur OLiMPiC dev crops down to 9 pixels and compare.
