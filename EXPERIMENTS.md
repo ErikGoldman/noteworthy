@@ -677,3 +677,16 @@ by up to 0.15 on Polish):
 - Merged systems are rare: one 6-staff system in 56 pages (026), one 1-staff system (077).
   No special case added. All 26 three-staff systems are on the 7 three-staff pages.
 - Sealed half untouched: no reading of those pages since the first look.
+
+### Polish dev, two-staff pages after the crop fix: what remains
+
+Clean model against copisteria, 49 pages. Note F1 over all notes 0.892 against 0.909.
+
+- Semitone errors are the clearest difference: 744 against 251. Missed notes (807, 880), timing
+  (about 1,017, 1,032) are level; extra notes 419 against 247.
+- Few come from the first key: wrong on 6 of 49 pages, 117 of the 744. On some pages our systems
+  disagree on the key (-4 and -3 on 051 and 087, 0 and 5 on 108 and 076), as each is read alone;
+  how many semitone errors that explains is not measured. Hypothesis, untested: H11, one key
+  per page unless a double bar changes it.
+- The tie hides large swings both ways: 304 points of page gaps against us, 233 for us. Pages
+  051 and 093 lose over 40 each; on 088, 003 and 037 copisteria loses over 40.
