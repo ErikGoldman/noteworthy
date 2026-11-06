@@ -9,10 +9,10 @@ from torch import nn
 
 from .vocab import BOS, EOS, PAD
 
-# Encoder strides: the feature grid has HEIGHT / 32 rows and width / 16 columns. Rows are
-# coarser than columns because a column sequence must resolve note after note, while
-# pitch is read from the features within a row.
-ROW_STRIDE, COL_STRIDE = 32, 16
+# Encoder strides: the feature grid has height / row_stride rows and width / 16 columns.
+COL_STRIDE = 16
+# Strides of the last three stages, by row stride; the stem halves twice before them.
+STAGE_STRIDES = {32: ((2, 2), (2, 2), (2, 1)), 16: ((2, 2), (2, 2), (1, 1)), 8: ((2, 2), (1, 2), (1, 1))}
 
 
 class BasicBlock(nn.Module):
@@ -43,12 +43,15 @@ def _sinusoid(n: int, dim: int, device) -> torch.Tensor:
 
 class Seq2Seq(nn.Module):
     def __init__(self, vocab_size: int, dim: int = 384, encoder_layers: int = 2, decoder_layers: int = 6,
-                 heads: int = 8, max_tokens: int = 1024, rows: int = 8, dropout: float = 0.1):
+                 heads: int = 8, max_tokens: int = 1024, height: int = 256, row_stride: int = 32, dropout: float = 0.1):
         super().__init__()
+        self.height = height
+        rows = height // row_stride
+        into_128, into_256, into_dim = STAGE_STRIDES[row_stride]
         self.cnn = nn.Sequential(
             nn.Conv2d(1, 32, 3, 2, 1, bias=False), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
             nn.Conv2d(32, 64, 3, 2, 1, bias=False), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
-            _stage(64, 64, (1, 1)), _stage(64, 128, (2, 2)), _stage(128, 256, (2, 2)), _stage(256, dim, (2, 1)))
+            _stage(64, 64, (1, 1)), _stage(64, 128, into_128), _stage(128, 256, into_256), _stage(256, dim, into_dim))
         self.row_embedding = nn.Parameter(torch.zeros(rows, dim))
         layer = lambda: nn.TransformerEncoderLayer(dim, heads, 4 * dim, dropout, batch_first=True, norm_first=True)
         self.encoder = nn.TransformerEncoder(layer(), encoder_layers, enable_nested_tensor=False)

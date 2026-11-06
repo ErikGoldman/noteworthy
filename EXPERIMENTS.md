@@ -851,3 +851,17 @@ Copisteria collapses on 037, 003, 071, 088: 5,697 against our 1,177. On the othe
 - Tilt: median 0.4 degrees against OLiMPiC's 0.2; 64% of crops at 0.3 or more against 34%.
 - Why noteheads are a step off is unknown. Encoder grid: 8 rows, 32 pixels each, about 8 pixels
   between staff lines, so a staff fits in about one row.
+
+### Notehead errors: what causes them (Polish dev, clean + margin)
+
+Examples first: left-hand chords on ledger lines far above the bass staff; an identical chord in the
+same bar reads right, then a step off. 57 of 68 multi-note events shift together.
+- Tilt: deskewing crops, one-step errors 369 to 349, OMR-NED 24.99 to 24.28. Not the main cause.
+  Training already rotates by up to 1 degree.
+- Ledger lines: step errors per 1,000 notes rise from 14 to 20 in the staff to 40 to 150 outside it;
+  copisteria stays near 4 to 27. On OLiMPiC dev too: bass, three ledger lines down, 107 against 12.
+  So it is general, not Polish.
+- Rarity: refuted, ledger notes are common in every training set.
+- Longer training: 12,000 more steps at the same settings, OMR-NED 25.01, step errors 382. No change.
+- Tight crops: 391. Weak test, since the model never trained on them and the staves hardly grow.
+- Pure rhythm errors are rare: only 51 bar-staves have right pitches at wrong onsets.

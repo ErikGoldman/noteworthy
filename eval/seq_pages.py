@@ -135,7 +135,7 @@ def transcribe(model, vocab: Vocab, crops: list[np.ndarray], device, batch: int)
     empty = torch.tensor([BOS, EOS])
     for start in range(0, len(order), batch):
         chosen = order[start:start + batch]
-        images, widths, _ = collate([(to_tensor(scale_to_height(crops[i])), empty) for i in chosen])
+        images, widths, _ = collate([(to_tensor(scale_to_height(crops[i], model.height)), empty) for i in chosen])
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths)
         for i, tokens in zip(chosen, predicted):

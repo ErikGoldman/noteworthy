@@ -109,7 +109,8 @@ def main() -> None:
     checkpoint, out = Path(sys.argv[1]), Path(sys.argv[2])
     state = torch.load(checkpoint, map_location="cpu")
     vocab = Vocab.load(VOCABULARY)
-    model = Seq2Seq(len(vocab), max_tokens=state["args"]["max_tokens"])
+    model = Seq2Seq(len(vocab), max_tokens=state["args"]["max_tokens"], height=state["args"].get("height", 256),
+                    row_stride=state["args"].get("row_stride", 32))
     model.load_state_dict(state["model"])
     model.eval()
     out.mkdir(parents=True, exist_ok=True)

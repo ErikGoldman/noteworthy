@@ -68,7 +68,9 @@ def delinearize(lmx: str, bar: Fraction | None = None) -> str:
 
 def load_model(checkpoint: Path, vocab: Vocab, device) -> Seq2Seq:
     state = torch.load(checkpoint, map_location=device)
-    model = Seq2Seq(len(vocab), max_tokens=state["args"]["max_tokens"]).to(device)
+    args = state["args"]
+    model = Seq2Seq(len(vocab), max_tokens=args["max_tokens"], height=args.get("height", 256),
+                    row_stride=args.get("row_stride", 32)).to(device)
     model.load_state_dict(state["model"])
     return model.eval()
 
@@ -84,7 +86,7 @@ def main() -> None:
     vocab = Vocab.load(VOCABULARY)
     model = load_model(args.checkpoint, vocab, device)
     names = split_names(SCANNED, args.split)
-    loader = torch.utils.data.DataLoader(SystemDataset(samples(SCANNED, names), vocab, False, model.max_tokens),
+    loader = torch.utils.data.DataLoader(SystemDataset(samples(SCANNED, names), vocab, False, model.max_tokens, model.height),
                                          batch_size=args.batch, num_workers=6, collate_fn=collate)
     errors = total = 0
     done = 0

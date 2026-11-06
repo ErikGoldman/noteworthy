@@ -43,6 +43,13 @@ def plain(options: dict) -> dict:
     return {k: str(v) if isinstance(v, Path) else v for k, v in options.items()}
 
 
+def weights_for_grid(weights: dict, model: Seq2Seq) -> dict:
+    """Weights of another run, its row embedding stretched to this model's rows."""
+    rows = model.row_embedding.shape[0]
+    stretched = F.interpolate(weights["row_embedding"].T[None], size=rows, mode="linear", align_corners=True)[0].T
+    return {**weights, "row_embedding": stretched}
+
+
 def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
     model.eval()
     errors = total = 0
@@ -72,6 +79,8 @@ def main() -> None:
     ap.add_argument("--dev-count", type=int, default=300)
     ap.add_argument("--eval-every", type=int, default=5000)
     ap.add_argument("--init", type=Path, help="weights to start from, for fine-tuning")
+    ap.add_argument("--height", type=int, default=256, help="crop height at the model's input")
+    ap.add_argument("--row-stride", type=int, default=32, choices=[8, 16, 32])
     args = ap.parse_args()
 
     device = torch.device("cuda")
@@ -85,19 +94,19 @@ def main() -> None:
     dev_root, dev_split = args.dev.split(":")
     dev_names = args.dev_samples.read_text().split() if args.dev_samples else split_names(Path(dev_root), dev_split)
     dev_items = samples(Path(dev_root), dev_names[: args.dev_count])
-    train = torch.utils.data.DataLoader(SystemDataset(train_items, vocab, True, args.max_tokens), batch_size=args.batch,
+    train = torch.utils.data.DataLoader(SystemDataset(train_items, vocab, True, args.max_tokens, args.height), batch_size=args.batch,
                                         shuffle=True, num_workers=args.workers, collate_fn=collate, drop_last=True,
                                         persistent_workers=True)
-    dev = torch.utils.data.DataLoader(SystemDataset(dev_items, vocab, False, args.max_tokens), batch_size=32,
+    dev = torch.utils.data.DataLoader(SystemDataset(dev_items, vocab, False, args.max_tokens, args.height), batch_size=32,
                                       num_workers=4, collate_fn=collate)
-    model = Seq2Seq(len(vocab), max_tokens=args.max_tokens).to(device)
+    model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     schedule = lambda s: min(1.0, s / args.warmup) * 0.5 * (1 + math.cos(math.pi * min(1.0, s / args.steps)))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, schedule)
     args.out.mkdir(parents=True, exist_ok=True)
     step, best = 0, float("inf")
     if args.init and not (args.out / "last.pt").exists():
-        model.load_state_dict(torch.load(args.init, map_location=device)["model"])
+        model.load_state_dict(weights_for_grid(torch.load(args.init, map_location=device)["model"], model))
     if (args.out / "last.pt").exists():
         state = torch.load(args.out / "last.pt", map_location=device)
         model.load_state_dict(state["model"]), opt.load_state_dict(state["opt"]), sched.load_state_dict(state["sched"])

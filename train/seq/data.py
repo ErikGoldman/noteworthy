@@ -18,7 +18,7 @@ from omr.augment import capture_degradation, stroke_weight
 from .vocab import PAD, Vocab
 
 HEIGHT = 256
-MAX_WIDTH = 2048        # wider crops are squeezed horizontally
+MAX_WIDTH = 2048        # at HEIGHT; wider crops are squeezed horizontally
 WIDTH_MULTIPLE = 32     # the encoder's horizontal stride
 # A system crop is roughly this many interlines tall (two staves plus margins); the
 # degradations are sized in interlines.
@@ -41,8 +41,12 @@ def split_names(root: Path, split: str) -> list[str]:
     return (root / f"samples.{split}.txt").read_text().split()
 
 
+def max_width(height: int) -> int:
+    return MAX_WIDTH * height // HEIGHT
+
+
 def scale_to_height(image: np.ndarray, height: int = HEIGHT) -> np.ndarray:
-    width = min(MAX_WIDTH, max(1, round(image.shape[1] * height / image.shape[0])))
+    width = min(max_width(height), max(1, round(image.shape[1] * height / image.shape[0])))
     return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
 
 
@@ -62,7 +66,7 @@ def augment(rng: np.random.Generator, image: np.ndarray) -> np.ndarray:
     angle = rng.uniform(-1.0, 1.0)
     m = cv2.getRotationMatrix2D((image.shape[1] / 2, image.shape[0] / 2), angle, 1.0)
     image = cv2.warpAffine(image, m, (image.shape[1], image.shape[0]), borderValue=255)
-    width = min(MAX_WIDTH, round(image.shape[1] * h / image.shape[0] * rng.uniform(0.85, 1.15)))
+    width = min(max_width(h), round(image.shape[1] * h / image.shape[0] * rng.uniform(0.85, 1.15)))
     image = cv2.resize(image, (width, h), interpolation=cv2.INTER_AREA)
     if rng.random() < 0.5:
         image = stroke_weight(rng, image, interline * 2)
@@ -79,7 +83,8 @@ def to_tensor(image: np.ndarray) -> torch.Tensor:
 
 
 class SystemDataset(torch.utils.data.Dataset):
-    def __init__(self, items: list[Sample], vocab: Vocab, train: bool, max_tokens: int):
+    def __init__(self, items: list[Sample], vocab: Vocab, train: bool, max_tokens: int, height: int = HEIGHT):
+        self.height = height
         self.items = items
         self.vocab = vocab
         self.train = train
@@ -90,7 +95,7 @@ class SystemDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i: int):
         sample = self.items[i]
-        image = load_scaled(sample.image)
+        image = load_scaled(sample.image, self.height)
         if self.train:
             image = augment(np.random.default_rng(), image)
         tokens = self.vocab.encode(sample.lmx.read_text())[: self.max_tokens]
@@ -101,7 +106,7 @@ def collate(batch):
     images, tokens = zip(*batch)
     width = max(im.shape[-1] for im in images)
     width = -(-width // WIDTH_MULTIPLE) * WIDTH_MULTIPLE
-    image_batch = torch.zeros(len(images), 1, HEIGHT, width)
+    image_batch = torch.zeros(len(images), 1, images[0].shape[1], width)
     widths = torch.tensor([im.shape[-1] for im in images])
     for k, im in enumerate(images):
         image_batch[k, :, :, : im.shape[-1]] = im
