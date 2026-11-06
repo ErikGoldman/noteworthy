@@ -74,6 +74,7 @@ struct LayoutBreak {
   bool new_system = false;
   std::optional<int> new_page;  // 1-based page number of the input, on a page's first measure
   int page = 0;                 // 1-based page number of the input
+  double scale = 1;             // from input pixels to the page as the recognizer read it
   std::vector<StaffPlacement> staves;  // on a system's first measure: its staves, by staff number - 1
 };
 

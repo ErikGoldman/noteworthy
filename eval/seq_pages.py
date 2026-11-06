@@ -46,7 +46,6 @@ from seq.data import collate, scale_to_height, to_tensor  # noqa: E402
 from seq.vocab import BOS, EOS, Vocab  # noqa: E402
 from train_seq import VOCABULARY  # noqa: E402
 
-NORMALIZED_INTERLINE_PX = 20.0  # the U-Net's; see train/omr/dataset.py
 MARGIN_INTERLINES = 7.0     # how far from the staves a crop may reach for high notes
 SIDE_MARGIN_INTERLINES = 1.0
 # Crop height over system height, tried in this order. 2.06 is OLiMPiC's crops, median over
@@ -66,11 +65,9 @@ class SystemCrop:
 
 
 def page_scales(layout: dict) -> dict[int, float]:
-    """The layout is in input coordinates; debug pages are scaled to the normalized interline."""
-    heights = defaultdict(list)
-    for system in layout["systems"]:
-        heights[system["page"]] += [bottom - top for top, bottom in system["staves"]]
-    return {page: 4 * NORMALIZED_INTERLINE_PX / float(np.median(h)) for page, h in heights.items()}
+    """The layout is in input coordinates; debug pages are as the recognizer read them. Inferring
+    this from staff heights drifts by up to a tenth, which moves a low system off its crop."""
+    return {system["page"]: system["scale"] for system in layout["systems"]}
 
 
 def piano_systems(layout: dict, scales: dict[int, float]) -> list[SystemCrop]:

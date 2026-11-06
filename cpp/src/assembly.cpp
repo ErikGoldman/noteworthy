@@ -146,6 +146,7 @@ void ScoreBuilder::add_page(const InputPage& page, const std::vector<Staff>& sta
       Measure measure;
       measure.layout.new_system = k == 0;
       measure.layout.page = page.number;
+      measure.layout.scale = page.scale;
       if (k == 0) measure.layout.staves = staff_placements(staves, sys, page.scale);
       if (std::exchange(first_on_page, false)) measure.layout.new_page = page.number;
       apply_attribute_changes(reader, k, measure);

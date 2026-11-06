@@ -656,3 +656,24 @@ copisteria 25.21, gap 11.65; note F1 0.789 against 0.913, with 3,214 notes misse
 - Page 026: one 6-staff system where the page has three, so measures are lost whichever crop.
   Not yet counted across pages.
 - The 37.24 on all 112 pages carries this bug, as does anything else read through this path.
+
+### Crop scale fixed in the pipeline
+
+The recognizer now writes each system's true scale to layout.json and seq_pages reads it. A
+layout without it fails loudly. Full rerun, replacing the scratch numbers above (the two differ
+by up to 0.15 on Polish):
+
+| Dev set | Before | Run C | Clean | Copisteria |
+|---|---|---|---|---|
+| Polish, two staves, 49 pages, OMR-NED | 33.13 (C) | 25.82 | 27.09 | 25.65 |
+| Polish, three staves, 7 pages | 62.99 (C) | 90.76 | 91.07 | 22.20 |
+| Polish, all 56 | 36.86 (C) | 33.93 | 35.09 | 25.21 |
+| Mutopia, note F1 | 0.860 / 0.857 (C / clean) | 0.867 | 0.861 | 0.783 |
+| Rendered, note F1 | 0.964 (clean) | not run | 0.965 | not run |
+
+- Clean against its old self: Mutopia +0.004 [+0.000, +0.015], rendered +0.001 [-0.001, +0.004].
+  OLiMPiC pages crop at scale 1 and do not use this path.
+- Clean against copisteria on Mutopia: +0.078 [+0.003, +0.148].
+- Merged systems are rare: one 6-staff system in 56 pages (026), one 1-staff system (077).
+  No special case added. All 26 three-staff systems are on the 7 three-staff pages.
+- Sealed half untouched: no reading of those pages since the first look.
