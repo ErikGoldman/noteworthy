@@ -906,3 +906,80 @@ smoothing saturates probabilities, and only about 10% of durations have a conten
 - Published gold: 8 merges on 6 open pages join voices of different staves. music21 then loses notes:
   15,534 of 16,149 parsed; 16,045 after moving the merges. Against repaired gold: ours 20.22,
   copisteria 23.49, -3.26 [-8.60, +1.68].
+
+### Thick beams and round heads in training (Polish dev, from h512)
+
+| Run | SER | Crops | Mutopia | OMR-NED | One-step | Wrong pitch | Moved |
+|---|---|---|---|---|---|---|---|
+| h512 | 0.0778 | 0.932 | 0.882 | 22.87 | 201 | 2,799 | 3,618 |
+| b512, thick beams | 0.0744 | 0.932 | 0.887 | 22.96 | 200 | 2,928 | 3,456 |
+| b512 with tuplet repair | same | 0.932 | 0.887 | 22.40 | 210 | 2,946 | 2,485 |
+| c512, thick beams and round heads, repair | 0.0741 | 0.937 | 0.885 | 22.49 | 222 | 2,836 | 2,950 |
+
+- b512 reads the 2.2-times beams at 2.6% SER, and normal beams at 2.82% against 2.71%.
+- Round heads: SER on round-head renders about 6.0% to 2.95% (40 and 60 systems, so a rough figure).
+- c512 against b512t: +0.09 [-1.23, +1.30], no overall change. It gains on 093, 051 and 091, and loses
+  on 010, 096, 083 and 047. Bar locking on those pages is unchecked, and the rise in moved cost is
+  unexplained.
+- 32nds rose from 360 to 382 against gold 320, on pages 091, 055 and 057: thick double beams nearly
+  touch. A cap on stacked beams is untested.
+
+### What wrong pitch is made of (c512, 29 bar-aligned pages, 9,218 heads; copisteria in brackets)
+
+Exact 7,166 (7,386); onset absent 711 (730); accidental 250 (200); one step 194 extra or lost and 86
+moved (199, 89); two steps 95 and 67 (87, 63); octave 152 and 100 (142, 80); beyond an octave 69 and
+166 (52, 141). Earlier counts that said most of it was not one-step paired the wrong heads in chords.
+
+- Refuted, musical prior: in chords, ours is more consonant 36 times, gold 37, equal 83.
+- Octaves come in runs: 123 of 138 heads sit in 27 bars. On page 023 `emptiest_row` cuts off the `8-----`
+  line, and when a crop keeps it the model still ignores it: the dotted style is unlike Verovio's, and
+  only 168 of 4,000 OLiMPiC crops have any ottava.
+
+### Open: key signatures are not one symbol
+
+The model writes one `key:fifths` token per key signature, for both staves, with no sense of the single
+accidentals. Evidence that it matches a remembered shape: moving one sharp of five (A sharp to the top
+line of the bass staff, pages 076 and 108) makes it read three at 0.87, with all five still there.
+
+Cancelling naturals break the idea of one shape per key. What is printed at a key change depends on the
+old key as well as the new one, so there are about 15 x 15 blocks, not 15, and styles differ:
+- Naturals, then the new key in full: the new key can be read off and the naturals ignored.
+- All naturals: the new key is C.
+- Going down within sharps or flats (4 sharps to 2), some editions print only the naturals for what is
+  dropped. The new key is then the old key minus the naturals, and a crop of that system alone cannot tell
+  what it is. It needs the key in force, so it needs state across systems, which a system-by-system
+  reader does not have.
+- The block can sit at the end of a system, as a courtesy, with the next system printing only the new key.
+
+Unknown: how often each occurs in our pages, whether the real changes we read correctly (012, 017, 022, 041,
+065) printed naturals, and whether Verovio draws naturals at key changes in our training crops.
+
+Other variants to check: doubled accidentals (a plain count fails), other octave placements, signature only
+on the first line, C clefs. Not representable in LMX: a different key per staff, non-standard signatures.
+Out of scope for now, and a limit on any claim of general piano coverage.
+
+Possible directions: read accidentals one by one with the key decoded from them and the key in force, or
+pass the key in force from system to system. A per-staff check from the detector could flag disagreement.
+
+### Ottavas, segnos and old key layouts (Polish dev, from k512)
+
+Whole bars an octave off had three causes. A segno read as an `8`: erasing it alone returns pages 049 and 091 to gold. A short `8...` line held to the end of the system (087). A printed sign ignored (023).
+OLiMPiC's LMX drops the sign and keeps the sounding pitch, so the model had to add an octave silently and hold it. Labels now give the printed pitch, with a token on each shifted note (seq.ottava).
+
+Bass-clef 5-sharp signatures on 076 and 108 put A sharp on the top line. Each staff alone: treble reads 5 at about 0.9, bass reads 3 at about 0.87, and together a low-confidence 6 or 3. Tight spacing was refuted (041).
+
+o512, 8,000 steps from k512 with the token, marks and old-style sharps: those failures are gone, wrong pitch 2,551 to 2,125. Overall not distinguishable from k512 without page 026: locked +0.74 [-0.84, +2.61], unlocked +97 [-1,520, +1,679].
+New failure: token recall is poor after a short fine-tune (291 tokens for 510 shifted notes on OLiMPiC dev crops with signs; none on 023 or 110), and a missed token now means an octave low.
+
+### Vertical positioning, tested without training (k512)
+
+- 16-pixel rows refuted: r512 against k512, one-step 199 / 194, OMR-NED 23.07 / 22.09, and 2.5 times slower.
+- Staff geometry as a correction: refuted with today's detector. In 114 one-step bars it is nearer gold 33 times, nearer our wrong reading 59; it misplaces 489 heads in bars we read correctly.
+- Straightening staves: 23.28, one-step 193. Warp is not the cause. Five-way voting: 22.06, one-step 190, at 5 times the cost.
+
+### Where OMR-NED's cost comes from (k512, repaired gold, unlocked, 21,373)
+
+OMR-NED compares step, octave and printed accidental: a wrong key is one small edit, and the notes it makes sound wrong are free.
+- Notes on the other staff: 1,974 of 6,090 unmatched. A detector check of those heads sides with us 131 to 8. Gold's spines often record hands; published kern and MusicXML agree with each other, not with the print.
+- Bars, 2,449: merged systems 377 (fixed, page 026 45.99 to 7.81, piano_staff_pairs); staff blank in print about 620; gold bars not on the page about 230 (038); gold parse damage 260 (108); ottava 182; about 780 unexplained.
+- Beams: gold gives 16ths one beam level where print has two. Whether this explains all 1,684 is unproven.

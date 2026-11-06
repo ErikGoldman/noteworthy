@@ -222,3 +222,7 @@ tremolo:1
 tremolo:2
 tremolo:3
 tremolo:4
+ottava:8va
+ottava:15ma
+ottava:8vb
+ottava:15mb

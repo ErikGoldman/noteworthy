@@ -32,6 +32,7 @@ from app.linearization.Delinearizer import Delinearizer  # noqa: E402
 from app.symbolic.part_to_score import part_to_score  # noqa: E402
 from seq.data import SystemDataset, collate, samples, split_names  # noqa: E402
 from seq.model import Seq2Seq  # noqa: E402
+from seq.ottava import sounding  # noqa: E402
 from seq.vocab import Vocab  # noqa: E402
 from train_seq import VOCABULARY  # noqa: E402
 
@@ -66,10 +67,11 @@ def delinearize(lmx: str, bar: Fraction | None = None) -> str:
     return ET.tostring(part_to_score(part).getroot(), encoding="unicode", xml_declaration=True)
 
 
-def load_model(checkpoint: Path, vocab: Vocab, device) -> Seq2Seq:
+def load_model(checkpoint: Path, device) -> Seq2Seq:
     state = torch.load(checkpoint, map_location=device)
     args = state["args"]
-    model = Seq2Seq(len(vocab), max_tokens=args["max_tokens"], height=args.get("height", 256),
+    # Tokens are only ever added at the end, so an older model's ids still hold.
+    model = Seq2Seq(len(state["model"]["out.weight"]), max_tokens=args["max_tokens"], height=args.get("height", 256),
                     row_stride=args.get("row_stride", 32)).to(device)
     model.load_state_dict(state["model"])
     return model.eval()
@@ -84,7 +86,7 @@ def main() -> None:
     args = ap.parse_args()
     device = torch.device("cuda")
     vocab = Vocab.load(VOCABULARY)
-    model = load_model(args.checkpoint, vocab, device)
+    model = load_model(args.checkpoint, device)
     names = split_names(SCANNED, args.split)
     loader = torch.utils.data.DataLoader(SystemDataset(samples(SCANNED, names), vocab, False, model.max_tokens, model.height),
                                          batch_size=args.batch, num_workers=6, collate_fn=collate)
@@ -94,7 +96,7 @@ def main() -> None:
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths)
         for name, p, g in zip(names[done:], predicted, tokens.tolist()):
-            lmx, gold = vocab.decode(p), vocab.decode(g[1:])
+            lmx, gold = sounding(vocab.decode(p)), sounding(vocab.decode(g[1:]))
             errors += Levenshtein.distance(lmx.split(), gold.split())
             total += len(gold.split())
             path = args.out / name

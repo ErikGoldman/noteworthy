@@ -26,6 +26,7 @@ from torch.nn import functional as F
 
 from seq.data import SystemDataset, collate, samples, split_names
 from seq.model import Seq2Seq
+from seq.ottava import sounding
 from seq.vocab import PAD, Vocab
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,11 +44,14 @@ def plain(options: dict) -> dict:
     return {k: str(v) if isinstance(v, Path) else v for k, v in options.items()}
 
 
-def weights_for_grid(weights: dict, model: Seq2Seq) -> dict:
-    """Weights of another run, its row embedding stretched to this model's rows."""
+def weights_for_model(weights: dict, model: Seq2Seq) -> dict:
+    """Weights of another run, its row embedding stretched to this model's rows, and tokens
+    added to the vocabulary since then keeping this model's fresh embedding."""
     rows = model.row_embedding.shape[0]
     stretched = F.interpolate(weights["row_embedding"].T[None], size=rows, mode="linear", align_corners=True)[0].T
-    return {**weights, "row_embedding": stretched}
+    embedding = model.token_embedding.weight.detach().clone()
+    embedding[:len(weights["token_embedding.weight"])] = weights["token_embedding.weight"]
+    return {**weights, "row_embedding": stretched, "token_embedding.weight": embedding, "out.weight": embedding}
 
 
 def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
@@ -57,8 +61,8 @@ def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths)
         for p, g in zip(predicted, tokens.tolist()):
-            gold = vocab.decode(g[1:]).split()
-            errors += Levenshtein.distance(vocab.decode(p).split(), gold)
+            gold = sounding(vocab.decode(g[1:])).split()
+            errors += Levenshtein.distance(sounding(vocab.decode(p)).split(), gold)
             total += len(gold)
     model.train()
     return errors / max(1, total)
@@ -106,7 +110,7 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     step, best = 0, float("inf")
     if args.init and not (args.out / "last.pt").exists():
-        model.load_state_dict(weights_for_grid(torch.load(args.init, map_location=device)["model"], model))
+        model.load_state_dict(weights_for_model(torch.load(args.init, map_location=device)["model"], model))
     if (args.out / "last.pt").exists():
         state = torch.load(args.out / "last.pt", map_location=device)
         model.load_state_dict(state["model"]), opt.load_state_dict(state["opt"]), sched.load_state_dict(state["sched"])

@@ -10,7 +10,7 @@ usage: seq_pages.py CHECKPOINT mutopia --binary NOTEWORTHY --model MODEL.onnx --
 
 Mutopia PDFs are rendered by the recognizer, so its normalized debug pages are cropped; OLiMPiC
 scans are cropped as they are, with the layouts olimpic_benchmark.py pages left behind.
-The model reads two-staff systems, so a system's last two staves are taken (the voice of a
+The model reads two-staff systems (piano_staff_pairs chooses them: the voice of a
 song sits above the piano), at each of CROP_HEIGHT_RATIOS. The U-Net model is used only for finding systems. Results go
 to DIR/results.json for scorecard.py, in the row's own directory:
   DIR=$RUN/mutopia or $RUN/olimpic-pages
@@ -43,6 +43,7 @@ from synthetic_benchmark import f1_counts, held_out_scores, split_scores
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
 from seq.data import collate, scale_to_height, to_tensor  # noqa: E402
+from seq.ottava import sounding  # noqa: E402
 from seq.vocab import BOS, EOS, Vocab  # noqa: E402
 from train_seq import VOCABULARY  # noqa: E402
 
@@ -74,9 +75,20 @@ def page_scales(layout: dict) -> dict[int, float]:
     return {system["page"]: system["scale"] for system in layout["systems"]}
 
 
+def piano_staff_pairs(staves: list[list[float]], piano_page: bool) -> list[tuple[list[float], list[float]]]:
+    """The two-staff systems in one of the layout's systems. On a page of piano systems, more
+    than two staves are piano systems the layout ran together, which a page without brackets
+    invites. Elsewhere the piano is the last two: the voice of a song sits above it."""
+    if piano_page and len(staves) % 2 == 0:
+        return list(zip(staves[::2], staves[1::2]))
+    return [(staves[-2], staves[-1])]
+
+
 def piano_systems(layout: dict, scales: dict[int, float]) -> list[SystemCrop]:
-    return [SystemCrop(s["page"], tuple(s["staves"][-2]), tuple(s["staves"][-1]), scales[s["page"]])
-            for s in layout["systems"] if len(s["staves"]) >= 2]
+    systems = [s for s in layout["systems"] if len(s["staves"]) >= 2]
+    piano_pages = {s["page"] for s in systems if len(s["staves"]) == 2}
+    return [SystemCrop(s["page"], tuple(top), tuple(bottom), scales[s["page"]])
+            for s in systems for top, bottom in piano_staff_pairs(s["staves"], s["page"] in piano_pages)]
 
 
 def emptiest_row(page: np.ndarray, start: float, end: float) -> int:
@@ -139,7 +151,7 @@ def transcribe(model, vocab: Vocab, crops: list[np.ndarray], device, batch: int)
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths)
         for i, tokens in zip(chosen, predicted):
-            out[i] = vocab.decode(tokens)
+            out[i] = sounding(vocab.decode(tokens))
     return out
 
 
@@ -296,7 +308,7 @@ def main() -> None:
     args = ap.parse_args()
     device = torch.device("cuda")
     vocab = Vocab.load(VOCABULARY)
-    model = load_model(args.checkpoint, vocab, device)
+    model = load_model(args.checkpoint, device)
     if args.source == "pages":
         transcribe_pages(args, model, vocab, device)
         return

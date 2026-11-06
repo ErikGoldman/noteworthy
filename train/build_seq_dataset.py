@@ -2,7 +2,7 @@
 sequence model (train_seq.py).
 
 usage: build_seq_dataset.py --scores LIST.txt --out DIR [--systems-per-score K] [--workers W]
-                            [--unmarked-tuplets] [--thick-beams] [--round-heads]
+                            [--unmarked-tuplets] [--thick-beams] [--round-heads] [--marks]
 
 Held-out scores (omr.held_out) and PDMX scores with a license conflict are left out. Each two-staff (piano) part is cut into systems of a few measures, which OLiMPiC's code
 turns into self-contained parts: clefs and key repeated at each system start, the time
@@ -20,6 +20,13 @@ a single beam can be as thick as a printed double one. A model that only ever sa
 beams counts them by thickness and reads such eighths as 16ths.
 
 With --round-heads filled noteheads are round dots, as in copyists' hands.
+
+With --marks random segnos and codas are added above bars, and an 8va or 8vb passage over
+some systems with its line drawn in varied styles. A segno looks like an `8`, and 4% of real
+crops have any ottava, in Verovio's look only. Bass-clef sharps follow old plates, with A sharp
+on the top line: a model that knows only the modern layout reads five of them as three.
+
+Labels give pitches as printed, ottavas as tokens (seq.ottava).
 
 Writes DIR/samples/<score index>/s<k>.png + .lmx, and DIR/samples.train.txt listing
 every sample. A score's directory is written whole or not at all, so an interrupted
@@ -50,11 +57,13 @@ from omr.fonts import use_smufl_fonts
 from omr.held_out import is_held_out
 from omr.pieces import pdmx_license_conflicts
 from omr.render import FONTS, SVG_NS, UNITS_PER_INTERLINE_PER_UNIT, layout_svg
+from seq.ottava import TOKEN_ATTRIBUTE, move_octaves, notes_under_ottavas, written_part
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(os.environ.get("NW_DATA", ROOT / "data"))
 sys.path.insert(0, str(DATA / "raw" / "olimpic" / "code" / "repo"))
 from app.linearization.Linearizer import Linearizer  # noqa: E402
+from app.linearization.vocabulary import PITCH_TOKENS  # noqa: E402
 from app.symbolic.part_to_score import part_to_score  # noqa: E402
 from app.symbolic.split_part_to_systems import split_part_to_systems  # noqa: E402
 
@@ -72,6 +81,14 @@ FILLED_NOTEHEAD = "#E0A4"  # SMuFL noteheadBlack; Verovio appends a per-file suf
 XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
 SVG_UNITS_PER_INTERLINE = 180
 NOTEHEAD_CENTRE_UNITS = 106  # a glyph is placed by its left edge
+REPEAT_MARK_CHANCE = 0.4
+REPEAT_MARKS = ("segno", "segno", "coda")
+OTTAVA_PASSAGE_CHANCE = 0.5
+OTTAVA_PASSAGE_NOTES = (3, 40)
+OTTAVA_DASHES = ("36 72", "18 54", "18 36", "60 60", "90 45")  # Verovio's own is the first
+HIGHEST_OCTAVE, LOWEST_OCTAVE = 7, 1
+F_CLEF, SHARP = "#E062", "#E262"  # SMuFL; Verovio appends a per-file suffix
+OCTAVE_UNITS = 3.5 * SVG_UNITS_PER_INTERLINE
 
 
 @dataclass(frozen=True)
@@ -79,6 +96,7 @@ class Style:
     """Departures from Verovio's engraving, for hands it does not draw."""
     thick_beams: bool = False
     round_heads: bool = False
+    marks: bool = False
 
 
 def load_musicxml(path: Path) -> ET.Element:
@@ -129,10 +147,86 @@ def hide_tuplet_numbers(score: ET.Element, rng: random.Random) -> None:
         tuplet.set("bracket", "no")
 
 
+class WrittenLinearizer(Linearizer):
+    """OLiMPiC's linearizer, with each tagged note's ottava token straight after its pitch."""
+    def process_note(self, note: ET.Element, measure: ET.Element):
+        self._ottava_token = note.get(TOKEN_ATTRIBUTE)
+        super().process_note(note, measure)
+
+    def _emit(self, token: str):
+        super()._emit(token)
+        if token in PITCH_TOKENS and self._ottava_token:
+            self.output_tokens.append(self._ottava_token)
+
+
 def linearize(part: ET.Element) -> str:
-    linearizer = Linearizer(errout=None)
-    linearizer.process_part(part)
+    linearizer = WrittenLinearizer(errout=None)
+    linearizer.process_part(written_part(part))
     return " ".join(linearizer.output_tokens)
+
+
+def ottavas_drawn_as_labelled(tk: verovio.toolkit, part: ET.Element) -> bool:
+    """False if Verovio shifted other notes than the labels say. A sign holds for its whole
+    staff, as in MuseScore, but Verovio leaves out some voices of the same staff."""
+    labelled = len(notes_under_ottavas(part))
+    if not labelled:
+        return True
+    notes = [dict(re.findall(r'(oct(?:\.ges)?)="(\d+)"', note)) for note in re.findall(r"<note [^>]*>", tk.getMEI())]
+    return labelled == sum(note.get("oct") != note.get("oct.ges", note.get("oct")) for note in notes)
+
+
+def direction(child: ET.Element, staff: int, placement: str = "above") -> ET.Element:
+    element = ET.Element("direction", placement=placement)
+    ET.SubElement(element, "direction-type").append(child)
+    ET.SubElement(element, "staff").text = str(staff)
+    return element
+
+
+def add_repeat_mark(part: ET.Element, rng: random.Random) -> None:
+    """A segno or coda at the start of a random bar. Neither changes a single label."""
+    measure = rng.choice(part.findall("measure"))
+    first_note = next(i for i, e in enumerate(measure) if e.tag == "note")
+    measure.insert(first_note, direction(ET.Element(rng.choice(REPEAT_MARKS)), 1))
+
+
+def first_voice_notes(measure: ET.Element, staff: int) -> list[int]:
+    """Where in the measure the staff's first voice has a note, chord members and graces left out."""
+    on_staff = [(i, e) for i, e in enumerate(measure) if e.tag == "note" and e.findtext("staff", "1") == str(staff)]
+    voice = on_staff[0][1].findtext("voice", "1") if on_staff else None
+    return [i for i, e in on_staff if e.findtext("voice", "1") == voice and e.find("chord") is None and e.find("grace") is None]
+
+
+def add_ottava_passage(part: ET.Element, rng: random.Random) -> None:
+    """An 8va over a run of the upper staff or an 8vb under the lower one, within a bar or
+    across several. The notes move the other way first, so they are drawn where the music
+    has them and only the sign is new."""
+    if next(part.iter("octave-shift"), None) is not None:
+        return
+    staff, kind, placement = rng.choice([(1, "down", "above"), (2, "up", "below")])
+    places = [(m, i) for m in part.findall("measure") for i in first_voice_notes(m, staff)]
+    shortest, longest = OTTAVA_PASSAGE_NOTES
+    if len(places) < shortest:
+        return
+    start = rng.randrange(len(places) - shortest + 1)
+    stop = min(len(places), start + rng.randint(shortest, longest)) - 1
+    (first_measure, first), (last_measure, last) = places[start], places[stop]
+    after_last = last + 1
+    while after_last < len(last_measure) and last_measure[after_last].find("chord") is not None:
+        after_last += 1
+    # Stop first: in a one-bar passage the start's insertion would move it.
+    last_measure.insert(after_last, direction(ET.Element("octave-shift", type="stop", size="8"), staff, placement))
+    first_measure.insert(first, direction(ET.Element("octave-shift", type=kind, size="8"), staff, placement))
+    for note, octaves in notes_under_ottavas(part):
+        move_octaves(note, octaves)
+        if not LOWEST_OCTAVE <= int(note.findtext("pitch/octave")) <= HIGHEST_OCTAVE:
+            raise ValueError("the passage leaves the piano's range")
+
+
+def add_marks(part: ET.Element, rng: random.Random) -> None:
+    if rng.random() < REPEAT_MARK_CHANCE:
+        add_repeat_mark(part, rng)
+    if rng.random() < OTTAVA_PASSAGE_CHANCE:
+        add_ottava_passage(part, rng)
 
 
 def engraving_options(rng: random.Random) -> dict:
@@ -197,6 +291,34 @@ def round_noteheads(svg: bytes, radius_interlines: float) -> bytes:
     return etree.tostring(root)
 
 
+def restyle_ottava_lines(svg: bytes, dashes: str) -> bytes:
+    root = etree.fromstring(svg)
+    for group in root.iter(f"{{{SVG_NS}}}g"):
+        if "octave" in group.get("class", "").split():
+            for line in group.findall(f"{{{SVG_NS}}}path"):
+                line.set("stroke-dasharray", dashes)
+    return etree.tostring(root)
+
+
+def groups_of_class(root: etree._Element, name: str) -> list[etree._Element]:
+    return [g for g in root.iter(f"{{{SVG_NS}}}g") if name in g.get("class", "").split()]
+
+
+def raise_bass_a_sharp(svg: bytes) -> bytes:
+    """The SVG with the fifth sharp of bass-clef signatures an octave up, on the top line."""
+    root = etree.fromstring(svg)
+    for staff in groups_of_class(root, "staff"):
+        glyphs = lambda group: group.findall(f".//{{{SVG_NS}}}use")
+        if not any(u.get(XLINK_HREF, "").startswith(F_CLEF) for clef in groups_of_class(staff, "clef") for u in glyphs(clef)):
+            continue
+        for signature in groups_of_class(staff, "keySig"):
+            sharps = [u for u in glyphs(signature) if u.get(XLINK_HREF, "").startswith(SHARP)]
+            if len(sharps) >= 5:
+                x, y = re.match(r"translate\(([-\d.]+),\s*([-\d.]+)\)", sharps[4].get("transform")).groups()
+                sharps[4].set("transform", sharps[4].get("transform").replace(f"translate({x}, {y})", f"translate({x}, {float(y) - OCTAVE_UNITS})"))
+    return etree.tostring(root)
+
+
 def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style: Style = Style()) -> np.ndarray | None:
     """The system as a grayscale image cropped to its ink plus a random margin."""
     options = engraving_options(rng)
@@ -209,6 +331,8 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style:
         svg = thicken_beams(svg, rng.uniform(*SINGLE_BEAM_THICKENING))
     if style.round_heads:
         svg = round_noteheads(svg, rng.uniform(*ROUND_HEAD_RADIUS_INTERLINES))
+    if style.marks:
+        svg = raise_bass_a_sharp(restyle_ottava_lines(svg, rng.choice(OTTAVA_DASHES)))
     use_smufl_fonts()  # music symbols in text (tempo marks) need the SMuFL fonts in cairo
     png = cairosvg.svg2png(bytestring=svg, background_color="white")
     image = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_GRAYSCALE)
@@ -248,6 +372,8 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
         if written == k:
             break
         try:
+            if style.marks:
+                add_marks(system.part, rng)
             lmx = linearize(system.part)
             score = part_to_score(system.part).getroot()
             if rng.random() < PART_NAME_HIDDEN:
@@ -256,11 +382,12 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
                 hide_tuplet_numbers(score, rng)
             musicxml = ET.tostring(score, encoding="unicode", xml_declaration=True)
             image = render_system(tk, musicxml, rng, style) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
+            drawn_right = image is not None and ottavas_drawn_as_labelled(tk, system.part)
         except Exception:
             # Nothing may escape to the pool: CairoError cannot be unpickled, which kills
             # the pool's result thread and silently stalls every later score.
             continue
-        if image is None:
+        if not drawn_right:
             continue
         cv2.imwrite(str(partial / f"s{written}.png"), image)
         (partial / f"s{written}.lmx").write_text(lmx + "\n")
@@ -278,12 +405,13 @@ def main() -> None:
     ap.add_argument("--unmarked-tuplets", action="store_true")
     ap.add_argument("--thick-beams", action="store_true")
     ap.add_argument("--round-heads", action="store_true")
+    ap.add_argument("--marks", action="store_true")
     args = ap.parse_args()
     sources = args.scores.read_text().split("\n")
     hung_log = args.out / "hung.txt"
     hung = set(hung_log.read_text().split("\n")) if hung_log.exists() else set()
     conflicts = pdmx_license_conflicts(DATA / "raw" / "pdmx")
-    style = Style(args.thick_beams, args.round_heads)
+    style = Style(args.thick_beams, args.round_heads, args.marks)
     jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets, style)
             for i, s in enumerate(sources)
             if s.strip() and s not in hung and not is_held_out(Path(s)) and Path(s).name not in conflicts]
