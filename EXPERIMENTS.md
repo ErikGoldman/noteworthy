@@ -695,3 +695,14 @@ Clean model against copisteria, 49 pages. Note F1 over all notes 0.892 against 0
   (24 of 265 systems changed), clean model, 49 two-staff pages: OMR-NED 27.09 to 27.03, change
   -0.06 [-0.16, +0.02], but semitone errors rose from 744 to 907 and note F1 fell from 0.892 to
   0.886. Why they rose is not known; real key changes between systems would do it.
+
+- Semitone errors with matching onset and duration, clean against copisteria, 49 two-staff
+  pages: 519 against 225. No single cause: invented accidental 194 against 116, missed accidental
+  162 against 67, both notes in the key (an E/F or B/C neighbour, so the notehead's line) 163
+  against 42. Carry within a bar is small: 56 against 34 where the same pitch was right earlier
+  in the bar, tie carry 21 against 8.
+- We read sharp more often than flat, 336 against 183, most on flat keys: per 1,000 notes, up
+  25.5 and down 11.7 on 26 flat-key pages; copisteria 8.2 and 5.4. So we tend to lose flats.
+- So the delinearizer's carry rules are not the problem; it is the model's reading of small
+  marks and line positions. Polish pages have about 9 pixels between staff lines; whether that
+  low resolution is why is untested.
