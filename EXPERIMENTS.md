@@ -814,28 +814,40 @@ seq_pages adds 0.1 crop-heights of white on the left. Clean model, dev:
 The first OLiMPiC run ended in a traceback that was not kept; a rerun passed. Cause unknown.
 Scratch's 24.80 and the pipeline's 24.99 differ by the rounding of margins and a fresh layout pass.
 
-Edit cost with locking off, after the margin, 49 pages. Total 29,002 against copisteria's 31,178.
-Bars 5,096 against 6,384; beams 1,407 against 2,603; extra part 0 against 1,101; removed marks 742
-against 1,146. Added marks 844 against 782. Printed accidentals to remove are now level, 139
-against 124. Note edits corrected: 10,992 against 12,337. Their cost sits elsewhere in the op tuple,
-so earlier noteins and notedel figures here and above were counts, and those totals incomplete.
+Full edit cost, locking off, clean + margin against copisteria, 49 two-staff pages. Rows sum to
+the scorer's totals, 29,002 and 31,178. Earlier note costs in this log are void: a note edit keeps
+its cost in the fourth field, then its index in the chord, and I read the index.
 
-### Note edits on Polish dev, two-staff pages (clean + margin, locking off)
+| Category | Clean | Copisteria | Difference |
+|---|---|---|---|
+| Notes and rests missing or extra | 17,227 (59%) | 15,676 (50%) | +1,551 |
+| Whole bars | 5,096 (18%) | 6,384 (20%) | -1,288 |
+| Other marks | 1,796 | 2,138 | -342 |
+| Beams | 1,647 | 2,793 | -1,146 |
+| Articulations | 1,204 | 1,237 | -33 |
+| Tuplets | 540 | 546 | -6 |
+| Accidentals | 454 | 237 | +217 |
+| Grace notes | 408 | 492 | -84 |
+| Part names | 245 | 258 | -13 |
+| Ties | 213 | 125 | +88 |
+| Pitch, heads, dots | 111 | 133 | -22 |
+| Whole parts | 0 | 1,107 | -1,107 |
+| Expressions | 61 | 52 | +9 |
 
-Our lead on notes is four pages where copisteria collapses (037, 003, 071, 088: 4,189 against 607).
-On the other 45 it is better, 8,148 against 10,385. Rests are level; grace notes 779 against 512.
+Copisteria collapses on 037, 003, 071, 088: 5,697 against our 1,177. On the other 45 pages it leads,
+25,481 against 27,825, and on notes 11,273 against 16,594. Those note edits, grace notes aside:
 
 | Kind, 45 pages | Clean | Copisteria |
 |---|---|---|
-| Gold note with no counterpart | 3,775 | 3,833 |
-| Our note with no counterpart | 1,572 | 1,553 |
-| Right pitch, moved onset | 2,332 | 1,418 |
-| Wrong pitch, right onset | 1,919 | 815 |
+| Gold note with no counterpart | 5,385 | 5,153 |
+| Our note with no counterpart | 3,138 | 2,520 |
+| Right pitch, moved onset | 3,676 | 1,689 |
+| Wrong pitch, right onset | 3,496 | 1,368 |
 
-- Truly missing and extra notes are level. The gap is in the last two rows.
-- Wrong pitch: 369 of our cases are one staff step off, against 53. So noteheads read a line or space
-  away, the largest single difference found. It fits the 163 against 42 "both in key" semitone errors.
-- Moved onset: most by a quarter to three-quarters of a beat; 287 such shifts against 90. Whether one
-  duration error moves the rest of a bar is untested.
-- Why we are a step off is unknown. Untested: vertical resolution (about 8 model pixels between
-  staff lines), and tilted or curved staves in these scans.
+- Wrong pitch: 369 of 533 of our cases are one staff step off, against 53 of 228: noteheads a line
+  or space away, roughly 2,400 of cost. The largest single difference found.
+- Moved onset: mostly a quarter to three-quarters of a beat, 287 shifts against 90. In bars with an
+  onset error, later onsets are wrong 44% of the time against 32%: a modest cascade.
+- Tilt: median 0.4 degrees against OLiMPiC's 0.2; 64% of crops at 0.3 or more against 34%.
+- Why noteheads are a step off is unknown. Encoder grid: 8 rows, 32 pixels each, about 8 pixels
+  between staff lines, so a staff fits in about one row.
