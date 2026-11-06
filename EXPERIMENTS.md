@@ -816,5 +816,26 @@ Scratch's 24.80 and the pipeline's 24.99 differ by the rounding of margins and a
 
 Edit cost with locking off, after the margin, 49 pages. Total 29,002 against copisteria's 31,178.
 Bars 5,096 against 6,384; beams 1,407 against 2,603; extra part 0 against 1,101; removed marks 742
-against 1,146. Copisteria ahead only on notes added or removed, 3,782 against 4,145, and added
-marks, 782 against 844. Printed accidentals to remove are now level, 139 against 124.
+against 1,146. Added marks 844 against 782. Printed accidentals to remove are now level, 139
+against 124. Note edits corrected: 10,992 against 12,337. Their cost sits elsewhere in the op tuple,
+so earlier noteins and notedel figures here and above were counts, and those totals incomplete.
+
+### Note edits on Polish dev, two-staff pages (clean + margin, locking off)
+
+Our lead on notes is four pages where copisteria collapses (037, 003, 071, 088: 4,189 against 607).
+On the other 45 it is better, 8,148 against 10,385. Rests are level; grace notes 779 against 512.
+
+| Kind, 45 pages | Clean | Copisteria |
+|---|---|---|
+| Gold note with no counterpart | 3,775 | 3,833 |
+| Our note with no counterpart | 1,572 | 1,553 |
+| Right pitch, moved onset | 2,332 | 1,418 |
+| Wrong pitch, right onset | 1,919 | 815 |
+
+- Truly missing and extra notes are level. The gap is in the last two rows.
+- Wrong pitch: 369 of our cases are one staff step off, against 53. So noteheads read a line or space
+  away, the largest single difference found. It fits the 163 against 42 "both in key" semitone errors.
+- Moved onset: most by a quarter to three-quarters of a beat; 287 such shifts against 90. Whether one
+  duration error moves the rest of a bar is untested.
+- Why we are a step off is unknown. Untested: vertical resolution (about 8 model pixels between
+  staff lines), and tilted or curved staves in these scans.
