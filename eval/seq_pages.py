@@ -48,6 +48,10 @@ from train_seq import VOCABULARY  # noqa: E402
 
 MARGIN_INTERLINES = 7.0     # how far from the staves a crop may reach for high notes
 SIDE_MARGIN_INTERLINES = 1.0
+# White left of the brace, over crop height. A signature against the crop's edge reads as no
+# key: training crops have a margin there, and on Polish this alone took keys of 3 and 4
+# accidentals from 66 to 75 of 75. More adds nothing.
+LEFT_MARGIN_HEIGHTS = 0.1
 # Crop height over system height, tried in this order. 2.06 is OLiMPiC's crops, median over
 # the dev songs: crops are scaled to one height, so a tighter crop shows larger staves than
 # the model trained on. It helps most systems and wrecks a few, which the tight crop (0: no
@@ -99,14 +103,18 @@ def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float
     if len(columns) == 0:
         return band
     margin = int(SIDE_MARGIN_INTERLINES * interline)
-    return padded_to_height(band[:, max(0, columns[0] - margin):columns[-1] + margin],
-                            round(height_ratio * (last_line - first_line)))
+    return with_left_margin(padded_to_height(band[:, max(0, columns[0] - margin):columns[-1] + margin],
+                                             round(height_ratio * (last_line - first_line))))
 
 
 def padded_to_height(crop: np.ndarray, height: int) -> np.ndarray:
     """White above and below rather than more of the page, which would bring in the neighbours."""
     missing = max(0, height - crop.shape[0])
     return cv2.copyMakeBorder(crop, missing // 2, missing - missing // 2, 0, 0, cv2.BORDER_CONSTANT, value=255)
+
+
+def with_left_margin(crop: np.ndarray) -> np.ndarray:
+    return cv2.copyMakeBorder(crop, 0, 0, round(LEFT_MARGIN_HEIGHTS * crop.shape[0]), 0, cv2.BORDER_CONSTANT, value=255)
 
 
 def page_crops(pages: list[np.ndarray], systems: list[SystemCrop], height_ratio: float) -> list[np.ndarray]:

@@ -799,3 +799,17 @@ Rescored with that step off, everything else unchanged, 49 two-staff pages (Audi
 - Against copisteria without locking: -1.65 [-6.54, +3.07], better on 25 of 49. Still a tie.
 - Transcoda not rescored: its predictions are **kern, not yet run through this path.
 - Locking is musicdiff's design, not a Transcoda change. The headline stays as published.
+
+### Left margin in the pipeline
+
+seq_pages adds 0.1 crop-heights of white on the left. Clean model, dev:
+
+| Set | Before | After | Change |
+|---|---|---|---|
+| Mutopia, note F1 | 0.861 | 0.883 | +0.022 [+0.002, +0.047] |
+| Rendered, note F1 | 0.965 | 0.970 | +0.005 [+0.000, +0.011] |
+| OLiMPiC pages, note F1 | 0.925 | 0.924 | -0.001 [-0.011, +0.007] |
+| Polish, two staves, OMR-NED | 27.09 | 24.99 | |
+
+The first OLiMPiC run ended in a traceback that was not kept; a rerun passed. Cause unknown.
+Scratch's 24.80 and the pipeline's 24.99 differ by the rounding of margins and a fresh layout pass.
