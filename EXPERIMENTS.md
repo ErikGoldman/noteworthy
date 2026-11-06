@@ -690,3 +690,8 @@ Clean model against copisteria, 49 pages. Note F1 over all notes 0.892 against 0
   per page unless a double bar changes it.
 - The tie hides large swings both ways: 304 points of page gaps against us, 233 for us. Pages
   051 and 093 lose over 40 each; on 088, 003 and 037 copisteria loses over 40.
+
+- H11 refuted, scratch only, nothing adopted. Each system's first key set to the page's majority
+  (24 of 265 systems changed), clean model, 49 two-staff pages: OMR-NED 27.09 to 27.03, change
+  -0.06 [-0.16, +0.02], but semitone errors rose from 744 to 907 and note F1 fell from 0.892 to
+  0.886. Why they rose is not known; real key changes between systems would do it.
