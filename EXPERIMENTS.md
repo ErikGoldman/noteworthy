@@ -1158,3 +1158,15 @@ No rule can tell a printed courtesy accidental from an unprinted one, so it is a
 note: `show_accidental {"column", "note"}` adds the `X`. 060 bars 25-26, four notes whose flat is
 clear on the image (the chords' flats left out: which notes carry them is not clear at this scan):
 seq512 7.30 to 7.21, k512 10.64 to 10.54, Copisteria 12.62 to 12.52. Other pages unreviewed.
+- Image review, restated accidentals (`show_accidental`), each checked on the image:
+  110 (8 notes: bars 6, 8, 18, 20, 21): seq512 25.42 to 25.08, k512 17.19 to 16.87, Copisteria 40.71
+  to 40.61. 058 (bars 4, 6, 7: the arpeggiated left-hand chords print an accidental on every
+  note): seq512 4.54 to 2.16, k512 8.83 to 6.43, Copisteria 8.87 to 6.49. 066 (6 notes, bars 6, 7,
+  14; bar 11 left out, not clear): seq512 8.63 to 8.51, k512 8.29 to 8.17, Copisteria 7.41 to 7.28.
+  Tested and refuted: that the parser hides accidentals on arpeggiated chords (`:`); alone it shows
+  them, so 058's hidden ones come from the bars around. 017 (5 notes: the flat restated on b in each fourth
+  bar after naturals): seq512 14.97 to 14.79, k512 9.29 to 9.11, Copisteria 14.59 to 14.47. 021 bars
+  21-23 (the 058 chord again, all three accidentals printed): seq512 0.61 to 0.48, k512 0.93 to
+  0.81, Copisteria 4.47 to 6.03 (it does not print them). A first zoom had looked at bars 17-19,
+  which print naturals, and suggested a gold pitch error; reading the staff against the clef on
+  058 bar 1 (gold F, C natural, A) and finding the bars by system settled it: gold is right.

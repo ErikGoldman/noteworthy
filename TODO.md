@@ -66,9 +66,7 @@ unlocked scores, then 6-10.
   this composer's inner-voice writing; P8 looks concentrated in pages like 096).
 - Beams (459 unlocked): 062 and 067 are cross-staff beams that kern cannot hold once notes move
   (start/stop against partial); 023's Trio was a gold error (short J), fixed in beams_closed.
-- 021 (25 accidental edits): checked on the image. Bars 21-23: the left-hand chord prints two naturals
-  right of an arpeggio line, and the model reads them as sharps (model error). Bar 13 the same, a
-  natural read as a sharp. Bar 15: a restated sharp the print shows and gold lacks (`X`, gold).
+- 021: done (bars 21-23 accidentals shown). Bar 13: a natural read as a sharp by the model.
 - Accidentals: gold lacks `X` on accidentals the print restates (060 bars 25-26 after sharps); 
   `show_accidental` override exists, 060 done for four notes; other pages need image review (144
   accidentdel, not all gold).
