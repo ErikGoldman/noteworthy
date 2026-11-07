@@ -11,6 +11,8 @@ measures say (measure_evidence): an unmarked group only ever lengthens a voice.
 The model errs the other way too: reading into a triplet passage, it marks the plain notes
 before it as triplets, and their voice falls short of the bar. Where clearing the marks from
 a voice's first or last notes fills the measure exactly and leaves whole triplets, this does so.
+It also reads a beam too many on a group, and that voice falls short as well: where giving one
+group's notes one beam fewer fills the measure exactly, extra_beams_dropped does so.
 """
 from __future__ import annotations
 
@@ -216,6 +218,54 @@ def imply_tuplets(lmx: str, bar: Fraction | None = None) -> str:
             del tokens[at]
         else:
             tokens.insert(at, token)
+    return " ".join(tokens)
+
+
+ONE_BEAM_FEWER = {"16th": "eighth", "32nd": "16th", "64th": "32nd"}
+NOTE_START = {"rest", "backup", "forward", "measure", "chord", "grace", "grace:slash"}
+
+
+def overbeamed_group(voice: Voice, tokens: list[str], bar: Fraction) -> list[Note] | None:
+    """The voice's one beam group of plain equal notes (no dots, no tuplets) whose doubling
+    fills the bar exactly; None if there is no such group, or more than one."""
+    if voice.measure_rest or not voice.notes or voice.total() >= bar:
+        return None
+    fitting = []
+    for notes in voice.beam_groups().values():
+        timed = [n for n in notes if n.advances]
+        names = {tokens[n.duration_at] for n in timed}
+        plain = all(not n.marked and n.length == LENGTHS[tokens[n.duration_at]] for n in notes)
+        if len(names) == 1 and names <= ONE_BEAM_FEWER.keys() and plain \
+                and sum((n.length for n in timed), Fraction(0)) == bar - voice.total():
+            fitting.append(notes)
+    return fitting[0] if len(fitting) == 1 else None
+
+
+def last_beam_token(tokens: list[str], duration_at: int) -> int | None:
+    """Where the last beam token of a note is: they follow its duration, up to the next note."""
+    last = None
+    for i in range(duration_at + 1, len(tokens)):
+        if tokens[i] in NOTE_START or PITCH.match(tokens[i]):
+            break
+        if tokens[i].startswith("beam:"):
+            last = i
+    return last
+
+
+def extra_beams_dropped(lmx: str, bar: Fraction | None = None) -> str:
+    """The LMX with one beam fewer on groups the bar's arithmetic says were read with one too
+    many (16ths written as 32nds: Polish 057). bar as for imply_tuplets."""
+    tokens = lmx.split()
+    measures = measures_of(tokens)
+    bar = written_bar(tokens) or bar or likely_bar(measures)
+    if bar is None:
+        return lmx
+    notes = [n for measure in measures for voice in measure for n in (overbeamed_group(voice, tokens, bar) or [])]
+    for note in notes:
+        tokens[note.duration_at] = ONE_BEAM_FEWER[tokens[note.duration_at]]
+    beams = [last_beam_token(tokens, n.duration_at) for n in notes]
+    for at in sorted((b for b in beams if b is not None), reverse=True):
+        del tokens[at]
     return " ".join(tokens)
 
 

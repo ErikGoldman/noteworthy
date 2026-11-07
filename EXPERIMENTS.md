@@ -1170,3 +1170,35 @@ seq512 7.30 to 7.21, k512 10.64 to 10.54, Copisteria 12.62 to 12.52. Other pages
   0.81, Copisteria 4.47 to 6.03 (it does not print them). A first zoom had looked at bars 17-19,
   which print naturals, and suggested a gold pitch error; reading the staff against the clef on
   058 bar 1 (gold F, C natural, A) and finding the bars by system settled it: gold is right.
+
+### Plain-line negatives and system-wide ottava lines (r4: 8,000 steps from seq512)
+
+`--marks` now also draws a solid line with no sign between the staves (a quarter of scores,
+`add_plain_line`), and some ottava passages run from the system's first note or to its last with
+the end hook taken off, as a sign carried over a system break (023). data/seq4/marks, 29,081 crops.
+- 049's false sign: 5 tokens to 0. 110 keeps its 25. 023: still 0, so the system-wide shape was
+  not what kept it unread. Tested on 023's own crops, without training, with seq512 and r4: the
+  sign's gap to the notes closed (removed 26 rows), and its wavy line redrawn as dots, as dashes,
+  and with `va` added. 0 tokens in every case. Not crop, style, distance or line: still open.
+- Overall worse, as q512 was: dev SER 0.0781; Polish (newest gold, --either-ottava) Corrected 14.90
+  against seq512's 14.22, Print 9.96 against 8.89. Short small-batch fine-tunes keep costing more
+  than they buy; the styles are for the next full run.
+
+### Note cost split by kind (seq512 with new crops and P9, newest Print gold, 49 pages, unlocked)
+
+7,549 of note edits: same pitch at a moved onset 2,860 (shifts mostly a 16th or an eighth); gold
+note unmatched 1,727; wrong pitch at the same onset 1,174 (most a step of 1); our note unmatched
+1,049; only 12 differ in duration, beam or tuplet alone. Moved onsets lead on 096 (506, unprinted
+triplets), 087 (272), 042 (264), 056, 093. On 087, bar by bar: a quintuplet read as 16ths (bar
+4), 16ths read as 32nds (12-13, one beam too many), a triplet group misplaced (5). Reading errors of
+several kinds, each moving the rest of its voice; no common gold or output cause found. Model-side.
+
+### One beam too many (lmx_tuplets.extra_beams_dropped)
+
+From the note-cost split: on 087 and 057 the model writes 16ths as 32nds, and the voice falls
+short of its bar. Where exactly one plain beam group (no dots, no tuplets) fills the bar once its
+notes have one beam fewer, the duration and one beam token change; applied after imply_tuplets in
+seq_predict.delinearize. Polish dev, seq512 with new crops and P9, newest gold, --either-ottava:
+4 groups on 2 pages; Corrected 14.22 to 14.08, Print 8.89 to 8.75 (051 26.14 to 22.86, 057 9.97 to
+6.48). 057 checked on the image: the group has two beams. OLiMPiC crops: 0.936, +0.000 [+0.000,
++0.001].

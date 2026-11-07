@@ -85,6 +85,9 @@ NOTEHEAD_CENTRE_UNITS = 106  # a glyph is placed by its left edge
 REPEAT_MARK_CHANCE = 0.4
 REPEAT_MARKS = ("segno", "segno", "coda")
 OTTAVA_PASSAGE_CHANCE = 0.5
+PLAIN_LINE_CHANCE = 0.25
+SYSTEM_END_PASSAGE_CHANCE = 0.4  # Polish 023: an 8va line across whole systems
+HOOKLESS_OTTAVA_CHANCE = 0.3
 OTTAVA_PASSAGE_NOTES = (3, 40)
 OTTAVA_DASHES = ("36 72", "18 54", "18 36", "60 60", "90 45")  # Verovio's own is the first
 DOTTED_OTTAVA_CHANCE = 0.5
@@ -201,30 +204,58 @@ def first_voice_notes(measure: ET.Element, staff: int) -> list[int]:
     return [i for i, e in on_staff if e.findtext("voice", "1") == voice and e.find("chord") is None and e.find("grace") is None]
 
 
-def add_ottava_passage(part: ET.Element, rng: random.Random) -> None:
-    """An 8va over a run of the upper staff or an 8vb under the lower one, within a bar or
-    across several. The notes move the other way first, so they are drawn where the music
-    has them and only the sign is new."""
-    if next(part.iter("octave-shift"), None) is not None:
-        return
-    staff, kind, placement = rng.choice([(1, "down", "above"), (2, "up", "below"), (2, "down", "above")])
+def passage(part: ET.Element, staff: int, rng: random.Random) -> tuple[tuple[ET.Element, int], tuple[ET.Element, int]] | None:
+    """A random run of the staff's first voice, within a bar or across several: where its first
+    note is, and where the element after its last note (and that note's chord) goes. Some runs
+    take the whole system from one end, as a sign carried over a system break does."""
     places = [(m, i) for m in part.findall("measure") for i in first_voice_notes(m, staff)]
     shortest, longest = OTTAVA_PASSAGE_NOTES
     if len(places) < shortest:
-        return
+        return None
     start = rng.randrange(len(places) - shortest + 1)
     stop = min(len(places), start + rng.randint(shortest, longest)) - 1
+    if rng.random() < SYSTEM_END_PASSAGE_CHANCE:
+        start, stop = (0, stop) if rng.random() < 0.5 else (start, len(places) - 1)
     (first_measure, first), (last_measure, last) = places[start], places[stop]
     after_last = last + 1
     while after_last < len(last_measure) and last_measure[after_last].find("chord") is not None:
         after_last += 1
+    return (first_measure, first), (last_measure, after_last)
+
+
+def spanned(part: ET.Element, staff: int, placement: str, start: ET.Element, stop: ET.Element, rng: random.Random) -> bool:
+    """Puts start and stop around a random passage of the staff; False if it has none."""
+    found = passage(part, staff, rng)
+    if found is None:
+        return False
+    (first_measure, first), (last_measure, after_last) = found
     # Stop first: in a one-bar passage the start's insertion would move it.
-    last_measure.insert(after_last, direction(ET.Element("octave-shift", type="stop", size="8"), staff, placement))
-    first_measure.insert(first, direction(ET.Element("octave-shift", type=kind, size="8"), staff, placement))
+    last_measure.insert(after_last, direction(stop, staff, placement))
+    first_measure.insert(first, direction(start, staff, placement))
+    return True
+
+
+def add_ottava_passage(part: ET.Element, rng: random.Random) -> None:
+    """An 8va over a run of either staff or an 8vb under the lower one. The notes move the other
+    way first, so they are drawn where the music has them and only the sign is new."""
+    if next(part.iter("octave-shift"), None) is not None:
+        return
+    staff, kind, placement = rng.choice([(1, "down", "above"), (2, "up", "below"), (2, "down", "above")])
+    if not spanned(part, staff, placement, ET.Element("octave-shift", type=kind, size="8"),
+                   ET.Element("octave-shift", type="stop", size="8"), rng):
+        return
     for note, octaves in notes_under_ottavas(part):
         move_octaves(note, octaves)
         if not LOWEST_OCTAVE <= int(note.findtext("pitch/octave")) <= HIGHEST_OCTAVE:
             raise ValueError("the passage leaves the piano's range")
+
+
+def add_plain_line(part: ET.Element, rng: random.Random) -> None:
+    """A solid line with no sign between the staves, over a run of notes, and no label: plates
+    have such lines, and a model that knows only 8va lines reads one as a sign (Polish 049)."""
+    staff, placement = rng.choice([(1, "below"), (2, "above")])
+    spanned(part, staff, placement, ET.Element("bracket", type="start", number="2", **{"line-end": "none", "line-type": "solid"}),
+            ET.Element("bracket", type="stop", number="2", **{"line-end": "none"}), rng)
 
 
 def add_marks(part: ET.Element, rng: random.Random) -> None:
@@ -232,6 +263,8 @@ def add_marks(part: ET.Element, rng: random.Random) -> None:
         add_repeat_mark(part, rng)
     if rng.random() < OTTAVA_PASSAGE_CHANCE:
         add_ottava_passage(part, rng)
+    if rng.random() < PLAIN_LINE_CHANCE:
+        add_plain_line(part, rng)
 
 
 def engraving_options(rng: random.Random) -> dict:
@@ -311,6 +344,9 @@ def restyle_ottava_lines(svg: bytes, rng: random.Random) -> bytes:
             for line in group.findall(f"{{{SVG_NS}}}path"):
                 line.set("stroke-dasharray", dashes)
                 line.set("stroke-linecap", "round" if dotted else "butt")
+            if rng.random() < HOOKLESS_OTTAVA_CHANCE:  # the sign goes on past the system's end
+                for hook in group.findall(f"{{{SVG_NS}}}polyline"):
+                    group.remove(hook)
     return etree.tostring(root)
 
 

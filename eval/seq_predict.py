@@ -20,7 +20,7 @@ from pathlib import Path
 import Levenshtein
 import torch
 
-from lmx_tuplets import imply_tuplets
+from lmx_tuplets import extra_beams_dropped, imply_tuplets
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
@@ -53,12 +53,12 @@ def rewind_to_measure_start(part: ET.Element) -> None:
 
 
 def delinearize(lmx: str, bar: Fraction | None = None) -> str:
-    """MusicXML of an LMX string, unmarked tuplets restored (bar: see imply_tuplets) and ottava
-    tokens drawn as signs over sounding pitches. A sequence the delinearizer cannot parse
-    becomes an empty part, as OLiMPiC's TEDn evaluation treats it (its error reporting itself
-    can crash)."""
+    """MusicXML of an LMX string, unmarked tuplets and overbeamed groups restored (bar: see
+    imply_tuplets) and ottava tokens drawn as signs over sounding pitches. A sequence the
+    delinearizer cannot parse becomes an empty part, as OLiMPiC's TEDn evaluation treats it (its
+    error reporting itself can crash)."""
     delinearizer = Delinearizer(errout=None)
-    restored = imply_tuplets(sounding(lmx), bar)
+    restored = extra_beams_dropped(imply_tuplets(sounding(lmx), bar), bar)
     try:
         delinearizer.process_text(restored)
         part = delinearizer.part_element

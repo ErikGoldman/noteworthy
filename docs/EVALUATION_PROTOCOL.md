@@ -17,7 +17,7 @@ with public weights. Orchestral, quartet and handwritten music are outside it.
   `license_conflict` scores. All synthetic. No labelled real scans.
 - Pipeline: `eval/seq_pages.py` at the commit that adds this file's frozen tag, reading each
   system at `CROP_HEIGHT_RATIOS`, cutting between systems at the middle of their gap, restoring
-  tuplets (`eval/lmx_tuplets.py`), and finishing the page's MusicXML (`eval/page_musicxml.py`:
+  tuplets and overbeamed groups (`eval/lmx_tuplets.py`), and finishing the page's MusicXML (`eval/page_musicxml.py`:
   slurs paired per staff, grace slashes and tuplet brackets stated, ties mended).
 - Layout: the v5 U-Net in `cpp/`, used only to find systems.
 
@@ -26,7 +26,7 @@ with public weights. Orchestral, quartet and handwritten music are outside it.
 No model weights were fitted to real scans, but these choices were made looking at OLiMPiC's
 scanned dev split and Mutopia dev: `CROP_HEIGHT_RATIOS`, the rules in `lmx_tuplets.py`,
 `rewind_to_measure_start`, and the decision to read twice. On the 56 Polish dev pages: the
-crop cut at the gap's middle and every rule in `eval/page_musicxml.py`. The U-Net model was trained with
+crop cut at the gap's middle, `extra_beams_dropped`, and every rule in `eval/page_musicxml.py`. The U-Net model was trained with
 PDMX scores flagged `license_conflict`, and on handwritten pages (MUSCIMA++).
 
 Earlier looks at held-out data: Polish was run once with run C (OMR-NED 37.24). The final

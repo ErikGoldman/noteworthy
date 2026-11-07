@@ -45,8 +45,8 @@ unlocked scores, then 6-10.
    attribute fixes (P5, P6), and say so.
 5. First real check of `<octave-shift>` output on model output: labels only so far.
 6. Confirm P4-P7 on real pages: tested on saved output only.
-7. Re-rank by OMR-NED cost, unlocked, and re-split note cost by cause. Note cost is an estimate until
-   this is done.
+7. Re-rank and note-cost split: done 2026-11-07 (EXPERIMENTS.md, "Note cost split by kind"): mostly
+   model reading errors that move a voice's later notes (quintuplets, beam counts, triplets).
 8. Then investigate: slurs (model writes fewer than gold; test whether training crops vary them
    enough); barlines in cross-staff runs (083); bars on 087, 093, 051, 065, not re-inspected.
 9. Update `docs/EVALUATION_PROTOCOL.md` lines 13 and 17, which name the frozen candidate.
@@ -54,15 +54,17 @@ unlocked scores, then 6-10.
 
 ## Cost causes still open (seq512, Print standard, unlocked)
 
-- 096: unmarked triplets on a page without a meter (see EXPERIMENTS.md); idea: --unmarked-tuplets
-  crops with rests inside groups.
-- 049 false ottava from a long line: needs negatives in training crops, untested.
-- 023 missed ottava: the crop cut the sign off; fixed in seq_pages.py (cut at the gap's middle). With
+- 096: unmarked triplets on a page without a meter (see EXPERIMENTS.md). Not --unmarked-tuplets
+  crops: tried as H6, mostly refuted (the ratio is what is missing, and no sign shows it). Open.
+- 049 false ottava from a long line: fixed by plain-line negatives in crops (r4 fine-tune: 0 tokens).
+- 023 missed ottava: not the crop, the line's style (wavy, redrawn dotted, dashed, with va), its
+  distance or its system-wide shape: 0 tokens in every test. The crop cut the sign off; fixed in seq_pages.py (cut at the gap's middle). With
   the sign in view no token yet. 017's false ties (taller crops): each bar opens with a grace C slurred to a C, and the model
   now reads that slur as a tie (6 per system in systems 2-4 at both heights; none there before).
-  Output fix P9 (`mend_ties`) removes such ties: small, consistent gain. Training idea stays.
+  Output fix P9 (`mend_ties`) removes such ties (they join different pitches): no training change
+  needed.
 - Bars on 065 (handwriting) and 030 (hand-filed moves still to add), 076 and 110 (ottavas).
-- P8 padding rests on the other dev pages: image per range (003 and 037 checked: their rests are printed, as in most of
+- P8 padding rests on the other dev pages: image per range (003, 037 and 088 checked: their rests are printed, as in most of
   this composer's inner-voice writing; P8 looks concentrated in pages like 096).
 - Beams (459 unlocked): 062 and 067 are cross-staff beams that kern cannot hold once notes move
   (start/stop against partial); 023's Trio was a gold error (short J), fixed in beams_closed.
@@ -75,8 +77,9 @@ unlocked scores, then 6-10.
 ## For the next training run
 
 - Ottava signs: `8` alone, dotted lines, 8va above the lower staff are now in `build_seq_dataset.py
-  --marks` (data/seq3/marks); tested by fine-tune q512: fixes 110, not 023 (see EXPERIMENTS.md). Still
-  to add: long plain lines between staves as negatives (049 false sign).
+  --marks` (data/seq3/marks); tested by fine-tune q512: fixes 110, not 023 (see EXPERIMENTS.md). Long plain
+  lines between the staves as negatives (049 false sign) added too: `add_plain_line`, a solid
+  bracket line over a run of notes, no label, in a quarter of --marks scores; checked by eye.
 - Gold: 110 Print standard needs its `*8va` passages (last system, both staves).
 
 - No staccatissimo token: the model cannot write wedges.
