@@ -37,6 +37,7 @@ from olimpic_benchmark import SOURCES, song_document, song_of, song_systems, son
 from results_file import save_results
 from score_events import NoteEvent, parse_musicxml
 from lmx_tuplets import bar_fill, written_bar
+from page_musicxml import finish_score
 from seq_predict import delinearize, load_model
 from synthetic_benchmark import f1_counts, held_out_scores, split_scores
 
@@ -91,15 +92,16 @@ def piano_systems(layout: dict, scales: dict[int, float]) -> list[SystemCrop]:
             for s in systems for top, bottom in piano_staff_pairs(s["staves"], s["page"] in piano_pages)]
 
 
-def emptiest_row(page: np.ndarray, start: float, end: float) -> int:
-    """The row with least ink between two heights, nearest the middle among equals: notes
-    can reach far from their staff, so no fixed distance separates two systems."""
+def emptiest_row(page: np.ndarray, start: float, end: float, aim: float | None = None) -> int:
+    """The row with least ink between two heights, nearest `aim` (the middle unless given) among
+    equals: notes can reach far from their staff, so no fixed distance separates two systems."""
     rows = np.arange(max(0, int(start)), min(page.shape[0], int(end) + 1))
     if len(rows) == 0:
         return max(0, min(page.shape[0], int(start)))
     ink = (page[rows] < INK).sum(axis=1)
     candidates = rows[ink == ink.min()]
-    return int(candidates[np.abs(candidates - (start + end) / 2).argmin()])
+    aim = (start + end) / 2 if aim is None else aim
+    return int(candidates[np.abs(candidates - aim).argmin()])
 
 
 def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float, height_ratio: float) -> np.ndarray:
@@ -108,8 +110,11 @@ def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float
     interline = (system.bottom_staff[1] - system.bottom_staff[0]) / 4 * system.scale
     first_line, last_line = system.top_staff[0] * system.scale, system.bottom_staff[1] * system.scale
     reach = MARGIN_INTERLINES * interline
-    top = emptiest_row(page, max(above, first_line - reach), first_line)
-    bottom = emptiest_row(page, last_line, min(below, last_line + reach))
+    # Between two systems, aim at the middle of the whole gap, not of the reach: an 8va line
+    # sits high above its staff, and the reach's middle cuts it off (Polish 023).
+    top = emptiest_row(page, max(above, first_line - reach), first_line, (above + first_line) / 2 if above else None)
+    bottom = emptiest_row(page, last_line, min(below, last_line + reach),
+                          (last_line + below) / 2 if below < page.shape[0] else None)
     band = page[top:bottom]
     columns = np.nonzero((band < INK).any(axis=0))[0]
     if len(columns) == 0:
@@ -216,6 +221,7 @@ def joined_musicxml(lmx_of_systems: list[str]) -> str:
         return ""
     for number, measure in enumerate(target.findall("measure"), 1):
         measure.set("number", str(number))
+    finish_score(joined)
     return ET.tostring(joined, encoding="unicode", xml_declaration=True)
 
 

@@ -21,10 +21,11 @@ beams counts them by thickness and reads such eighths as 16ths.
 
 With --round-heads filled noteheads are round dots, as in copyists' hands.
 
-With --marks random segnos and codas are added above bars, and an 8va or 8vb passage over
-some systems with its line drawn in varied styles. A segno looks like an `8`, and 4% of real
-crops have any ottava, in Verovio's look only. Bass-clef sharps follow old plates, with A sharp
-on the top line: a model that knows only the modern layout reads five of them as three.
+With --marks random segnos and codas are added above bars, and an ottava passage over some
+systems: 8va above either staff or 8vb below the lower, signed `8va` or `8` alone, its line dashed
+or dotted, as plates vary (Polish 110 has a dotted `8` over each staff). A segno looks like an `8`,
+and only 4% of real crops have any ottava. Bass-clef sharps follow old plates, with A sharp on the
+top line: a model that knows only the modern layout reads five of them as three.
 
 Labels give pitches as printed, ottavas as tokens (seq.ottava).
 
@@ -86,6 +87,10 @@ REPEAT_MARKS = ("segno", "segno", "coda")
 OTTAVA_PASSAGE_CHANCE = 0.5
 OTTAVA_PASSAGE_NOTES = (3, 40)
 OTTAVA_DASHES = ("36 72", "18 54", "18 36", "60 60", "90 45")  # Verovio's own is the first
+DOTTED_OTTAVA_CHANCE = 0.5
+OTTAVA_DOTS = ("1 40", "1 60", "1 90")  # round caps make each 1-unit dash a dot
+OTTAVA_LINE_THICKNESS = (0.1, 0.35)  # Verovio's default is 0.2 interlines
+ALTERNATIVE_OTTAVA_SYMBOL_CHANCE = 0.5  # `8` alone, as on older plates, for `8va`
 HIGHEST_OCTAVE, LOWEST_OCTAVE = 7, 1
 F_CLEF, SHARP = "#E062", "#E262"  # SMuFL; Verovio appends a per-file suffix
 OCTAVE_UNITS = 3.5 * SVG_UNITS_PER_INTERLINE
@@ -202,7 +207,7 @@ def add_ottava_passage(part: ET.Element, rng: random.Random) -> None:
     has them and only the sign is new."""
     if next(part.iter("octave-shift"), None) is not None:
         return
-    staff, kind, placement = rng.choice([(1, "down", "above"), (2, "up", "below")])
+    staff, kind, placement = rng.choice([(1, "down", "above"), (2, "up", "below"), (2, "down", "above")])
     places = [(m, i) for m in part.findall("measure") for i in first_voice_notes(m, staff)]
     shortest, longest = OTTAVA_PASSAGE_NOTES
     if len(places) < shortest:
@@ -240,6 +245,11 @@ def engraving_options(rng: random.Random) -> dict:
         "ledgerLineThickness": rng.uniform(0.15, 0.4), "beamMaxSlope": rng.randint(5, 20),
         "svgBoundingBoxes": False, "svgHtml5": False,
     }
+
+
+def ottava_options(rng: random.Random) -> dict:
+    return {"octaveAlternativeSymbols": rng.random() < ALTERNATIVE_OTTAVA_SYMBOL_CHANCE,
+            "octaveLineThickness": rng.uniform(*OTTAVA_LINE_THICKNESS)}
 
 
 def polygon_points(polygon: etree._Element) -> list[tuple[float, float]]:
@@ -291,12 +301,16 @@ def round_noteheads(svg: bytes, radius_interlines: float) -> bytes:
     return etree.tostring(root)
 
 
-def restyle_ottava_lines(svg: bytes, dashes: str) -> bytes:
+def restyle_ottava_lines(svg: bytes, rng: random.Random) -> bytes:
+    """Dashed or dotted, as plates vary; Verovio draws only its own dashes."""
+    dotted = rng.random() < DOTTED_OTTAVA_CHANCE
+    dashes = rng.choice(OTTAVA_DOTS if dotted else OTTAVA_DASHES)
     root = etree.fromstring(svg)
     for group in root.iter(f"{{{SVG_NS}}}g"):
         if "octave" in group.get("class", "").split():
             for line in group.findall(f"{{{SVG_NS}}}path"):
                 line.set("stroke-dasharray", dashes)
+                line.set("stroke-linecap", "round" if dotted else "butt")
     return etree.tostring(root)
 
 
@@ -322,6 +336,8 @@ def raise_bass_a_sharp(svg: bytes) -> bytes:
 def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style: Style = Style()) -> np.ndarray | None:
     """The system as a grayscale image cropped to its ink plus a random margin."""
     options = engraving_options(rng)
+    if style.marks:
+        options |= ottava_options(rng)
     tk.setOptions(options)
     if not tk.loadData(musicxml) or tk.getPageCount() != 1:
         return None
@@ -332,7 +348,7 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style:
     if style.round_heads:
         svg = round_noteheads(svg, rng.uniform(*ROUND_HEAD_RADIUS_INTERLINES))
     if style.marks:
-        svg = raise_bass_a_sharp(restyle_ottava_lines(svg, rng.choice(OTTAVA_DASHES)))
+        svg = raise_bass_a_sharp(restyle_ottava_lines(svg, rng))
     use_smufl_fonts()  # music symbols in text (tempo marks) need the SMuFL fonts in cairo
     png = cairosvg.svg2png(bytestring=svg, background_color="white")
     image = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_GRAYSCALE)

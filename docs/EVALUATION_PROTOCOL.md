@@ -10,19 +10,23 @@ with public weights. Orchestral, quartet and handwritten music are outside it.
 
 ## The system
 
-- Sequence model: the clean retrain. `runs/seq_clean/last.pt`, the final step of its fixed
-  schedule, with no checkpoint selection: `best.pt` is chosen on real scans, so it is not used.
+- Sequence model: `runs/seq512/last.pt` (192,000 steps, `scripts/train_seq.sh`), the final step
+  of its fixed schedule, with no checkpoint selection: `best.pt` is chosen on real scans, so it
+  is not used. Here the two are the same weights, the best dev SER being the last step's.
 - Training data: OLiMPiC synthetic, GrandStaff, PDMX crops without held-out scores or
   `license_conflict` scores. All synthetic. No labelled real scans.
 - Pipeline: `eval/seq_pages.py` at the commit that adds this file's frozen tag, reading each
-  system at `CROP_HEIGHT_RATIOS` and restoring tuplets (`eval/lmx_tuplets.py`).
+  system at `CROP_HEIGHT_RATIOS`, cutting between systems at the middle of their gap, restoring
+  tuplets (`eval/lmx_tuplets.py`), and finishing the page's MusicXML (`eval/page_musicxml.py`:
+  slurs paired per staff, grace slashes and tuplet brackets stated, ties mended).
 - Layout: the v5 U-Net in `cpp/`, used only to find systems.
 
 ## What was developed on real scans (disclosed)
 
 No model weights were fitted to real scans, but these choices were made looking at OLiMPiC's
 scanned dev split and Mutopia dev: `CROP_HEIGHT_RATIOS`, the rules in `lmx_tuplets.py`,
-`rewind_to_measure_start`, and the decision to read twice. The U-Net model was trained with
+`rewind_to_measure_start`, and the decision to read twice. On the 56 Polish dev pages: the
+crop cut at the gap's middle and every rule in `eval/page_musicxml.py`. The U-Net model was trained with
 PDMX scores flagged `license_conflict`, and on handwritten pages (MUSCIMA++).
 
 Earlier looks at held-out data: Polish was run once with run C (OMR-NED 37.24). The final
@@ -63,11 +67,19 @@ fragments stay on one side; the dataset names no pieces, so this may miss some.
     swaps. Gold's conventions stay: notes filed by hand, ottavas folded into pitch.
   - Print standard: Corrected, with notes on the staff they are drawn on and the print's ottavas
     as `*8va` lines, which the scorer's parser (converter21) reads for gold and kern predictions
-    alike. The rule: a note belongs to the staff it is drawn on.
-- Print standard also gets a column with each page's better score of signed and sounding
-  ottavas, so a system that folds a sign into its pitches can be seen fairly. A missed sign with
+    alike. The rule: a note belongs to the staff it is drawn on. Rests gold pads with that the
+    print does not draw are hidden, one slur per chord as drawn, and accidentals the print
+    restates are shown.
+- Print standard gold records staccatos, accents and wedges from the print. Where a mark is
+  clearly there but a reviewer cannot tell a dot from a wedge, the note is flagged, and
+  `omr_ned.py --ambiguous-marks` accepts either; a missing mark is still charged. Each flag is an
+  entry in `eval/polish_overrides.jsonl` with its reason.
+- Corrected and Print standard both take each page's better score of signed and sounding
+  ottavas (`omr_ned.py --either-ottava`): Corrected gold folds every ottava and Print signs the
+  print's, so a system is scored in whichever form the gold uses. A missed sign with
   the printed pitches costs 2 however long the passage, though it sounds an octave off: reports
-  say so. These rules were fixed after dev results and before any test run.
+  say so. These rules were fixed after dev results and before any test run; the Corrected half
+  of the ottava rule was added on 2026-11-07, also before any test run.
 - A number over all 112 pages is reported only with the note that half were developed against.
 - The card also says Transcoda used no Polish for selection. Ours does, for its fixes, and
   every report says so.

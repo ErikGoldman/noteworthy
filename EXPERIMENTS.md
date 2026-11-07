@@ -998,3 +998,163 @@ OMR-NED compares step, octave and printed accidental: a wrong key is one small e
   24.37, Copisteria 32.38 to 22.70, Transcoda 59.95 to 53.41.
 - Ottavas: gold has none. converter21 reads *8va, so inserted lines are enough. On a bar of 076:
   right sign 0, missed sign 2, sounding pitch with no sign 62.
+
+### Retrain seq512 (192,000 steps, ottava tokens, marks, P4-P7 output), 2026-11-07
+
+Dev SER 0.0749 at the last step (best). Polish dev, 49 two-staff pages, all systems on the same gold;
+k512 and o512 with P4-P7, Copisteria with P5/P6; paired ranges are seq512 minus the other.
+
+| System | Crops F1 | Mutopia F1 | Corrected | Print standard |
+|---|---|---|---|---|
+| seq512 | 0.936 | 0.878 | 15.32 | 12.04 |
+| o512 | | | 16.17 (-0.85 [-3.00, +1.03]) | 12.26 (-0.21 [-1.38, +1.03]) |
+| k512 | 0.933 (+0.003 [-0.010, +0.014]) | 0.887 (-0.009 [-0.048, +0.016]) | 16.35 (-1.03 [-3.06, +0.68]) | 13.71 (-1.67 [-3.71, +0.05]) |
+| Copisteria | | | 21.25 (-5.93 [-10.62, -1.83]) | 18.62 (-6.58 [-11.20, -2.39]) |
+| Transcoda | | | 49.39 (-34.07) | 49.34 (-37.30) |
+
+- No measurable change against k512 or o512 on any row; most of the gain on k512 is page 026 (-35),
+  which o512 already fixed. Locked scores; unlocked not yet run.
+- As published, fixed: the cross-format path parsed **kern without the header line the authors add
+  (`_ensure_kern_header`); published gold and Transcoda's output have none, and the parser returned an
+  empty score that scored 100. Now parsed as theirs: seq512 43.52, o512 44.31, k512 44.45, Copisteria
+  45.48, Transcoda 65.63 (kern to kern, unchanged); 14 pages score 100 for every system.
+  The same bug made `--ambiguous-marks` score Transcoda 100 everywhere; with the fix, 49.34 with or
+  without the flag. Corrected unchanged (15.32): its gold has headers.
+- First real `<octave-shift>` output: shifts on 083, 076, 087 (gold has ottavas there) and 049
+  (gold has none: to check against the image). None on 023.
+
+### Bars on ottava pages, seq512 (unlocked, Corrected gold)
+
+seq512 against k512 unlocked: 16,946 against 17,262. Bars cost rose (delbar 559 against 346, insbar
+1,589 against 1,545), all on 110, 083, 076: the pages with ottavas. Three causes, each tested:
+- Scoring convention: Corrected gold folds ottavas into pitch, and a MusicXML `<octave-shift>` is read
+  by the scorer as moving its notes, so a correctly drawn sign costs the whole passage (083: 20.9 with
+  the sign, 12.3 with the same output's signs removed). Removing all signs: Corrected 15.32 to 15.10,
+  Print 12.04 to 12.34. Per page, the better of the two, as Print standard already allows: Corrected
+  15.04, Print 12.01. 087 goes the other way under Corrected (22.0 signed, 25.0 folded): its gold
+  keeps printed pitch at some signs.
+- Missed signs: 110 has `8` with a dotted line, over the lower staff in treble clef as well as the
+  upper. Training crops draw only Verovio's `8va` with dashed lines, 8va on the upper staff and 8vb
+  under the lower. No tokens on 110 or 023; k512, trained on sounding labels, got 110 right.
+- False sign: 049 bar 3 of the last system, from a long plain line between the staves (no sign in
+  the print).
+Tuplets on 096 (instuplet 34 against 4): the page has no time signature and no printed 3s; gold has
+triplets throughout, seq512 writes fewer than k512 (53 groups against 61, gold about 86). Ambiguous
+from the print; not pursued.
+
+### Ottava sign styles in training crops (q512: 8,000 steps from seq512)
+
+`build_seq_dataset.py --marks` now also draws `8` alone (Verovio's octaveAlternativeSymbols), dotted
+lines (round caps), varied line thickness, and 8va above the lower staff. 29,069 crops in
+data/seq3/marks replace data/seq2/marks in the mix; batch 6, lr 1e-4, as the earlier fine-tunes.
+- 110: 0 tokens to 25, on the right bars of both staves. Folded and scored on Corrected, 110 is
+  16.88 against seq512's 22.75 (k512 about 18). The style was the cause.
+- 023: still no tokens. 049: the false sign stays (5 tokens); its score improves (10.2 to 6.9) for
+  other reasons.
+- Overall not better: dev SER 0.0776 against 0.0749; Polish Corrected 16.37, +1.05 [-0.41, +2.81];
+  Print 12.43, +0.39 [-0.78, +1.67]; Mutopia 0.881 against 0.878. 065 (handwritten) +32.9.
+  A short fine-tune at a small batch costs more than it buys; the styles belong in the next full run.
+- 110's Print gold has no `*8va` yet, so a correct sign there is charged as on Corrected.
+
+### Beams lost by Print standard's staff moves (gold bug)
+
+Print standard ranks beams third (editbeam 690 against 431 on Corrected), all on the pages with
+staff moves: 038 0 to 75, 062 13 to 80, 047 5 to 52, 067 6 to 49, 057 0 to 28. `divided` dropped
+every moved note's beam marks, meant for beams the move splits across the staves; most moves take
+whole beam groups. Now a group keeps its beams when all its fields go the same way, whole
+(`beams_kept`). Print standard, 49 pages: seq512 12.04 to 11.81, k512 13.71 to 13.51, Copisteria
+18.62 to 18.44, Transcoda 49.34 to 49.23; every system gains on every move page (038: seq512 16.5 to
+11.7). check_gold: 0 failed.
+
+### Printed rests that the print does not have (Print standard's staff moves)
+
+After the beam fix, bar insertions led on the move pages (038 insbar 139). A move filled both gaps
+with plain rests: the vacated staff and the new voice. The print draws neither (checked on 038, 062,
+047, 067; 012 and 058 are recorded as "staff blank"), so the rests are now `ryy`, not drawn, which the
+scorer ignores (`hidden_rest_like`). The seven move pages, seq512 12.92 to 7.43 (038 11.7 to 1.8), k512
+17.49 to 12.49, Copisteria 16.13 to 11.00. Print standard, 49 pages, with both fixes:
+seq512 11.03, o512 11.31 (-0.28 [-1.49, +0.98]), k512 12.80 (-1.77 [-3.80, +0.03]), Copisteria 17.71
+(-6.68 [-11.49, -2.57]), Transcoda 48.95. No sealed page has a move. This is P8 for moves only; the
+published gold's own padding rests (096) are still unreviewed.
+
+### Published gold's padding rests (P8), first page: 096
+
+New override `hide_rests {"last_line"}` (Print standard): rests in a range become `ryy`. On 096 the
+print draws no rest in bars 6-13 (checked on the image); bars 1-5 and 14-16 have printed rests and
+stay. 096: seq512 33.45 to 31.27, k512 19.10 to 16.48, Copisteria 16.61 to 13.90, Transcoda 78.57 to
+77.78. Other pages not reviewed: each range needs the image. Separately, seq512 is 15 points behind
+k512 on 096 (tuplets and ties, see the unlocked ranking); not investigated.
+
+### seq512 against k512 on 096 (31 against 16)
+
+The page continues a piece in 3/4 with triplet eighths throughout, and prints neither a time
+signature nor any 3. Read as plain eighths, many bars fill 4/4 exactly (bar 1: rest, three eighths and
+a half; quarter and six eighths), so `likely_bar` votes 4 and no tuplet can be implied. Tested: with
+the bar forced to 3, no measure of either model's reading fills in every voice, because gold's
+triplet groups often start with a rest or are beamed in twos, which `tuplet_candidates` (beam groups
+of 3 or 6) does not see. k512 is ahead because it writes 3in2 itself more often (61 groups against
+53, gold about 86). Not fixable at the page: the meter is on the previous page. Ideas, untested:
+unmarked-tuplet training crops with rests in the groups (seq512's crops have no --unmarked-tuplets
+set); a page-level meter carried from the previous page, which the benchmark does not provide.
+- 030 bar 8 (print: treble staff blank, all on the bass staff): move_down added. seq512 10.68 to 9.95,
+  k512 13.61 to 12.83, Copisteria 17.52 to 17.50. Bar 7 is the same but its upper staff is two
+  columns, which move_down cannot take yet.
+- 030 bar 7: new override `staff_down {"last_line", "lower_columns"}` moves every upper column to
+  new lower voices (the lower staff split once per column, merged after) and leaves hidden rests
+  above. 030: seq512 9.95 to 8.25, k512 12.83 to 11.13, Copisteria 17.50 to 17.32. check_gold: 0
+  failed. A mid-spine `*staff2` does not do this: converter21 keeps the notes on their spine's staff.
+
+### Crop boundaries between systems (seq_pages.py), from the 023 missed ottava
+
+023's `8.....` line sits about 7 interlines above its staff. `crop_system` cut each system at the
+emptiest row nearest the middle of its 7-interline reach, so the sign was cut off from every crop at
+both heights: the model never saw it. Now, between two systems, the cut aims at the middle of the
+whole gap (falls back to the reach's middle at a page edge). The 023 crop now holds the sign.
+seq512, 49 dev pages: Corrected 15.32 to 14.62 (-0.70 [-2.27, +1.00]; 042 +27.8, the page whose
+locked score swings), Print 10.98 to 9.33 (-1.65 [-2.87, -0.58]; 32 pages better, 13 worse). Gains:
+093 -18, 037 -12, 081 -11. Losses: 017 +7.6 (34 ties written against gold's 3), 110 +4.3 (its sign
+now seen and drawn: gold Print has no `*8va` there yet). 023 still gets no ottava token with the sign
+in view; it scores 3.11 on Print, so its pitches already sound. q512 with the new crops: 15.05 and
+10.49, still behind seq512.
+
+### Ties that join no same pitch (page_musicxml.mend_ties, P9)
+
+017's new false ties were the model tying a grace note to the different main note its slur leads
+to (D5 grace to C5, with the slur written as well). Elsewhere it leaves out a tie's stop with the
+same pitch in the next chord (093). Rule: each tie joins the same pitch in the voice's next event;
+a half-written tie whose partner pitch is there is completed, one with no such note is removed.
+seq512 with the new crops, saved output re-finished: 789 tie elements to 584; Corrected 14.62 to
+14.57 (-0.05 [-0.08, -0.03]), Print 9.33 to 9.27 (-0.06 [-0.09, -0.03]); 25 pages better, 3 worse
+by under 0.09. Small: the scorer charges a tie as one edit.
+
+### One slur per chord (Print standard)
+
+Unlocked, slurs are the largest cost after notes (extra ins 410, del 398, duration 114). One part
+is gold's encoding: a slur on every note of a chord (`4E( 4G( 4e(`), which converter21 reads as
+three slurs for one printed arc; 931 such extra marks on the 49 pages. Print standard now keeps each
+chord's slur marks on its first note (`one_slur_per_chord`). Print, 49 pages: seq512 with new crops
+and P9 9.27 to 9.06; seq512 10.98 to 10.80; o512 11.05; k512 12.49; Copisteria 17.71 to 17.53;
+Transcoda 48.95 to 48.74. check_gold: 0 failed. The rest of the slur cost is two-sided: gold leaves out
+printed slurs (017: 15 in gold, the grace slurs and long arcs printed), and the model misses some
+(030, 069).
+
+### Beam groups left open by a short J (beams_closed, both standards)
+
+023's Trio: the print groups (8th, 16th, 16th) (8th, 8th) (8th, 8th); gold ends the 16ths with
+`16J` for `16JJ`, so the primary beam stays open and every later group in the bar nests in it
+(the model was right, 55 beam edits). `beams_closed` now also closes the open beams when a note
+would carry more than its length allows (`beam_count`: 1 for an eighth or triplet eighth, 2 for a
+16th). 24 pages change, sealed included; check_gold 0 failed. 49 pages, Corrected / Print:
+seq512 (new crops, P9) 14.57 / 9.06 to 14.46 / 8.95; k512 16.35 / 12.49 to 16.25 / 12.39; Copisteria
+21.25 / 17.53 to 21.15 / 17.44; Transcoda 49.39 / 48.74 to 49.32 / 48.67.
+
+### Accidentals the print shows and gold does not (looked at, not fixed)
+
+accidentdel 144 on Print: our output shows an accidental where gold shows none. On 060 (key of six
+flats) bars 25-26 come straight after a passage in sharps, and the print restates the flats
+(checked on the image: gg-, ee-, dd- and the chords). Kern needs `X` to show an accidental the key
+already gives (`ee-X`); gold has none, so converter21 hides them and our correct reading is charged.
+No rule can tell a printed courtesy accidental from an unprinted one, so it is an override per
+note: `show_accidental {"column", "note"}` adds the `X`. 060 bars 25-26, four notes whose flat is
+clear on the image (the chords' flats left out: which notes carry them is not clear at this scan):
+seq512 7.30 to 7.21, k512 10.64 to 10.54, Copisteria 12.62 to 12.52. Other pages unreviewed.
