@@ -33,8 +33,9 @@ from app.symbolic.part_to_score import part_to_score  # noqa: E402
 from seq.data import SystemDataset, collate, samples, split_names  # noqa: E402
 from seq.model import Seq2Seq  # noqa: E402
 from seq.ottava import add_octave_shifts, shifts_of, sounding  # noqa: E402
+from seq.repeats import add_repeat_barlines, without_repeats  # noqa: E402
 from seq.vocab import Vocab  # noqa: E402
-from train_seq import VOCABULARY  # noqa: E402
+from train_seq import VOCABULARY, comparable  # noqa: E402
 
 
 def rewind_to_measure_start(part: ET.Element) -> None:
@@ -58,12 +59,14 @@ def delinearize(lmx: str, bar: Fraction | None = None) -> str:
     delinearizer cannot parse becomes an empty part, as OLiMPiC's TEDn evaluation treats it (its
     error reporting itself can crash)."""
     delinearizer = Delinearizer(errout=None)
-    restored = extra_beams_dropped(imply_tuplets(sounding(lmx), bar), bar)
+    plain, repeats = without_repeats(sounding(lmx))
+    restored = extra_beams_dropped(imply_tuplets(plain, bar), bar)
     try:
         delinearizer.process_text(restored)
         part = delinearizer.part_element
         rewind_to_measure_start(part)
         add_octave_shifts(part, shifts_of(lmx))
+        add_repeat_barlines(part, repeats)
     except Exception:
         part = ET.Element("part")
     return ET.tostring(part_to_score(part).getroot(), encoding="unicode", xml_declaration=True)
@@ -98,7 +101,7 @@ def main() -> None:
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths)
         for name, p, g in zip(names[done:], predicted, tokens.tolist()):
-            lmx, gold = sounding(vocab.decode(p)), sounding(vocab.decode(g[1:]))
+            lmx, gold = comparable(vocab.decode(p)), comparable(vocab.decode(g[1:]))
             errors += Levenshtein.distance(lmx.split(), gold.split())
             total += len(gold.split())
             path = args.out / name

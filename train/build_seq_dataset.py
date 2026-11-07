@@ -59,6 +59,7 @@ from omr.held_out import is_held_out
 from omr.pieces import pdmx_license_conflicts
 from omr.render import FONTS, SVG_NS, UNITS_PER_INTERLINE_PER_UNIT, layout_svg
 from seq.ottava import TOKEN_ATTRIBUTE, move_octaves, notes_under_ottavas, written_part
+from seq.repeats import repeats_of, with_repeat_tokens
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(os.environ.get("NW_DATA", ROOT / "data"))
@@ -156,7 +157,13 @@ def hide_tuplet_numbers(score: ET.Element, rng: random.Random) -> None:
 
 
 class WrittenLinearizer(Linearizer):
-    """OLiMPiC's linearizer, with each tagged note's ottava token straight after its pitch."""
+    """OLiMPiC's linearizer, with each tagged note's ottava token straight after its pitch and
+    each measure's repeat signs as tokens (seq.repeats)."""
+    def process_measure(self, measure: ET.Element):
+        start = len(self.output_tokens)
+        super().process_measure(measure)
+        self.output_tokens[start:] = with_repeat_tokens(self.output_tokens[start:], *repeats_of(measure))
+
     def process_note(self, note: ET.Element, measure: ET.Element):
         self._ottava_token = note.get(TOKEN_ATTRIBUTE)
         super().process_note(note, measure)

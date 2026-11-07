@@ -1210,3 +1210,6 @@ now become `5in4` when that fills the bar exactly, with the same checks as 3 and
 cleared-triplet rule keeps to the 2/3 ratios. Polish dev: only 087 changes (Corrected 20.29 to 18.59,
 Print 17.52 to 15.00); all 49 pages Corrected 14.08 to 14.05, Print 8.75 to 8.70. OLiMPiC crops:
 0.936, +0.000 [+0.000, +0.000].
+- Tried and dropped: the beam rule on runs of like notes within a beam group, and on all such
+  runs together (for 042, whose triplet 32nds share a beam with an eighth). Print 8.70 to 8.67, but
+  057 6.48 to 7.88 and 069 worse, 042 unchanged. Reverted to the committed one-group rule.

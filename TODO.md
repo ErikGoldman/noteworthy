@@ -83,7 +83,9 @@ unlocked scores, then 6-10.
 - Gold: 110 Print standard needs its `*8va` passages (last system, both staves).
 
 - No staccatissimo token: the model cannot write wedges.
-- No repeat or barline tokens: about 130 edits.
+- Repeat barlines: `repeat:start` / `repeat:end` tokens (train/seq/repeats.py), in labels from our
+  linearizer, drawn back as <barline> by seq_predict.delinearize, left out of SER. Round trip
+  checked on 5 PDMX scores. In the run started 2026-11-07 (seq513).
 - Handwriting: no sequence model has any. Needs MUSCIMA++ as LMX; Smashcima drew no key signature
   on a 5-sharp system, is slow, and must exclude the test writers.
 

@@ -27,6 +27,7 @@ from torch.nn import functional as F
 from seq.data import SystemDataset, collate, samples, split_names
 from seq.model import Seq2Seq
 from seq.ottava import sounding
+from seq.repeats import without_repeats
 from seq.vocab import PAD, Vocab
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -54,6 +55,11 @@ def weights_for_model(weights: dict, model: Seq2Seq) -> dict:
     return {**weights, "row_embedding": stretched, "token_embedding.weight": embedding, "out.weight": embedding}
 
 
+def comparable(lmx: str) -> str:
+    """LMX in OLiMPiC's form, as its dev labels are: ottavas applied, no repeat tokens."""
+    return without_repeats(sounding(lmx))[0]
+
+
 def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
     model.eval()
     errors = total = 0
@@ -61,8 +67,8 @@ def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths)
         for p, g in zip(predicted, tokens.tolist()):
-            gold = sounding(vocab.decode(g[1:])).split()
-            errors += Levenshtein.distance(sounding(vocab.decode(p)).split(), gold)
+            gold = comparable(vocab.decode(g[1:])).split()
+            errors += Levenshtein.distance(comparable(vocab.decode(p)).split(), gold)
             total += len(gold)
     model.train()
     return errors / max(1, total)
