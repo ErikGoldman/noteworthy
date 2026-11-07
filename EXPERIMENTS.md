@@ -983,3 +983,18 @@ OMR-NED compares step, octave and printed accidental: a wrong key is one small e
 - Notes on the other staff: 1,974 of 6,090 unmatched. A detector check of those heads sides with us 131 to 8. Gold's spines often record hands; published kern and MusicXML agree with each other, not with the print.
 - Bars, 2,449: merged systems 377 (fixed, page 026 45.99 to 7.81, piano_staff_pairs); staff blank in print about 620; gold bars not on the page about 230 (038); gold parse damage 260 (108); ottava 182; about 780 unexplained.
 - Beams: gold gives 16ths one beam level where print has two. Whether this explains all 1,684 is unproven.
+
+### Polish gold: what the review found (dev, k512 unless stated)
+
+- The scorer reads kern with converter21, registered by the authors' metric, not music21's own
+  reader. The two give different notes, beams and ottavas for one file. Checks of gold must load
+  the metric first (eval/check_gold.py). Published gold keeps 40,084 of 40,202 notes under it.
+- Silent staff swaps: the staff holding two voices changes at a barline with no spine change.
+  Six pages: Transcoda 59.02 to 47.47, Copisteria 38.44 to 16.94, k512 37.69 to 16.16.
+- Beam groups left open: L with no J, 145 on dev, and the parser drops the group's beams. Closed
+  mechanically, 49 pages: k512 19.45 to 18.05, Copisteria 23.01 to 21.92, Transcoda 49.99 to
+  49.43. Beam edits 1,577 to 402; note and bar cost fell too, 108 by 21 points, not yet explained.
+- Notes filed by hand, drawn on the other staff: Print standard only. Four pages: k512 33.98 to
+  24.37, Copisteria 32.38 to 22.70, Transcoda 59.95 to 53.41.
+- Ottavas: gold has none. converter21 reads *8va, so inserted lines are enough. On a bar of 076:
+  right sign 0, missed sign 2, sounding pitch with no sign 62.

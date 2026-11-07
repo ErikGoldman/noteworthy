@@ -35,7 +35,7 @@ Each runs once, on the frozen system. Numbers only; errors are not read.
 
 | benchmark | pages | gold | notes |
 |---|---|---|---|
-| Polish (`btrkeks/polish-scores`) | 112 | corrected `**kern` | also reported on gold as published |
+| Polish (`btrkeks/polish-scores`) | 112 | corrected `**kern` | also as published and to the print standard (see Polish split) |
 | OLiMPiC scanned test | 100 songs | LMX and MusicXML | crops and pages; Zeus is the baseline |
 | Mutopia test | 7 pieces | MIDI | note F1, not OMR-NED |
 | SMB pianoform, if access is granted | 469 | `**kern` | pages sharing 0.10 or more of their melody fragments with one training piece reported apart |
@@ -52,6 +52,22 @@ fragments stay on one side; the dataset names no pieces, so this may miss some.
 - Dev: errors may be read and fixes tested. It never enters training: the dataset's card says
   evaluation only, and no Polish page or anything derived from one is trained on.
 - Test: numbers only, and any Polish claim is made on these 56 pages, for every system.
+- Gold changes: `eval/polish_overrides.jsonl`, applied by `eval/gold_overrides.py`, may cover both
+  halves, because a wrong page misstates every system's score. Each is decided from the printed
+  page, without any system's read, and is kept whichever system it helps. On test pages gold is
+  compared with the image only: no system's output or errors are read, and nothing seen there
+  feeds a heuristic, a rule or training. Reports say that test gold was reviewed.
+- Three scores, always for every system, all OMR-NED, differing only in the gold:
+  - As published: the authors' setup, to reproduce their figures.
+  - Corrected, the headline: terminators, beam groups left open, and errors under any convention, such as silent staff
+    swaps. Gold's conventions stay: notes filed by hand, ottavas folded into pitch.
+  - Print standard: Corrected, with notes on the staff they are drawn on and the print's ottavas
+    as `*8va` lines, which the scorer's parser (converter21) reads for gold and kern predictions
+    alike. The rule: a note belongs to the staff it is drawn on.
+- Print standard also gets a column with each page's better score of signed and sounding
+  ottavas, so a system that folds a sign into its pitches can be seen fairly. A missed sign with
+  the printed pitches costs 2 however long the passage, though it sounds an octave off: reports
+  say so. These rules were fixed after dev results and before any test run.
 - A number over all 112 pages is reported only with the note that half were developed against.
 - The card also says Transcoda used no Polish for selection. Ours does, for its fixes, and
   every report says so.

@@ -151,7 +151,7 @@ def transcribe(model, vocab: Vocab, crops: list[np.ndarray], device, batch: int)
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths)
         for i, tokens in zip(chosen, predicted):
-            out[i] = sounding(vocab.decode(tokens))
+            out[i] = vocab.decode(tokens)
     return out
 
 
@@ -163,7 +163,7 @@ def best_readings(model, vocab: Vocab, pages: list[np.ndarray], systems: list[Sy
     for ratio in CROP_HEIGHT_RATIOS:
         crops = [c for s, c in zip(systems, page_crops(pages, systems, ratio)) if wanted(s)]
         readings.append(transcribe(model, vocab, crops, device, batch))
-    return [max(reads, key=bar_fill) for reads in zip(*readings)]
+    return [max(reads, key=lambda lmx: bar_fill(sounding(lmx))) for reads in zip(*readings)]
 
 
 def measure_count(musicxml: str) -> int:

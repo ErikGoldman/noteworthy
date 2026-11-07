@@ -3,6 +3,7 @@
 # against Zeus. Training data: OLiMPiC synthetic relabelled with pitches as printed,
 # GrandStaff-LMX and our own PDMX system crops (build_seq_dataset.py) in four styles.
 # Result: $NW_RUNS/seq512/best.pt
+# usage: train_seq.sh [--resume]   --resume keeps the built crops and goes on from last.pt
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
@@ -15,11 +16,13 @@ build_crops() {
   (cd "$ROOT/train" && "$PY" build_seq_dataset.py --scores "$NW_DATA/render_scores.txt" --out "$crops/$name" \
     --workers "$NW_RENDER_WORKERS" "$@" 2>&1 | grep -v '^\[Warning\]')
 }
-build_crops pdmx
-build_crops beams --systems-per-score 2 --thick-beams
-build_crops round --systems-per-score 2 --thick-beams --round-heads
-build_crops marks --systems-per-score 2 --thick-beams --marks
-(cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-synthetic" "$NW_DATA/olimpic_written")
+if [[ "${1:-}" != --resume ]]; then
+  build_crops pdmx
+  build_crops beams --systems-per-score 2 --thick-beams
+  build_crops round --systems-per-score 2 --thick-beams --round-heads
+  build_crops marks --systems-per-score 2 --thick-beams --marks
+  (cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-synthetic" "$NW_DATA/olimpic_written")
+fi
 # PDMX holds copies of some OLiMPiC songs: monitor on the dev songs without one.
 (cd "$ROOT/eval" && "$PY" olimpic_benchmark.py list --split dev > "$clean_dev")
 (cd "$ROOT/train" && "$PY" train_seq.py --data "$NW_DATA/olimpic_written:train:2" "$olimpic/grandstaff-lmx:train" \
