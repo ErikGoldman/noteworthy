@@ -3,7 +3,7 @@
 Engravers stop printing the number once a passage has settled into triplets or sextuplets,
 and then nothing but the bar's length tells them from plain notes. The sequence model reads
 such notes perfectly and writes them plain, so their voice overfills its measure. Where
-reading a voice's beam groups of 3 and 6 as tuplets fills the measure exactly, this does so.
+reading a voice's beam groups of 3, 5 and 6 as tuplets fills the measure exactly, this does so.
 
 A crop rarely shows a time signature, so the bar's length defaults to what most of its
 measures say (measure_evidence): an unmarked group only ever lengthens a voice.
@@ -26,8 +26,8 @@ LENGTHS = {"maxima": 32, "long": 16, "breve": 8, "whole": 4, "half": 2, "quarter
            "256th": Fraction(1, 64), "512th": Fraction(1, 128), "1024th": Fraction(1, 256)}
 TUPLET = re.compile(r"(\d+)in(\d+)$")
 PITCH = re.compile(r"[A-G]\d$")
-TUPLET_OF_GROUP = {3: ("3in2", Fraction(2, 3)), 6: ("6in4", Fraction(2, 3))}
-TWO_THIRDS_TUPLETS = {token for token, _ in TUPLET_OF_GROUP.values()}
+TUPLET_OF_GROUP = {3: ("3in2", Fraction(2, 3)), 5: ("5in4", Fraction(4, 5)), 6: ("6in4", Fraction(2, 3))}
+TWO_THIRDS_TUPLETS = {token for token, ratio in TUPLET_OF_GROUP.values() if ratio == Fraction(2, 3)}
 
 
 @dataclass
@@ -141,7 +141,7 @@ def likely_bar(measures: list[list[Voice]]) -> Fraction | None:
 
 
 def tuplet_candidates(voice: Voice) -> list[tuple[list[Note], str, Fraction]]:
-    """Unmarked beam groups of 3 or 6 equal notes, with their tuplet token and ratio."""
+    """Unmarked beam groups of 3, 5 or 6 equal notes, with their tuplet token and ratio."""
     found = []
     for notes in voice.beam_groups().values():
         timed = [n for n in notes if n.advances]

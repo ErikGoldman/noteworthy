@@ -1202,3 +1202,11 @@ seq_predict.delinearize. Polish dev, seq512 with new crops and P9, newest gold, 
 4 groups on 2 pages; Corrected 14.22 to 14.08, Print 8.89 to 8.75 (051 26.14 to 22.86, 057 9.97 to
 6.48). 057 checked on the image: the group has two beams. OLiMPiC crops: 0.936, +0.000 [+0.000,
 +0.001].
+
+### Quintuplets restored from the bar (lmx_tuplets.TUPLET_OF_GROUP)
+
+087 bar 4: an unmarked group of five 16ths read as plain 16ths overfills the voice. Groups of 5
+now become `5in4` when that fills the bar exactly, with the same checks as 3 and 6; the
+cleared-triplet rule keeps to the 2/3 ratios. Polish dev: only 087 changes (Corrected 20.29 to 18.59,
+Print 17.52 to 15.00); all 49 pages Corrected 14.08 to 14.05, Print 8.75 to 8.70. OLiMPiC crops:
+0.936, +0.000 [+0.000, +0.000].
