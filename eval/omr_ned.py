@@ -2,7 +2,7 @@
 
 usage: omr_ned.py PREDICTIONS GOLD --out RESULTS.json [--pred-format kern|musicxml]
                   [--gold-format kern|musicxml] [--jobs N] [--ambiguous-marks] [--either-ottava]
-                  [--whole-page-alignment]
+                  [--either-display] [--whole-page-alignment]
 
 Runs in .venv-musicdiff (requirements-omr-ned.txt). PREDICTIONS and GOLD are directories of
 <sample>.krn or <sample>.musicxml. A page that cannot be parsed or compared scores 100, the
@@ -12,6 +12,11 @@ musicdiff's edit distance can take tens of gigabytes on a bad prediction.
 
 --either-ottava scores a MusicXML page with ottava signs twice, as drawn and with the signs folded
 into the pitch, and keeps the better: the protocol's rule for both Corrected and Print standard.
+
+--either-display is for the standards that do not hold a system to how the page draws two things
+(As published, Corrected): a tuplet's number and bracket, and C or cut time against the numbers
+4/4 or 2/2. Both pages are scored as if they drew them alike, so a hidden 3 costs nothing against a
+shown one, nor C against 4/4. The tuplet's ratio and the meter are still charged.
 
 --ambiguous-marks is for Print standard gold: where a reviewer could not tell a dot from a wedge
 (gold_overrides.py), a prediction's wedge is refunded the edit a staccato would not have cost. A
@@ -53,6 +58,7 @@ SUFFIX = {"kern": ".krn", "musicxml": ".musicxml"}
 class Options:
     ambiguous_marks: bool = False
     whole_page_alignment: bool = False
+    either_display: bool = False
 
 
 def one_block_of_bars(original, compare_to):
@@ -92,13 +98,28 @@ def parsed_as_authors_do(metric, path: Path, prediction: bool):
         return m21.converter.parse(kern.name, forceSource=True, acceptSyntaxErrors=prediction)
 
 
-def compare_across_formats(metric, pred: Path, gold: Path, ambiguous_marks: bool = False) -> tuple[float | None, str | None]:
-    """The authors' formula on two files of different formats, which they never compare."""
+def draw_display_alike(score) -> None:
+    """musicdiff reads a tuplet's display (number shown, bracket) from its first note, and a time
+    signature's symbol in place of its numbers."""
+    for note in score.recurse().notesAndRests:
+        for tuplet in note.duration.tuplets:
+            tuplet.tupletActualShow, tuplet.tupletNormalShow, tuplet.bracket, tuplet.placement = "number", None, False, None
+    for time in score.recurse().getElementsByClass("TimeSignature"):
+        time.symbol = ""
+
+
+def compare_parsed(metric, pred: Path, gold: Path, options: Options) -> tuple[float | None, str | None]:
+    """The authors' formula on scores parsed here, also for two files of different formats, which
+    they never compare."""
     gold_score = parsed_as_authors_do(metric, gold, prediction=False)
-    pred_ann = metric.AnnScore(parsed_as_authors_do(metric, pred, prediction=True))
+    pred_score = parsed_as_authors_do(metric, pred, prediction=True)
+    if options.either_display:
+        draw_display_alike(gold_score)
+        draw_display_alike(pred_score)
+    pred_ann = metric.AnnScore(pred_score)
     gold_ann = metric.AnnScore(gold_score)
     operations, distance = metric.Comparison.annotated_scores_diff(pred_ann, gold_ann)
-    if ambiguous_marks:
+    if options.ambiguous_marks:
         distance -= wedge_refund(operations, ambiguous_notes(gold_score))
     total = pred_ann.notation_size() + gold_ann.notation_size()
     return (min(100.0 * (distance + pred_ann.num_syntax_errors_fixed) / total, 100.0) if total else 0.0), None
@@ -110,8 +131,8 @@ def score_page(pred: Path, gold: Path, pred_format: str, gold_format: str, optio
         metric = authors_metric()
         if options.whole_page_alignment:
             metric.Comparison._non_common_subsequences_of_measures = staticmethod(one_block_of_bars)
-        if pred_format != gold_format or options.ambiguous_marks:
-            answer.send(compare_across_formats(metric, pred, gold, options.ambiguous_marks))
+        if pred_format != gold_format or options.ambiguous_marks or options.either_display:
+            answer.send(compare_parsed(metric, pred, gold, options))
             return
         compute = metric.compute_omr_ned if pred_format == "kern" else metric.compute_omr_ned_from_musicxml
         result = compute(pred.read_text(), gold.read_text())
@@ -172,12 +193,14 @@ def main() -> None:
     ap.add_argument("--ambiguous-marks", action="store_true")
     ap.add_argument("--either-ottava", action="store_true",
                     help="each page's better score of its ottava signs kept and folded into the pitch")
+    ap.add_argument("--either-display", action="store_true",
+                    help="tuplet numbers shown or hidden, and C or 4/4, cost the same")
     ap.add_argument("--whole-page-alignment", action="store_true",
                     help="align bars by edit cost over the whole page, not between runs of identical bars")
     ap.add_argument("--jobs", type=int, default=4)
     args = ap.parse_args()
     golds = sorted(args.gold.glob("*" + SUFFIX[args.gold_format]))
-    options = Options(args.ambiguous_marks, args.whole_page_alignment)
+    options = Options(args.ambiguous_marks, args.whole_page_alignment, args.either_display)
     jobs = [(args.predictions / (g.stem + SUFFIX[args.pred_format]), g, args.pred_format, args.gold_format, options) for g in golds]
     from multiprocessing.pool import ThreadPool
     with ThreadPool(args.jobs) as pool, tempfile.TemporaryDirectory() as folder:

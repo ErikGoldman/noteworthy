@@ -17,14 +17,16 @@ One override per line of OVERRIDES.jsonl:
   reason       what is wrong, as seen on the print
 and one of:
   insert_after lines to add after `line` (tabs between columns)
-  move_up      {"last_line": n, "lowest": midi}: from `line` to `last_line`, notes of the left
-               spine from that pitch up go to a new voice on the upper staff
+  move_up      {"last_line": n, "notes": {"<gold line>": [i, ...]}}: from `line` to `last_line`, the
+               listed notes (by place in the left spine's field, from 0) are drawn on the upper staff
+               and go to a new voice there
   move_down    {"last_line": n}: from `line` to `last_line`, notes of the right spine go to a new
                voice on the lower staff
   end_after    true: gold stops at `line`; what follows is not on this page
   staff_down   {"last_line": n, "lower_columns": k}: from `line` to `last_line`, with no spine
                changes between, every column of the upper staff (those after the first k) goes to a
                new voice on the lower staff, the upper staff left blank
+  slash_grace  {"column": c}: the grace notes of the field at `line`, column c, are slashed
   show_accidental {"column": c, "note": i}: the i-th note (from 0) of the field at `line`, column c,
                shows an accidental the key or bar already gives, as the print does (kern's `X`)
   hide_rests   {"last_line": n}: from `line` to `last_line`, rests become rests not drawn: gold
@@ -35,6 +37,8 @@ and one of:
                omr_ned.py --ambiguous-marks
   slur         {"column": n, "marks": "(" or ")" or ")("}: a slur the print draws starts or ends
                (or both) at the note at `line` in that column
+  replace      {"last_line": n, "lines": [...]}: lines `line` to `last_line` become these, a
+               passage transcribed afresh from the print where gold is wrong beyond a local fix
 Gold's own text is not repeated here: the dataset's licence is a placeholder, not a grant.
 """
 from __future__ import annotations
@@ -85,15 +89,15 @@ def with_rests_hidden(line: str) -> str:
     return "\t".join(re.sub(r"^(\d+(?:%\d+)?\.*r)(?!yy)", r"\1yy", field) for field in line.split("\t"))
 
 
-def divided(field: str, lowest: int, keep_beams: bool) -> tuple[str, str]:
+def divided(field: str, moves: set[int], keep_beams: bool) -> tuple[str, str]:
     """A spine field as what stays and what moves, each a hidden rest if it would be empty. A beam the
     move splits between the staves goes from both sides: no kern spine can hold it. A field
     that goes whole keeps it, when its group goes the same way (`keep_beams`)."""
     if field == ".":
         return ".", "."
     notes = BEAM_MARKS.sub("", field).split()
-    moving = [note for note in notes if (midi(note) or 0) >= lowest]
-    staying = [note for note in notes if note not in moving]
+    moving = [note for i, note in enumerate(notes) if i in moves]
+    staying = [note for i, note in enumerate(notes) if i not in moves]
     if keep_beams and not staying:
         return hidden_rest_like(field), field
     if keep_beams and not moving:
@@ -101,14 +105,18 @@ def divided(field: str, lowest: int, keep_beams: bool) -> tuple[str, str]:
     return " ".join(staying) or hidden_rest_like(field), " ".join(moving) or hidden_rest_like(field)
 
 
-def goes_whole(field: str, lowest: int) -> str | None:
+def every_note(field: str) -> set[int]:
+    return set(range(len(BEAM_MARKS.sub("", field).split())))
+
+
+def goes_whole(field: str, moves: set[int]) -> str | None:
     """Which way all of a field's notes go, None if the move splits them."""
-    notes = BEAM_MARKS.sub("", field).split()
-    moving = sum((midi(note) or 0) >= lowest for note in notes)
-    return "move" if moving == len(notes) else "stay" if moving == 0 else None
+    count = len(BEAM_MARKS.sub("", field).split())
+    moving = len(moves & set(range(count)))
+    return "move" if moving == count else "stay" if moving == 0 else None
 
 
-def beams_kept(fields: list[str], lowest: int) -> list[bool]:
+def beams_kept(fields: list[str], moves: list[set[int]]) -> list[bool]:
     """For each field of one column (barlines and interpretations included, and ignored),
     whether its beam marks survive the move: those of a beam group whose fields all go the
     same way, whole."""
@@ -123,7 +131,7 @@ def beams_kept(fields: list[str], lowest: int) -> list[bool]:
             group.append(i)
         depth = max(0, depth + opened - closed)
         if group and not depth:
-            ways = {goes_whole(fields[j], lowest) for j in group}
+            ways = {goes_whole(fields[j], moves[j]) for j in group}
             for j in group:
                 kept[j] = len(ways) == 1 and None not in ways
             group = []
@@ -132,20 +140,21 @@ def beams_kept(fields: list[str], lowest: int) -> list[bool]:
     return kept
 
 
-def moved_up(lines: list[str], lowest: int) -> list[str]:
-    """The lines with their high left-spine notes in a new last column, opened and closed around them."""
+def moved_up(lines: list[str], moves: list[set[int]]) -> list[str]:
+    """The lines with the chosen left-spine notes (moves, per line) in a new last column, opened and
+    closed around them."""
     width = len(lines[0].split("\t"))
     keep = ["*"] * (width - 1)
     out = ["\t".join([*keep, "*^"])]
-    kept = beams_kept([line.split("\t")[0] for line in lines], lowest)
-    for line, keep_beams in zip(lines, kept):
+    kept = beams_kept([line.split("\t")[0] for line in lines], moves)
+    for line, line_moves, keep_beams in zip(lines, moves, kept):
         fields = line.split("\t")
         if line.startswith("="):
             out.append("\t".join([*fields, fields[-1]]))
         elif line.startswith("*"):
             out.append("\t".join([*fields, "*"]))
         else:
-            fields[0], upper = divided(fields[0], lowest, keep_beams)
+            fields[0], upper = divided(fields[0], line_moves, keep_beams)
             out.append("\t".join([*fields, upper]))
     out.append("\t".join([*keep, "*v", "*v"]))
     return out
@@ -221,8 +230,35 @@ def beams_closed(text: str) -> str:
                     # (`16J` for `16JJ`), and the next group's L nests in it (023's Trio).
                     close(columns[i])
                     columns[i] = 0, None
-                columns[i] = max(0, columns[i][0] + opened - ended), (at, i)
+                depth = columns[i][0] + opened - ended
+                if depth < 0:
+                    stray_beam_ends_mended(lines, columns[i][1], at, i, -depth)
+                columns[i] = max(0, depth), (at, i)
     return "\n".join(lines)
+
+
+def stray_beam_ends_mended(lines: list[str], before: tuple[int, int] | None, at: int, column: int, stray: int) -> None:
+    """A J with no beam open, which makes the scorer's parser drop every beam in the bar. Where the
+    column's note just before ended a group, that group ended a note early (`16cccJ 8aaJ` for
+    two 16ths and an eighth under one beam: Polish 026, 042) and loses its J instead. Otherwise
+    the stray J goes."""
+    row, field_at = (before[0], before[1]) if before and "J" in field_of(lines, before) else (at, column)
+    fields = lines[row].split("\t")
+    fields[field_at] = without_last(fields[field_at], "J", stray)
+    lines[row] = "\t".join(fields)
+
+
+def field_of(lines: list[str], where: tuple[int, int]) -> str:
+    return lines[where[0]].split("\t")[where[1]]
+
+
+def without_last(text: str, mark: str, count: int) -> str:
+    for _ in range(count):
+        cut = text.rfind(mark)
+        if cut < 0:
+            break
+        text = text[:cut] + text[cut + 1:]
+    return text
 
 
 def moved_down(lines: list[str]) -> list[str]:
@@ -230,16 +266,17 @@ def moved_down(lines: list[str]) -> list[str]:
     width = len(lines[0].split("\t"))
     keep = ["*"] * (width - 2)
     out = ["\t".join([*keep, "*^", "*"])]
-    everything = 0  # every note moves
-    kept = beams_kept([line.split("\t")[-1] for line in lines], everything)
-    for line, keep_beams in zip(lines, kept):
+    column = [line.split("\t")[-1] for line in lines]
+    everything = [every_note(field) for field in column]
+    kept = beams_kept(column, everything)
+    for line, line_moves, keep_beams in zip(lines, everything, kept):
         fields = line.split("\t")
         if line.startswith("="):
             out.append("\t".join([*fields, fields[-1]]))
         elif line.startswith("*"):
             out.append("\t".join([*fields, "*"]))
         else:
-            staying, moving = divided(fields[-1], everything, keep_beams)
+            staying, moving = divided(fields[-1], line_moves, keep_beams)
             out.append("\t".join([*fields[:-1], moving, staying]))
     out.append("\t".join([*keep, "*v", "*v", "*"]))
     return out
@@ -272,6 +309,13 @@ def with_accidental_shown(note: str) -> str:
     """The note with `X` after its pitch and accidental, which makes the accidental drawn."""
     found = NOTE.search(note)
     return note[:found.end()] + "X" + note[found.end():]
+
+
+def with_graces_slashed(line: str, column: int) -> str:
+    """The line with that field's grace notes slashed: kern's `qq` is an unslashed grace, `q` a slashed one."""
+    fields = line.split("\t")
+    fields[column] = fields[column].replace("qq", "q")
+    return "\t".join(fields)
 
 
 def with_marks(line: str, column: int, marks: str) -> str:
@@ -308,6 +352,8 @@ def corrected(text: str, overrides: list[dict]) -> str:
             lines[first] = with_marks(lines[first], mark["column"], mark["mark"] + (AMBIGUOUS_SIGNIFIER if mark.get("ambiguous") else ""))
         elif "slur" in override:
             lines[first] = with_marks(lines[first], override["slur"]["column"], override["slur"]["marks"])
+        elif "slash_grace" in override:
+            lines[first] = with_graces_slashed(lines[first], override["slash_grace"]["column"])
         elif "show_accidental" in override:
             shown = override["show_accidental"]
             fields = lines[first].split("\t")
@@ -317,6 +363,8 @@ def corrected(text: str, overrides: list[dict]) -> str:
             lines[first] = "\t".join(fields)
         elif "insert_after" in override:
             lines[first + 1:first + 1] = override["insert_after"]
+        elif "replace" in override:
+            lines[first:override["replace"]["last_line"]] = override["replace"]["lines"]
         elif "end_after" in override:
             lines[first + 1:] = ["\t".join(["*-"] * len(lines[first].split("\t"))), ""]
         elif "staff_down" in override:
@@ -330,7 +378,8 @@ def corrected(text: str, overrides: list[dict]) -> str:
             lines[first:last] = moved_down(lines[first:last])
         else:
             last = override["move_up"]["last_line"]
-            lines[first:last] = moved_up(lines[first:last], override["move_up"]["lowest"])
+            notes = override["move_up"]["notes"]
+            lines[first:last] = moved_up(lines[first:last], [set(notes.get(str(n + 1), [])) for n in range(first, last)])
     if any(o.get("articulate", {}).get("ambiguous") for o in overrides):
         lines = [*[line for line in lines if line], AMBIGUOUS_DECLARATION, ""]
     return "\n".join(lines)

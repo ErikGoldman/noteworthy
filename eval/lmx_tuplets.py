@@ -20,6 +20,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from fractions import Fraction
+from math import gcd
 
 LENGTHS = {"maxima": 32, "long": 16, "breve": 8, "whole": 4, "half": 2, "quarter": 1, "eighth": Fraction(1, 2),
            "16th": Fraction(1, 4), "32nd": Fraction(1, 8), "64th": Fraction(1, 16), "128th": Fraction(1, 32),
@@ -27,7 +28,6 @@ LENGTHS = {"maxima": 32, "long": 16, "breve": 8, "whole": 4, "half": 2, "quarter
 TUPLET = re.compile(r"(\d+)in(\d+)$")
 PITCH = re.compile(r"[A-G]\d$")
 TUPLET_OF_GROUP = {3: ("3in2", Fraction(2, 3)), 5: ("5in4", Fraction(4, 5)), 6: ("6in4", Fraction(2, 3))}
-TWO_THIRDS_TUPLETS = {token for token, ratio in TUPLET_OF_GROUP.values() if ratio == Fraction(2, 3)}
 
 
 @dataclass
@@ -37,6 +37,8 @@ class Note:
     advances: bool  # False for chord members and grace notes
     tuplet_at: int | None  # index of its tuplet token
     beam_group: int | None = None
+    inner_group: int | None = None  # under the group's second beam
+    grace: bool = False
 
     @property
     def marked(self) -> bool:
@@ -53,10 +55,16 @@ class Voice:
         return self.skipped + sum((n.length for n in self.notes if n.advances), Fraction(0))
 
     def beam_groups(self) -> dict[int, list[Note]]:
+        return self.grouped_by(lambda note: note.beam_group)
+
+    def inner_groups(self) -> dict[int, list[Note]]:
+        return self.grouped_by(lambda note: note.inner_group)
+
+    def grouped_by(self, group_of) -> dict[int, list[Note]]:
         groups: dict[int, list[Note]] = {}
         for note in self.notes:
-            if note.beam_group is not None:
-                groups.setdefault(note.beam_group, []).append(note)
+            if group_of(note) is not None:
+                groups.setdefault(group_of(note), []).append(note)
         return groups
 
 
@@ -77,6 +85,7 @@ def length_at(tokens: list[str], at: int) -> tuple[Fraction, int | None]:
 def parse_measure(tokens: list[str], start: int, end: int) -> list[Voice]:
     voices, voice = [], Voice()
     depth, group, next_group = 0, None, 0
+    inner, next_inner = None, 0
     chord = grace = False
     head = None
     note = None
@@ -98,7 +107,8 @@ def parse_measure(tokens: list[str], start: int, end: int) -> list[Voice]:
             elif head == "forward":
                 voice.skipped += length
             else:
-                note = Note(i, length, not (chord or grace), tuplet_at, group if depth else None)
+                note = Note(i, length, not (chord or grace), tuplet_at, group if depth else None,
+                            inner if depth > 1 else None, grace)
                 voice.notes.append(note)
             head, chord, grace = None, False, False
         elif token == "beam:begin":
@@ -106,6 +116,10 @@ def parse_measure(tokens: list[str], start: int, end: int) -> list[Voice]:
                 group, next_group = next_group, next_group + 1
                 if note:
                     note.beam_group = group
+            elif depth == 1:
+                inner, next_inner = next_inner, next_inner + 1
+                if note:
+                    note.inner_group = inner
             depth += 1
         elif token == "beam:end":
             depth = max(0, depth - 1)
@@ -140,13 +154,23 @@ def likely_bar(measures: list[list[Voice]]) -> Fraction | None:
     return min(votes, key=lambda bar: (-votes[bar], bar)) if votes else None
 
 
+def as_tuplet(notes: list[Note]) -> tuple[list[Note], str, Fraction] | None:
+    """An unmarked group of 3, 5 or 6 equal notes, with its tuplet token and ratio."""
+    timed = [n for n in notes if n.advances]
+    if len(timed) in TUPLET_OF_GROUP and len({n.length for n in timed}) == 1 and not any(n.marked for n in notes):
+        return notes, *TUPLET_OF_GROUP[len(timed)]
+    return None
+
+
 def tuplet_candidates(voice: Voice) -> list[tuple[list[Note], str, Fraction]]:
-    """Unmarked beam groups of 3, 5 or 6 equal notes, with their tuplet token and ratio."""
+    """Beam groups that could be tuplets, or failing that, groups under their second beam: an
+    eighth then three 16ths a triplet (Polish 055)."""
+    inner_groups = voice.inner_groups()
     found = []
     for notes in voice.beam_groups().values():
-        timed = [n for n in notes if n.advances]
-        if len(timed) in TUPLET_OF_GROUP and len({n.length for n in timed}) == 1 and not any(n.marked for n in notes):
-            found.append((notes, *TUPLET_OF_GROUP[len(timed)]))
+        whole = as_tuplet(notes)
+        inner = [as_tuplet(group) for group in inner_groups.values() if group[0] in notes]
+        found += [whole] if whole else [c for c in inner if c]
     return found
 
 
@@ -178,29 +202,54 @@ def insertions_for(voice: Voice, bar: Fraction) -> list[tuple[int, str]]:
     return [(n.duration_at + 1, token) for notes, token, _ in candidates for n in notes]
 
 
-def two_thirds_events(voice: Voice, tokens: list[str]) -> list[list[Note]]:
-    """The voice's notes marked 3in2 or 6in4, each with the rest of its chord."""
+def marked_events(voice: Voice) -> list[list[Note]]:
+    """The voice's notes marked as tuplets, each with the rest of its chord."""
     events: list[list[Note]] = []
     for note in voice.notes:
         if note.advances:
             events.append([])
-        if events and note.marked and tokens[note.tuplet_at] in TWO_THIRDS_TUPLETS:
+        if events and note.marked:
             events[-1].append(note)
     return [event for event in events if event]
 
 
+def ratio_of(event: list[Note], tokens: list[str]) -> tuple[int, int]:
+    """The event's tuplet as (actual, normal): 3in2 is (3, 2)."""
+    actual, normal = TUPLET.match(tokens[event[0].tuplet_at]).groups()
+    return int(actual), int(normal)
+
+
+def gain_if_plain(event: list[Note], tokens: list[str]) -> Fraction:
+    actual, normal = ratio_of(event, tokens)
+    return event[0].length * (actual - normal) / normal
+
+
+def whole_tuplets(events: list[list[Note]], tokens: list[str]) -> bool:
+    """Each kind of tuplet comes in whole groups: threes for 3in2 and 6in4 (a sextuplet is two
+    triplets), fives for 5in4."""
+    counts = Counter(ratio_of(event, tokens) for event in events)
+    return all(count % (actual // gcd(actual, normal)) == 0 for (actual, normal), count in counts.items())
+
+
 def runaway_tuplets(voice: Voice, tokens: list[str], bar: Fraction) -> list[int]:
-    """Where tuplet tokens go away if that makes the voice fill the bar exactly. A plain note
-    is half as long again as its tuplet form."""
+    """Where tuplet tokens go away if that makes the voice fill the bar exactly and leaves whole
+    tuplets. The model marks plain notes beside triplets as triplets, and four plain 16ths as a
+    quintuplet (Polish 018, 026); the short voice then shifts every note of the other staff."""
     if voice.measure_rest or voice.total() >= bar:
         return []
-    events = two_thirds_events(voice, tokens)
+    events = marked_events(voice)
     for count in range(1, len(events) + 1):
         for cleared, kept in ((events[:count], events[count:]), (events[-count:], events[:-count])):
-            gained = sum((event[0].length / 2 for event in cleared), Fraction(0))
-            if voice.total() + gained == bar and len(kept) % 3 == 0:
-                return [note.tuplet_at for event in cleared for note in event]
+            gained = sum((gain_if_plain(event, tokens) for event in cleared), Fraction(0))
+            if voice.total() + gained == bar and whole_tuplets(kept, tokens):
+                return [at for event in cleared for note in event for at in tuplet_tokens(tokens, note)]
     return []
+
+
+def tuplet_tokens(tokens: list[str], note: Note) -> list[int]:
+    """The note's ratio token and its bracket's start or stop, which go with it."""
+    brackets = [i for i in following_tokens(tokens, note.duration_at) if tokens[i].startswith("tuplet:")]
+    return [note.tuplet_at, *brackets]
 
 
 def imply_tuplets(lmx: str, bar: Fraction | None = None) -> str:
@@ -226,30 +275,35 @@ NOTE_START = {"rest", "backup", "forward", "measure", "chord", "grace", "grace:s
 
 
 def overbeamed_group(voice: Voice, tokens: list[str], bar: Fraction) -> list[Note] | None:
-    """The voice's one beam group of plain equal notes (no dots, no tuplets) whose doubling
-    fills the bar exactly; None if there is no such group, or more than one."""
+    """The voice's one group of equal notes, a beam group or the notes under one's second beam,
+    whose doubling fills the bar exactly; None if there is no such group, or more than one. No
+    dots; a tuplet only whole (042: triplet 32nds for 16ths, beamed with an eighth)."""
     if voice.measure_rest or not voice.notes or voice.total() >= bar:
         return None
-    fitting = []
-    for notes in voice.beam_groups().values():
-        timed = [n for n in notes if n.advances]
-        names = {tokens[n.duration_at] for n in timed}
-        plain = all(not n.marked and n.length == LENGTHS[tokens[n.duration_at]] for n in notes)
-        if len(names) == 1 and names <= ONE_BEAM_FEWER.keys() and plain \
-                and sum((n.length for n in timed), Fraction(0)) == bar - voice.total():
-            fitting.append(notes)
+    groups = {tuple(n.duration_at for n in notes): notes
+              for notes in [*voice.beam_groups().values(), *voice.inner_groups().values()]}
+    fitting = [notes for notes in groups.values() if doubling_fills(notes, tokens, bar - voice.total())]
     return fitting[0] if len(fitting) == 1 else None
 
 
+def doubling_fills(notes: list[Note], tokens: list[str], missing: Fraction) -> bool:
+    timed = [n for n in notes if n.advances]
+    names = {tokens[n.duration_at] for n in timed}
+    undotted = all(tokens[n.duration_at + 1] != "dot" for n in notes if n.duration_at + 1 < len(tokens))
+    alike = len({tokens[n.tuplet_at] if n.marked else None for n in notes}) == 1
+    return len(names) == 1 and names <= ONE_BEAM_FEWER.keys() and undotted and alike \
+        and sum((n.length for n in timed), Fraction(0)) == missing
+
+
+def following_tokens(tokens: list[str], duration_at: int) -> range:
+    """Where a note's marks are: they follow its duration, up to the next note."""
+    end = next((i for i in range(duration_at + 1, len(tokens)) if tokens[i] in NOTE_START or PITCH.match(tokens[i])),
+               len(tokens))
+    return range(duration_at + 1, end)
+
+
 def last_beam_token(tokens: list[str], duration_at: int) -> int | None:
-    """Where the last beam token of a note is: they follow its duration, up to the next note."""
-    last = None
-    for i in range(duration_at + 1, len(tokens)):
-        if tokens[i] in NOTE_START or PITCH.match(tokens[i]):
-            break
-        if tokens[i].startswith("beam:"):
-            last = i
-    return last
+    return max((i for i in following_tokens(tokens, duration_at) if tokens[i].startswith("beam:")), default=None)
 
 
 def extra_beams_dropped(lmx: str, bar: Fraction | None = None) -> str:
@@ -265,6 +319,56 @@ def extra_beams_dropped(lmx: str, bar: Fraction | None = None) -> str:
         tokens[note.duration_at] = ONE_BEAM_FEWER[tokens[note.duration_at]]
     beams = [last_beam_token(tokens, n.duration_at) for n in notes]
     for at in sorted((b for b in beams if b is not None), reverse=True):
+        del tokens[at]
+    return " ".join(tokens)
+
+
+def events_of(voice: Voice) -> list[list[Note]]:
+    """Each advancing note with the chord notes after it; grace notes belong to none."""
+    events: list[list[Note]] = []
+    for note in voice.notes:
+        if note.advances:
+            events.append([note])
+        elif events and not note.grace:
+            events[-1].append(note)
+    return events
+
+
+def dots(tokens: list[str], note: Note) -> int:
+    count = 0
+    while note.duration_at + 1 + count < len(tokens) and tokens[note.duration_at + 1 + count] == "dot":
+        count += 1
+    return count
+
+
+def dot_read_in(voice: Voice, tokens: list[str], bar: Fraction) -> list[Note] | None:
+    """The voice's one dotted event whose dot, taken away, makes it fill the bar exactly; None
+    if no event or several would. Only an overfull voice: a short one may be a second voice
+    that stops before the barline, and dotting it to fill made OLiMPiC crops worse."""
+    if voice.measure_rest or not voice.notes or voice.total() <= bar:
+        return None
+    fitting = [event for event in events_of(voice) if not event[0].marked and dots(tokens, event[0]) == 1
+               and voice.total() - LENGTHS[tokens[event[0].duration_at]] / 2 == bar]
+    return fitting[0] if len(fitting) == 1 else None
+
+
+def filled(measure: list[Voice], bar: Fraction) -> bool:
+    """Whether some voice fills the bar: a short bar before a repeat or ending is short in every
+    voice (069 bar 12), and a page with no time signature (096) has only a guessed bar."""
+    return any(v.total() == bar for v in measure if v.notes and not v.measure_rest)
+
+
+def dots_mended(lmx: str, bar: Fraction | None = None) -> str:
+    """The LMX with one dot taken away in voices it makes fill the bar exactly, in measures where
+    another voice already does: a dot read where there is none (Polish 030 bar 21). bar as for
+    imply_tuplets."""
+    tokens = lmx.split()
+    measures = measures_of(tokens)
+    bar = written_bar(tokens) or bar or likely_bar(measures)
+    if bar is None:
+        return lmx
+    events = (dot_read_in(voice, tokens, bar) for measure in measures if filled(measure, bar) for voice in measure)
+    for at in sorted((n.duration_at + 1 for event in events if event for n in event), reverse=True):
         del tokens[at]
     return " ".join(tokens)
 

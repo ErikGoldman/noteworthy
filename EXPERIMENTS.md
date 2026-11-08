@@ -1328,3 +1328,296 @@ that crosses. The print beams them. 065 (63) is handwriting; 076, 026, 069 the r
 staccato, 13 accent), only 8 edits of one mark to another. 065 (handwriting) holds 26 of the
 misses; the rest spread a few per page. Reading misses and false dots, not placement: no output
 rule. Model-side, for the next look at seq513's output.
+
+### 076 hand-filed inner voice, Print standard (2026-11-08)
+
+Bars 15-17: the inner voice under the trilled F# is drawn on the upper staff, gold filed it in the
+left spine. Two `move_up` overrides, decided from the image. Polish dev Print, 49 pages, fresh gold,
+`--ambiguous-marks --either-ottava`, authors' / whole-page (before → after):
+
+| System | Authors' | Whole-page |
+|---|---|---|
+| Ours (P10, P11, P5 fix) | 8.89 → 8.76 | → 7.69 |
+| k512 | 12.31 → 12.19 | 11.26 → 11.14 |
+| Copisteria | 17.39 → 17.26 | 16.24 → 16.11 |
+| Transcoda | 48.68 → 48.67 | 48.64 → 48.63 |
+
+Every system gains about the same, as it should for a gold fix. Ours on 076: 602 to 432 edits (whole-page).
+
+### Tuplets the bar rejects, and triplets under a second beam (lmx_tuplets, 2026-11-08)
+
+Two causes from bars whose staff ends off the barline (52 staff-bars on dev, half on handwritten
+pages):
+- The model writes four plain 16ths as a 5in4 quintuplet (018 bar 6, 026 bar 10). The staff ends a
+  fifth of a beat short and every later note of the other staff is offset: 49 and 40 edits for one
+  mark. `runaway_tuplets` cleared only 2/3 marks; it now clears any XinY mark when that fills the
+  bar exactly and leaves whole tuplets, and takes the mark's `tuplet:start/stop` with it (before,
+  a cleared triplet left its bracket behind; 064's output had a bracket round plain 16ths).
+- Unmarked triplets under a group's second beam: an eighth, then three 16ths (055 bars 17, 19).
+  `tuplet_candidates` now also offers a beam group's inner groups when the group itself is not
+  one.
+
+Measured without the GPU: seq512's LMX for every crop height of the 49 pages, re-read on CPU
+(fp32, so some readings differ from the GPU's bf16 run; rebuilding 003 from them reproduces the
+scored output exactly). Old rules and new on the same readings, `--ambiguous-marks --either-ottava`,
+paired over pages:
+
+| Gold | Authors' | Whole-page |
+|---|---|---|
+| Corrected | 13.94 to 13.71, -0.23 [-0.43, -0.05] | 12.53 to 12.30, -0.23 [-0.43, -0.06] |
+| Print | 8.87 to 8.65, -0.22 [-0.42, -0.05] | 7.80 to 7.57, -0.22 [-0.42, -0.06] |
+
+Six pages better (026 -2.66, 055 -2.19, 095 -2.14, 018 -1.86, 081 -1.48, 108 -1.42; Print, authors'), two worse: 076 +0.61 and 091 +0.1 to
++0.2. Neither is a wrong tuplet: with correct triplets restored, another crop height's reading of
+one system fills every bar and wins `best_readings`, and that reading is worse elsewhere (076 bar
+29 loses a second voice). Still to check: OLiMPiC crops F1 (needs the GPU), as for earlier tuplet rules.
+Cached readings for later pipeline tests: scratchpad `readings512/`, built by `dump_readings_cpu.py`.
+
+### Stray beam ends in gold (gold_overrides.beams_closed, 2026-11-08)
+
+042 bar 19: gold `24g(L 24a 24bJ 8cc)J` closes a beam nothing opened, and the scorer's parser
+then drops every beam in the bar, so correct beams cost 15 edits. 15 such J on 7 dev pages. Where
+the column's note just before ended a group (026 x2, 042 x4: two 16ths and an eighth under one
+beam, gold closing after the 16ths too) that J goes, so the group runs on; otherwise the stray J
+goes (065, 076, 096, and 067's, made by a staff move). Mechanical, both standards, all 112 pages; none left.
+Dev, 49 pages, authors' alignment (whole-page moves the same way), ours on the CPU readings with the new tuplet rules:
+
+| System | Corrected | Print |
+|---|---|---|
+| Ours | 13.71 to 13.66 | 8.65 to 8.58 |
+| k512 | 16.25 to 16.17 | 12.19 to 12.01 |
+| Copisteria | 21.07 to 21.01 | 17.26 to 17.19 |
+| Transcoda | 49.32 to 49.28 | 48.67 to 48.64 |
+
+Every changed page is better for every system; none worse. Protocol updated (Corrected standard).
+
+### Triplets that open with a rest, and choosing among candidates (lmx_tuplets, 2026-11-08)
+
+056 bars 15-16: gold has triplets that open with an eighth rest, read as a rest and two plain
+eighths beside a plain group of three. `tuplet_candidates` now also offers a beamed pair after an
+unbeamed rest of their length, and `insertions_for` uses all candidates if they fill the bar,
+otherwise the one subset that does (none if several do; at most 10 candidates). CPU readings, gold
+with stray beam ends mended and 091's slurs, paired over 49 pages:
+
+| Gold | Authors' | Whole-page |
+|---|---|---|
+| Corrected | 13.66 to 13.57, -0.09 [-0.28, +0.02] | 12.26 to 12.16, -0.09 [-0.27, +0.02] |
+| Print | 8.56 to 8.47, -0.10 [-0.28, +0.02] | 7.49 to 7.39, -0.09 [-0.27, +0.02] |
+
+Three pages change: 056 -3.6, 096 -1.3 to -1.4 (rest-led triplets, the pattern noted for 096
+earlier), 093 +0.4 (handwritten; a group the model invented is fitted into the bar as a
+triplet). The range includes zero, so by the protocol this does not count on its own.
+
+### One beam too many under a second beam (lmx_tuplets.overbeamed_group, 2026-11-08)
+
+042 bars 3, 11, 19, 27: a triplet read as 32nds where the print has 16ths, beamed with an
+eighth, leaves the voice a quarter beat short. `overbeamed_group` looked only at whole beam
+groups of plain notes; it now also looks at the notes under a group's second beam, and allows a
+tuplet when every note carries the same mark (no dots, as before). Still one fitting group or
+none. Unlike the run-based rule tried and dropped earlier, 057 does not change. CPU readings,
+gold as above, paired over 49 pages:
+
+| Gold | Authors' | Whole-page |
+|---|---|---|
+| Corrected | 13.57 to 13.53, -0.04 [-0.10, -0.00] | 12.16 to 12.04, -0.12 [-0.32, -0.01] |
+| Print | 8.47 to 8.30, -0.17 [-0.46, -0.01] | 7.39 to 7.27, -0.12 [-0.32, -0.01] |
+
+Four pages change, all better: 042 -6.31 Print (-4.02 whole-page; Corrected authors' only -0.10, the bar pinning
+again), 093 -0.98, 017 -0.56, 069 -0.43.
+
+### Dots from the bar's arithmetic (lmx_tuplets.dots_mended, 2026-11-08)
+
+030 bar 21 (3/8): a quarter read as dotted, so the voice overfills by half a beat. Gold has 52
+dots we lack and we have 19 it lacks, most on handwritten pages. New rule after the tuplet and
+beam rules: in a measure where some voice already fills the bar, a voice off by exactly half of
+one event's undotted length takes that event's dot away (over) or adds one (short), chord notes
+with it; only if exactly one event fits, never tuplets or double dots. CPU readings, gold as above,
+against the step before (one beam too many), paired over 49 pages:
+
+| Variant | Print authors' | Pages better / worse |
+|---|---|---|
+| Any voice off by half a dot | 8.30 to 8.09, -0.21 [-0.43, -0.01] | 10 / 8 (096 +2.0, 069 +0.9) |
+| Only where another voice fills the bar (kept) | 8.30 to 8.09, -0.21 [-0.41, -0.02] | 10 / 6 (096 +2.0) |
+| Also only with a written meter, never the guessed bar | 8.30 to 8.16, -0.13 [-0.28, -0.02] | 5 / 1 |
+
+Corrected and whole-page move the same way (kept: Corrected 13.53 to 13.31, -0.22 [-0.42, -0.03]).
+069 bar 12 is a short bar before a repeat, short in every voice: the filled-voice guard stops it.
+096 prints no meter and its guessed bar is wrong (triplets read plain make bars look like 4/4),
+so dots fill a wrong bar; the written-meter variant avoids that but loses 076 -2.3, 103 -2.0,
+087 -1.4, which also print no meter and whose guesses are right. Kept the filled-voice variant:
+the same bar source as the tuplet and beam rules. Better: 051 -2.3, 076 -2.3, 103 -2.0, 093 -2.0,
+087 -1.4, 065 -1.0, 066 -0.9, 030 -0.5, 022 -0.3, 088 -0.1.
+
+### OLiMPiC crops check for tonight's lmx_tuplets rules (2026-11-08, no GPU)
+
+seq512's saved crop LMX (runs/seq512/benchmark/olimpic-systems, 1,438 crops) re-delinearized
+with main's rules and with the new ones; note F1 by olimpic_benchmark.py on the 615 clean
+systems, paired over 46 songs (F1 from summed tallies):
+
+| Build | Benchmark F1 | Change by song | Songs better / worse |
+|---|---|---|---|
+| main (old rules) | 0.936 | | |
+| All new rules | 0.937 | +0.0004 [-0.0011, +0.0025] | 9 / 13 |
+| Without candidate subsets | 0.937 | +0.0006 [-0.0009, +0.0027] | 9 / 12 |
+| Without subsets or dots | 0.937 | +0.0008 [-0.0006, +0.0030] | 4 / 3 |
+
+No change is significant. The subset search causes the largest single loss (6259566 p3-s3, 24
+to 12 correct: plain 16th arpeggios in beamed threes, some fitted as triplets to an overfull
+voice). The dot rule makes most of the small per-song losses. Wrong tuplet marks cleared,
+triplets under a second beam, and one beam too many under a second beam do no harm here.
+
+### Final pipeline rules of the night, against main (2026-11-08)
+
+Kept in eval/lmx_tuplets.py: (a) any wrong tuplet mark cleared with its bracket, (b) triplets
+under a second beam, (d) one beam too many under a second beam, and dots taken away (not added)
+where the voice overfills and another voice fills the bar. Dropped: (c) rest-led triplets with
+candidate subsets (not significant on Polish, the worst OLiMPiC loss; saved as
+rest-led-triplets.patch), and adding dots to short voices (a short second voice is often
+legitimate; OLiMPiC worse). Same CPU readings, newest gold (stray beam ends, 076 moves, 091
+slurs) on both sides, paired over 49 pages:
+
+| Gold | Authors' | Whole-page |
+|---|---|---|
+| Corrected | 13.89 to 13.50, -0.39 [-0.61, -0.18] | 12.48 to 12.01, -0.47 [-0.74, -0.23] |
+| Print | 8.79 to 8.28, -0.51 [-0.86, -0.23] | 7.71 to 7.25, -0.47 [-0.73, -0.23] |
+
+16 pages better, 3 worse (076 +0.61 and 091 +0.2, reading-choice flips; 022 +0.56 from a dot
+removal). OLiMPiC crops (seq512's saved LMX re-delinearized, 46 songs): -0.0001 [-0.0005,
++0.0003], 3 songs better, 4 worse: no change.
+
+## Ties read as slurs: accents and carried accidentals (2026-11-08, CPU readings of seq512)
+
+Missed ties were 133 of 9,522 Print cost on the final pipeline build (asm_v9). On 039/079 the
+model slurred an accented A4+C5+A5 chord to the same chord in the next bar. Two causes:
+`plain()` rejected any articulation (meant for portato), and the second chord's C came out C#
+because the bar's natural lapsed at the barline, which a tie would carry. Fixes in
+page_musicxml: only portato marks block the rule; across a barline, same staff places with no
+written accidental on the second event become a tie that carries the first's alterations.
+Per page, Print: 064 -0.10, 069 -0.04 -0.04, 077 -0.11, 030 -0.05, 037 -0.12, 039 -0.38, 071
+-0.18, 079 -0.43; Corrected the same within 0.02. No page worse. All 10 carried-accidental
+places checked against gold: ties with the first chord's pitch.
+
+## Accidental on a shared head (2026-11-08, CPU readings of seq512)
+
+accidentins was 74 on Print, 24 of them on 037: F5 natural in voices 1 and 2 at the same onset,
+gold showing the natural in both, the model in voice 1 only. 57 such mixed unisons on dev, 19
+shown in both, 292 in neither. `shared_heads_shown_alike` copies the accidental to every voice of
+the unison. Print -0.025 [-0.057, -0.001] (Corrected the same); 037 -0.60, 088 -0.29, 003 -0.22;
+worse: 055 +0.13, 096 +0.09, 110 +0.05 (two are gold inconsistencies, filed).
+
+## Key-restating accidentals (2026-11-08): refuted
+
+Dropping the shown accidental on notes that restate the key with no change at that step in this
+or the previous bar (125 notes on 30 pages): Print 8.22 to 8.48, +0.26 [-0.02, +0.68]. 030
++8.1, 058 +3.2, 021 +2.3 (locked-alignment swings); 17 pages slightly better. No rule.
+
+## Hidden tuplet numbers (2026-11-08)
+
+Edits where we and gold disagree on whether a tuplet's number shows: 49 on 055/077/110/076/088/081.
+The scorer charges `edittuplet` when the shown numbers differ ('' vs '3'). The Print gold shows
+every number. On 077 the print shows none (checked by eye; 095's printed 3s stay visible at
+700 px). Test: `*Xtuplet` on all spines at the top of a copy of 077's gold changes 077's
+tuplet edits from 11 to 56. Our 49 model-marked triplets show the 3, and only bar 4, which the
+model left unmarked, matches. Cause: crop labels keep `tuplet:start`/`stop` when
+`hide_tuplet_numbers` hides the number, so the model's tokens don't say whether a 3 is printed.
+Proposed fix: labels drop start/stop for hidden numbers and keep `3in2`. Not built: it changes
+OLiMPiC comparability and waits for the user.
+
+Follow-up: implied tuplets closed. The 33 grouping edits ("continue" where gold has "stop" or
+"start") come from triplets the model wrote with no marks: music21 reads them as one group
+running on. `tuplets_closed` in page_musicxml closes each group as it fills its ratio, within a
+bar, with no number shown, and skips notes inside a group the model opened (without that skip
+it nested groups on 087 bar 5: 087 +0.12, 110 +0.07). Final: −0.036 [−0.061, −0.016] on Print,
+Corrected and both whole-page variants; 12 pages better, 0 worse (096 −0.38, 077 −0.25,
+055 −0.24, 095 −0.24, 088 −0.18).
+
+## Ties into a chord (2026-11-08)
+
+Slurs (Print, current build): 270 extradel, 169 extrains, 92 extradurationedit, the largest
+cost outside notes. 096's left hand has short arcs from a note into the next chord holding that
+pitch; gold ties them (into another voice), but the tie rule wanted equal pitch sets. There
+were 20 such slurs in the readings. Gold has a tie in the same bar at 19 of them; at the exact
+onset, only 7, but our 16ths and triplets sit at shifted offsets, and by eye 096 bar 8 and 055
+bar 6 are ties in gold. 060 bar 3 is a slur in gold (16th into a chord). Rule: tie only the shared
+pitches when every note of the first event is in the second. −0.016 [−0.030, −0.003] on all four
+scorings, 9 better, 1 worse (060).
+
+## Slur starts with no stop (2026-11-08): refuted
+
+84 of 1,565 slur starts in our page output have no stop (cross-staff on 062, 067, 037). Closing an
+orphan stop against the other staff's open slur: +0.038 [+0.007, +0.086], worse on 11 pages
+(062 +0.97). Dropping the open starts: identical scores (music21 ignores them). The remaining
+extra slurs (057, 022) are small slurs on a faint scan; this needs gold review at a finer scan.
+
+## Time signature symbols (2026-11-08)
+
+Time signatures we write that gold lacks: 6 pages, mostly one-off model reads (005, 023, 097
+3/4). 079: gold had `*met(c|)` without `*M2/2`, fixed by override. Then 079 cost more (+0.084),
+because our plain 2/2 took an info edit against gold's cut symbol. The LMX has no symbol token.
+Rule `time_symbols_drawn`: 4/4 → common, 2/2 → cut. −0.009 [−0.024, +0.000]: 079 −0.25,
+077 −0.21, no page worse.
+
+## Ties over a system break (2026-11-08)
+
+After the earlier tie rules, Print still had 94 tie insertions (gold ties we lack) and 22 tie
+deletions. 22 of the 76 missed ties on the 9 worst pages sit at a system end. A tie over a
+break is printed as two half arcs, and the model, reading one system at a time, writes each
+half as a slur end with no partner: a slur stop on the next system's first note (070 bar 5,
+108 bar 18, 056 bar 12), a slur start on the last note (070 bar 9), or a pair that
+pair_slurs joins across the break but a tie stop on the same note blocked (088 bar 17). A stray
+stop also closed an unrelated slur still open on its staff (070: B1's stop closed F♯3's slur).
+- Rule `ties_across_system_breaks`, run before pair_slurs: `seq_pages.joined_musicxml` now marks
+  each system's first bar with `<print new-system="yes"/>`; across that bar line, a voice's last
+  event and its next with the same notes (tie_partners) are tied when either shows a half arc
+  (slur start before, slur stop after, or a tie end), and the half slurs go.
+- First version grouped a voice per staff: 062, 067, 093 worse (+0.03 to +0.06), where a staff-1
+  voice puts one note a beat on staff 2 and slurs to it; those notes were taken as neighbours.
+  Grouping by voice number alone: Print −0.008 [−0.018, −0.002], 7 better (088 −0.18,
+  105 −0.08, 071, 108, 037, 056), 0 worse; Corrected the same; whole-page −0.008, 0 worse.
+  Tie insertions 94 → 87, deletions unchanged, distance 9365 → 9355. 7 new tests (78).
+- Not covered: the model writing a slur stop where the tie starts (108 bar 5), half arcs it
+  left out (076 bar 24), and voices numbered differently in the two systems.
+
+## Naturals read as sharps and flats (2026-11-08): model-side, no rule
+
+Accidental edits on Print (31): 28 are ours sharp or flat where gold has a natural (18 sharp,
+8 flat, one each double), on 055, 022, 087, 081, 095. The pipeline keeps the model's signs (055,
+022, 087: 90 natural, 55 flat, 19 sharp tokens in the readings, the same in the output). On
+OLiMPiC dev scans the model shows no such bias (natural→sharp 10, sharp→natural 6, out of about
+3,100 naturals), so it is this engraving at this scan: 055's naturals (bass bars 4-5, the ♮E and
+♮D) are small and look like sharps at 1050 px.
+- Rule considered: a sharp on a step the key flats (or a flat on one it sharps) is a natural. Our
+  output has 34 such sharps: about 20 are misread naturals (022, 055, 081, 087, 093, 095), but 16
+  are on 060, which spells a passage in sharps without a key change, and gold has them too. Net
+  gain about 8 edits with a known page it would break: not done.
+- Fix belongs in training: naturals drawn small or thin in the crops, or the page at a higher
+  scale. For the next run, with the other seq514 items.
+
+## Missed ottavas on 023 and 110 (2026-11-08, after seq513)
+
+seq513 reads its own synthetic ottavas perfectly (60 training crops with signs: every one read,
+960 tokens against 913), so the model learned the sign; the real pages differ. Two causes.
+- 023: the sign's style. A bold upright `8` over a chain of short slanted dashes, about 4-5
+  interlines up. No checkpoint reads a token on its crops, and white paper, binarizing, padding,
+  darker ink or rescaling change nothing. Pasting 110's italic `8` alone: 0; redrawing the line as
+  dots alone: 0; both together: 17 tokens (about the notes under the sign in that system). Fix in
+  training (seq514.patch): an upright bold `8` (DejaVu Serif Bold) in 30% of marks-style signs and
+  a chain-of-dashes line in 30%, checked by eye against 023.
+- 110: the model does read it, but only just. seq513 best.pt: 38 tokens on the last system at one
+  crop height, 0 at the other; the two fill their bars equally, and the earlier height wins
+  (best_readings is blind to ottavas, which change pitch, not rhythm). last.pt: 10 against 36, the
+  10 filling better. 30 px of white above the crop makes both heights read it (36, 38) with no
+  false sign on 049. As a pipeline rule (crop-margin.patch, 1.5 interlines above and below every
+  crop) it moves 110 the other way too (best.pt 20 tokens at one height and now chosen; last.pt
+  about 11): not kept until tested on all dev pages. seq512 reads no token on 110 at either height.
+- Tested on all 49 dev pages from saved per-height readings (seq513 best.pt, whole-page OMR-NED,
+  rescoring only changed pages). Crop margin (1.5 interlines above and below): worse, Print 7.11 to
+  7.39, Corrected 11.69 to 11.77, changes 37 pages: rejected. Selection, equal fill broken by more
+  ottava tokens: Print 7.02, Corrected 11.65, from three pages only (110 -8.1, 087 +3.5, 076 +0.2 / +3.2).
+  Carrying the other height's ottava marks onto shared notes: Print 7.04, Corrected 11.57 (110 -5.7,
+  076 +1.6 / -0.5) and false signs on 064, 065, 093, which have none. Neither kept: each is 110's gain
+  less losses elsewhere, too few pages to tell a rule from tuning to one page.
+- Real scans, OLiMPiC scanned dev (56 crops with signs, 510 shifted notes; 400 without):
+  seq513 reads a token on 41 crops, 460 tokens, false on 2 of 400; seq512 29 crops, 363 tokens, 1 of 400.
+  seq513's ottava training works on real scans in general; 023's type and 110's weak read are the
+  exceptions. This is the check to run on seq514 (scratchpad olimpic_ottavas.py).

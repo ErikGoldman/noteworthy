@@ -20,7 +20,7 @@ from pathlib import Path
 import Levenshtein
 import torch
 
-from lmx_tuplets import extra_beams_dropped, imply_tuplets
+from lmx_tuplets import dots_mended, extra_beams_dropped, imply_tuplets
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
@@ -60,7 +60,7 @@ def delinearize(lmx: str, bar: Fraction | None = None) -> str:
     error reporting itself can crash)."""
     delinearizer = Delinearizer(errout=None)
     plain, repeats = without_repeats(sounding(lmx))
-    restored = extra_beams_dropped(imply_tuplets(plain, bar), bar)
+    restored = dots_mended(extra_beams_dropped(imply_tuplets(plain, bar), bar), bar)
     try:
         delinearizer.process_text(restored)
         part = delinearizer.part_element

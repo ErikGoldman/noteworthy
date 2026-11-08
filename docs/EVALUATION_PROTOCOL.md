@@ -63,7 +63,8 @@ fragments stay on one side; the dataset names no pieces, so this may miss some.
   feeds a heuristic, a rule or training. Reports say that test gold was reviewed.
 - Three scores, always for every system, all OMR-NED, differing only in the gold:
   - As published: the authors' setup, to reproduce their figures.
-  - Corrected, the headline: terminators, beam groups left open, and errors under any convention, such as silent staff
+  - Corrected, the headline: terminators, beam groups left open or closed twice (a stray end goes,
+    or the group before it runs on to it; added 2026-11-08, before any test run), and errors under any convention, such as silent staff
     swaps. Gold's conventions stay: notes filed by hand, ottavas folded into pitch.
   - Print standard: Corrected, with notes on the staff they are drawn on and the print's ottavas
     as `*8va` lines, which the scorer's parser (converter21) reads for gold and kern predictions
@@ -80,6 +81,11 @@ fragments stay on one side; the dataset names no pieces, so this may miss some.
   the printed pitches costs 2 however long the passage, though it sounds an octave off: reports
   say so. These rules were fixed after dev results and before any test run; the Corrected half
   of the ottava rule was added on 2026-11-07, also before any test run.
+- Corrected takes a tuplet's number and bracket as either shown or hidden, and C or cut time
+  as either the symbol or its numbers (`omr_ned.py --either-display`): its gold does not record
+  the first, and the user asked for the second, so a system is not charged for how it spells
+  them. The ratio and the meter are still charged. Print standard charges both (its gold marks
+  unprinted tuplet numbers from the next model on). Added 2026-11-08, before any test run.
 - A number over all 112 pages is reported only with the note that half were developed against.
 - The card also says Transcoda used no Polish for selection. Ours does, for its fixes, and
   every report says so.

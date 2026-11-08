@@ -22,8 +22,10 @@ Status as of 2026-11-06, late evening. Details and numbers are in `MORNING_NOTES
 4. Ottava survey: the pages with no reliable result, then 072, 013, 060, 061, 044. Open: 050 bars 3-4
    have printed pitch in gold, so marking needs a pitch change; 082 bar 6 needs a staff fix first;
    076 bar 31's top note is in the left spine.
-5. Hand-filed pages still open: 076 ("inner treble voice in left spine", bar not recorded; bar 4
-   checked 2026-11-07 and already on the upper staff, since that split is on the upper spine). 030 done with `staff_down` (bar 7) and `move_down` (bar 8).
+5. Hand-filed pages: 076 done 2026-11-08 with `move_up` (bars 15-17, the inner voice under the
+   trill). Left: bar 17's bass note (`4F#`) sits in the right spine's second voice but is drawn on
+   the lower staff, and no op moves a split column down. 030 done with `staff_down` (bar 7) and
+   `move_down` (bar 8). 110's last system is wrong beyond filing (GOLD_FOLLOWUPS.md).
 6. Padding rests (P8), Print standard: `hide_rests` override exists; 096 bars 6-13 done. Other pages
    need the image per range. Moves' own padding is now hidden automatically.
 7. Tests: `eval/test_page_musicxml.py` (P9-P11, slur pairing) and `eval/test_gold_overrides.py` (line-local
@@ -79,8 +81,39 @@ unlocked scores, then 6-10.
 - Ties: model read 2 in 5 ties as slurs; P10 `ties_from_slurs` (2026-11-07, not committed) turns a slur
   between events of the same pitches into a tie. Gold's 55 "orphan" ties are mostly
   ties into another voice (096), not gold errors.
+- Slur into a chord that holds the same pitch (060 bar 3, +0.13): P10's tie rule turns the model's
+  slur from a 16th A♭5 into the next chord into a tie on the chord's A♭5, but the arc goes to the
+  chord's top E♭6, so it is a slur (gold is right; the user read it, 2026-11-08). The LMX slur
+  token names events, not heads, so no output rule can tell this from 096's real ties. Possible
+  fixes: a per-note tie the model writes itself (it often reads ties as slurs now), or the arc's end
+  height from the image. Not urgent: the rule is 9 pages better, 1 worse.
 
 ## For the next training run
+
+- **`seq514.patch` (2026-11-08, built in a scratch worktree; apply after seq513 is scored; supersedes
+  barline-tokens.patch, which it includes).** All tests pass in the worktree; a 40-score crop build
+  checked by eye. New tokens at the vocabulary's end: `barline:double`, `barline:final`,
+  `time:common`, `time:cut`, `tuplet:hidden`.
+  - Time symbols: labels from MusicXML `symbol` (PDMX, OLiMPiC synthetic) and from GrandStaff's
+    `*met(c)` (`build_grandstaff_written.py`: 2,189 labels gain a token, 112 systems left out whose
+    symbols cannot be matched up); 30% of 4/4 and 2/2 crops drawn as symbols. Output sets
+    `<time symbol>`; the old 4/4-to-C page rule is removed. Left out of SER.
+  - Hidden tuplet numbers (B): `tuplet:hidden` after `tuplet:start` where the number is not drawn
+    (OLiMPiC synthetic has 652 such systems; PDMX about 1 in 10 tuplet scores); 20% of crops with
+    tuplets hide them (first kept half the time). Output sets `show-number="none"`, and such a group
+    takes no bracket. Left out of SER.
+  - Small naturals: 30% of crops draw naturals at 0.6-0.85 size (Polish 055/022/087 misreads).
+  - Ottava signs in type (Polish 023): 40% of marks-style signs set in a text font (DejaVu Serif or
+    Sans, Ubuntu; bold, italic, 1.3-2.3 interlines; `8`, `8.`, `8va`, `8va.`, `8ve`, `8vb`, `8ba` as
+    the glyph allows), with headroom so they are not clipped; 30% of lines a chain of slanted dashes.
+  - Old-style quarter rests (restQuarterOld) in 20% of crops: OLiMPiC scans draw them; seq512 read
+    them as eighth rests, seq513 as half rests (197 of 8,314 visible rests).
+  - GrandStaff's distorted images for half its systems; labels with tuplets, 32nds or 64ths twice
+    in the mix (6% of PDMX crops, 24% of GrandStaff's).
+  - Training keeps a moving average of the weights (decay 0.9995): dev SER, best.pt and
+    average_<step>.pt every 10,000 steps hold the averaged weights; last.pt holds both.
+  - Still to do for seq514's scoring: D, Print gold marking unprinted tuplet numbers (image per
+    page), and the publication note on B (see Decided 2026-11-08).
 
 - Ottava signs: `8` alone, dotted lines, 8va above the lower staff are now in `build_seq_dataset.py
   --marks` (data/seq3/marks); tested by fine-tune q512: fixes 110, not 023 (see EXPERIMENTS.md). Long plain
@@ -89,7 +122,7 @@ unlocked scores, then 6-10.
 - Gold: 110 Print standard needs its `*8va` passages (last system, both staves).
 
 - No staccatissimo token: the model cannot write wedges.
-- Repeat barlines: `repeat:start` / `repeat:end` tokens (train/seq/repeats.py), in labels from our
+- Double/final barlines: `barline-tokens.patch` (apply after seq513). Repeat barlines: `repeat:start` / `repeat:end` tokens (train/seq/repeats.py), in labels from our
   linearizer, drawn back as <barline> by seq_predict.delinearize, left out of SER. Round trip
   checked on 5 PDMX scores. In the run started 2026-11-07 (seq513).
 - Double and final barlines: gold has them (69 edits on dev, Print), our labels have no token for
@@ -116,3 +149,19 @@ unlocked scores, then 6-10.
   training. Corrections to gold are allowed.
 - Scoring is plain OMR-NED throughout; only the gold differs between standards.
 - Single-page locked scores can swing widely on correct changes (042): check unlocked too.
+
+## Decided 2026-11-08 (user)
+
+- Next run: `time:common` / `time:cut` tokens. Scoring the non-Print standards (As published,
+  Corrected) must accept either the symbol or the numbers (like `--either-ottava`).
+- Report the authors' OMR-NED and our whole-page alignment side by side; we steer by whole-page.
+- Frozen candidate: after seq513's Polish comparison. Commit after that and the open decisions.
+- Transcoda email: hold until results are in.
+- Hidden tuplet numbers: before scoring seq513, make the non-Print scoring accept either a shown or a
+  hidden number (E). Next run adds a `tuplet:hidden` token (B), and the Print gold marks tuplets whose number isn't
+  printed (D).
+- For publication: B can cost us on the authors' strict OMR-NED wherever their gold shows a tuplet
+  number the page doesn't print, since we output it hidden. Say so next to that number. Our reasoning:
+  the target is what's printed, and MusicXML can record the hidden number
+  (`<tuplet show-number="none">`), so a hidden 3 is the faithful transcription and the rhythm is
+  unchanged. Quantify how much of the gap comes from this when seq514 is scored.

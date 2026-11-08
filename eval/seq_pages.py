@@ -37,7 +37,7 @@ from olimpic_benchmark import SOURCES, song_document, song_of, song_systems, son
 from results_file import save_results
 from score_events import NoteEvent, parse_musicxml
 from lmx_tuplets import bar_fill, written_bar
-from page_musicxml import finish_score
+from page_musicxml import finish_score, mark_new_system
 from seq_predict import delinearize, load_model
 from synthetic_benchmark import f1_counts, held_out_scores, split_scores
 
@@ -216,7 +216,10 @@ def joined_musicxml(lmx_of_systems: list[str]) -> str:
         if joined is None:
             joined, target = score, part
         else:
-            target.extend(part.findall("measure"))
+            measures = part.findall("measure")
+            if measures:
+                mark_new_system(measures[0])
+            target.extend(measures)
     if joined is None:
         return ""
     for number, measure in enumerate(target.findall("measure"), 1):

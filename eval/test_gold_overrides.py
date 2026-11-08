@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from gold_overrides import AMBIGUOUS_DECLARATION, corrected, midi, one_slur_per_chord
+from gold_overrides import AMBIGUOUS_DECLARATION, beams_closed, corrected, midi, one_slur_per_chord
 
 PAGE = "\n".join(["**kern\t**kern", "*M2/4\t*M2/4", "=1\t=1", "4C\t16qqccL", ".\t16qqddJ", "4E\t8ccL",
                   ".\t8dd", "=2\t=2", "4G\t4g# 4b", "*-\t*-", ""])
@@ -28,6 +28,10 @@ class LineLocalOps(unittest.TestCase):
         text = corrected(PAGE, [override(9, show_accidental={"column": 1, "note": 0})])
         self.assertEqual(line(text, 9), "4G\t4g#X 4b")
 
+    def test_slash_grace_slashes_every_grace_in_the_field_only(self):
+        text = corrected(PAGE.replace("4E\t8ccL", "16qqEE\t8qqcc 8qqee"), [override(6, slash_grace={"column": 1})])
+        self.assertEqual(line(text, 6), "16qqEE\t8qcc 8qee")
+
     def test_ambiguous_articulation_is_flagged_and_declared(self):
         text = corrected(PAGE, [override(4, articulate={"column": 0, "mark": "'", "ambiguous": True})])
         self.assertEqual(line(text, 4), "4C'i\t16qqccL")
@@ -37,6 +41,16 @@ class LineLocalOps(unittest.TestCase):
         text = corrected(PAGE, [override(6, articulate={"column": 0, "mark": "^"}),
                                 override(6, slur={"column": 1, "marks": ")"})])
         self.assertEqual(line(text, 6), "4E^\t8ccL)")
+
+    def test_replace_swaps_a_passage_for_a_fresh_transcription(self):
+        text = corrected(PAGE, [override(9, replace={"last_line": 9, "lines": ["4G\t4g#", "4A\t4a"]})])
+        self.assertEqual(text.split("\n")[8:11], ["4G\t4g#", "4A\t4a", "*-\t*-"])
+
+    def test_replace_and_a_later_mark_both_apply(self):
+        # overrides apply from the bottom up, so line numbers after the passage still hold
+        text = corrected(PAGE, [override(4, replace={"last_line": 5, "lines": ["4C\t4cc"]}),
+                                override(6, slur={"column": 1, "marks": "("})])
+        self.assertEqual(text.split("\n")[3:5], ["4C\t4cc", "4E\t8ccL("])
 
     def test_no_overrides_leaves_the_page_alone(self):
         self.assertEqual(corrected(PAGE, []), PAGE)
@@ -83,7 +97,7 @@ def columns(text: str, number: int) -> list[str]:
 
 class StaffMoves(unittest.TestCase):
     def test_move_up_puts_high_left_notes_in_a_new_upper_voice(self):
-        text = corrected(MOVES, [override(4, move_up={"last_line": 6, "lowest": 60})])
+        text = corrected(MOVES, [override(4, move_up={"last_line": 6, "notes": {"4": [1], "5": [1], "6": [1]}})])
         self.assertTrue(spines_consistent(text))
         self.assertEqual(line(text, 4), "*\t*^")
         self.assertEqual(columns(text, 5), ["8C", "4e", "8c"])
@@ -92,14 +106,22 @@ class StaffMoves(unittest.TestCase):
 
     def test_move_up_drops_the_beam_it_splits_between_staves(self):
         # no kern spine holds a beam across staves (062, 067)
-        text = corrected(MOVES, [override(4, move_up={"last_line": 6, "lowest": 60})])
+        text = corrected(MOVES, [override(4, move_up={"last_line": 6, "notes": {"4": [1], "5": [1], "6": [1]}})])
         self.assertNotIn("L", line(text, 5) + line(text, 6))
         self.assertNotIn("J", line(text, 5) + line(text, 6))
 
     def test_move_up_keeps_a_beam_whose_group_moves_whole(self):
-        text = corrected(MOVES, [override(4, move_up={"last_line": 6, "lowest": 36})])
+        text = corrected(MOVES, [override(4, move_up={"last_line": 6, "notes": {"4": [0, 1], "5": [0, 1], "6": [0, 1]}})])
         self.assertEqual(columns(text, 5)[2], "8C 8cL")
         self.assertTrue(columns(text, 5)[0].endswith("ryy"))
+
+    def test_move_up_moves_only_the_listed_notes_whatever_their_pitch(self):
+        # 062 bar 6: one B-flat 3 is drawn on the upper staff, the bar's others on the lower
+        page = MOVES.replace("4E 4e\t4f", "4E 4e\t4f\n4E\t4g")
+        text = corrected(page, [override(4, move_up={"last_line": 7, "notes": {"6": [0, 1]}})])
+        self.assertTrue(spines_consistent(text))
+        self.assertEqual(columns(text, 7), ["4ryy", "4f", "4E 4e"])
+        self.assertEqual(columns(text, 8), ["4E", "4g", "4ryy"])
 
     def test_move_down_puts_upper_notes_in_a_new_lower_voice(self):
         text = corrected(MOVES, [override(4, move_down={"last_line": 6})])
@@ -118,6 +140,25 @@ class StaffMoves(unittest.TestCase):
     def test_lines_outside_the_range_are_unchanged(self):
         text = corrected(MOVES, [override(4, move_down={"last_line": 6})])
         self.assertEqual(line(text, 10), "4F\t4g")
+
+
+def kern_page(*rows: str) -> str:
+    return "\n".join(["**kern", "*M2/4", "=1", *rows, "=2", "*-", ""])
+
+
+class StrayBeamEnds(unittest.TestCase):
+    def test_group_that_ended_a_note_early_runs_on(self):
+        # Polish 042: two 16ths and an eighth under one beam, gold closing it after the 16ths too
+        page = kern_page("16ccL", "16ddJ", "8eeJ", "4f")
+        self.assertEqual(beams_closed(page), kern_page("16ccL", "16dd", "8eeJ", "4f"))
+
+    def test_stray_end_with_no_group_before_goes(self):
+        page = kern_page("4c", "8dJ", "8e")
+        self.assertEqual(beams_closed(page), kern_page("4c", "8d", "8e"))
+
+    def test_matched_groups_are_untouched(self):
+        page = kern_page("8cL", "8dJ", "8eL", "8fJ")
+        self.assertEqual(beams_closed(page), page)
 
 
 class Pitch(unittest.TestCase):

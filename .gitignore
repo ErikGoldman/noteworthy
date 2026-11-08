@@ -12,3 +12,4 @@ cpp/third_party/pdfium/
 .venv-musicdiff/
 .venv-homr/
 .venv-copisteria/
+tools/
