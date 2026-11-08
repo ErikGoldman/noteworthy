@@ -163,12 +163,29 @@ def state_grace_slashes(part: ET.Element) -> None:
         grace.set("slash", grace.get("slash", "no"))
 
 
+def tuplet_groups(part: ET.Element) -> list[tuple[ET.Element, list[ET.Element]]]:
+    """Each tuplet's start mark with the notes of its voice from that start to its stop."""
+    groups = []
+    for events in events_by_voice(part).values():
+        open_group = None
+        for event in events:
+            for note in event:
+                start = next((t for t in note.findall("notations/tuplet") if t.get("type") == "start"), None)
+                if start is not None:
+                    open_group = (start, [])
+                    groups.append(open_group)
+                if open_group is not None:
+                    open_group[1].append(note)
+                if any(t.get("type") == "stop" for t in note.findall("notations/tuplet")):
+                    open_group = None
+    return groups
+
+
 def state_tuplet_brackets(part: ET.Element) -> None:
-    """A beam already groups a tuplet, so only unbeamed ones take a bracket."""
-    for note in part.iter("note"):
-        for tuplet in note.findall("notations/tuplet"):
-            if tuplet.get("type") == "start":
-                tuplet.set("bracket", "no" if note.find("beam") is not None else "yes")
+    """A beam already groups a tuplet, so only unbeamed ones take a bracket. Any beam in the
+    group counts: a triplet that opens with a rest (Polish 003) has none on its first note."""
+    for start, notes in tuplet_groups(part):
+        start.set("bracket", "no" if any(note.find("beam") is not None for note in notes) else "yes")
 
 
 def finish_score(score: ET.Element) -> None:

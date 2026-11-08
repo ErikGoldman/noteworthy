@@ -1296,3 +1296,35 @@ earlier), 017 (-22.1 Print), 030, 093, 097, 066. Ranking and gaps unchanged.
 - 096's slur extras (28): mostly the same slurs at shifted onsets (gold 1.33-1.67, ours 1.5-2.0)
   because its unprinted triplets are read as plain eighths. Downstream of the 096 triplet cause,
   not a slur problem.
+
+### Tuplet edits (page_musicxml.state_tuplet_brackets, P5 fixed)
+
+139 tuplet edits (Print, P10+P11 output). By kind: 46 ours bracketed ("3B") where gold has "3";
+53 ours mid-group where gold starts or stops one (mostly 096, notes shifted by its misread
+triplets: downstream); 22 ours with no number (restored unprinted triplets) where gold shows 3.
+- Brackets: P5 bracketed a tuplet whose first note has no beam, and a triplet that opens with a
+  rest never does (003: rest + two beamed eighths, printed with neither bracket nor number). Now
+  any beam in the group counts. Brackets 62 to 18. Corrected 13.84 to 13.81, Print 8.91 to 8.89;
+  4 pages better (003 -0.61, 037, 088), none worse.
+- Hidden numbers: converter21 reads Humdrum's `*Xtuplet`, so Print gold could hide 3s the print
+  does not show. At most 22 edits; needs each page's image. Not done.
+
+### Beam edits (Print, current output)
+
+334 first-level beam edits; 240 are ours beamed where gold has a flag (musicdiff writes an unbeamed
+eighth as "partial"). 062 (64) and 067 (37): our move_up overrides split cross-staff beam groups,
+and `beams_kept` then drops the group's beams on both staves, since no kern spine holds a beam
+that crosses. The print beams them. 065 (63) is handwriting; 076, 026, 069 the rest.
+- Possible: beam each staff's part of a split group on its own (L..J per spine, beam levels
+  recounted, hidden padding rests skipped). Truer to the print than flags, but many special cases
+  in gold_overrides for about 100 edits on two pages. Not built; asked the user.
+- Tried after: also tie chords sharing two or more pitches under a slur (069 bar 10). 5 more
+  slurs; Corrected 13.81 unchanged, Print 8.89 to 8.88, 3 pages better, 062 worse. Noise; kept
+  the exact-pitch rule. Remaining missed ties (no arc read at all, 23) are the model's.
+
+### Articulation edits (Print, current output)
+
+112 marks gold has that we miss (76 staccato, 29 accent, 4 tenuto), 61 ours gold lacks (44
+staccato, 13 accent), only 8 edits of one mark to another. 065 (handwriting) holds 26 of the
+misses; the rest spread a few per page. Reading misses and false dots, not placement: no output
+rule. Model-side, for the next look at seq513's output.

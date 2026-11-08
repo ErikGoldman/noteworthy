@@ -26,7 +26,8 @@ Status as of 2026-11-06, late evening. Details and numbers are in `MORNING_NOTES
    checked 2026-11-07 and already on the upper staff, since that split is on the upper spine). 030 done with `staff_down` (bar 7) and `move_down` (bar 8).
 6. Padding rests (P8), Print standard: `hide_rests` override exists; 096 bars 6-13 done. Other pages
    need the image per range. Moves' own padding is now hidden automatically.
-7. Tests for `eval/gold_overrides.py` and `eval/page_musicxml.py`.
+7. Tests: `eval/test_page_musicxml.py` (P9-P11, slur pairing) and `eval/test_gold_overrides.py` (line-local
+   ops, staff moves, one slur per chord), stdlib unittest, run from eval/: 32 tests.
 8. Commit: the working tree on branch `gold-review` holds output fixes P4-P7, overrides and `TODO.md`.
    Waiting on the user's OK. Branch not merged to `main`.
 
@@ -73,6 +74,7 @@ unlocked scores, then 6-10.
   `show_accidental` override exists, 060 done for four notes, 037 bar 14 (G#4, two voices); 037 bars
   18-25 and other pages need image review at a finer scan than the 1050-px page images (144
   accidentdel, not all gold).
+- Tuplet numbers: Print gold could take `*Xtuplet` where the print hides 3s (22 edits); image per page.
 - Slurs: gold leaves out printed slurs (017: grace slurs and long arcs); model misses some (030, 069).
 - Ties: model read 2 in 5 ties as slurs; P10 `ties_from_slurs` (2026-11-07, not committed) turns a slur
   between events of the same pitches into a tie. Gold's 55 "orphan" ties are mostly
