@@ -10,9 +10,10 @@ with public weights. Orchestral, quartet and handwritten music are outside it.
 
 ## The system
 
-- Sequence model: `runs/seq512/last.pt` (192,000 steps, `scripts/train_seq.sh`), the final step
-  of its fixed schedule, with no checkpoint selection: `best.pt` is chosen on real scans, so it
-  is not used. Here the two are the same weights, the best dev SER being the last step's.
+- Sequence model: `runs/seq513/last.pt` (192,000 steps, `scripts/train_seq.sh`, frozen
+  2026-11-08), the final step of its fixed schedule, with no checkpoint selection: `best.pt` is
+  chosen on real scans (OLiMPiC scanned dev), so it is not used. Here they differ: best.pt is
+  step 160,000. seq512 (`runs/seq512/last.pt`) was the candidate before it.
 - Training data: OLiMPiC synthetic, GrandStaff, PDMX crops without held-out scores or
   `license_conflict` scores. All synthetic. No labelled real scans.
 - Pipeline: `eval/seq_pages.py` at the commit that adds this file's frozen tag, reading each
