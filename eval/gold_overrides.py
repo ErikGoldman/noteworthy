@@ -33,6 +33,8 @@ and one of:
                note at `line` in that column, counted from 0; with "ambiguous": true it is a mark
                the print leaves between dot and wedge, stored as a staccato and flagged for
                omr_ned.py --ambiguous-marks
+  slur         {"column": n, "marks": "(" or ")" or ")("}: a slur the print draws starts or ends
+               (or both) at the note at `line` in that column
 Gold's own text is not repeated here: the dataset's licence is a placeholder, not a grant.
 """
 from __future__ import annotations
@@ -272,6 +274,14 @@ def with_accidental_shown(note: str) -> str:
     return note[:found.end()] + "X" + note[found.end():]
 
 
+def with_marks(line: str, column: int, marks: str) -> str:
+    """The line with signifiers added to the field in that column: kern reads them anywhere in a
+    token, and on a chord they land on its last note."""
+    fields = line.split("\t")
+    fields[column] += marks
+    return "\t".join(fields)
+
+
 def one_slur_per_chord(text: str) -> str:
     """Each chord's slur marks on its first note only. Gold often marks every note of a chord
     (`4E( 4G( 4e(`), which the scorer reads as one slur per note where the print draws one arc:
@@ -294,10 +304,10 @@ def corrected(text: str, overrides: list[dict]) -> str:
     for override in sorted(overrides, key=lambda o: (o["line"], "articulate" in o), reverse=True):
         first = override["line"] - 1
         if "articulate" in override:
-            fields = lines[first].split("\t")
             mark = override["articulate"]
-            fields[mark["column"]] += mark["mark"] + (AMBIGUOUS_SIGNIFIER if mark.get("ambiguous") else "")
-            lines[first] = "\t".join(fields)
+            lines[first] = with_marks(lines[first], mark["column"], mark["mark"] + (AMBIGUOUS_SIGNIFIER if mark.get("ambiguous") else ""))
+        elif "slur" in override:
+            lines[first] = with_marks(lines[first], override["slur"]["column"], override["slur"]["marks"])
         elif "show_accidental" in override:
             shown = override["show_accidental"]
             fields = lines[first].split("\t")

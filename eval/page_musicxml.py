@@ -3,7 +3,8 @@
 The delinearizer works a system at a time and leaves optional attributes out. music21 reads a
 <grace> with no slash as slashed and a <tuplet> with no bracket as bracketed, neither of which
 the model said, and its one slur stack pairs a slur with the other staff's across a barline.
-A tie joins two notes of one pitch, so one that does not is completed or removed.
+A tie joins two notes of one pitch, so one that does not is completed or removed, and a slur
+that does is a tie. A clef change at a barline goes before it, as printed.
 """
 from __future__ import annotations
 
@@ -99,6 +100,64 @@ def mend(note: ET.Element, partner: ET.Element | None, kind: str, partner_kind: 
         add_tie(partner, partner_kind)
 
 
+def slur_ends(event: list[ET.Element], kind: str) -> dict[str, tuple[ET.Element, ET.Element]]:
+    """The event's slur starts or stops by number, each with the <notations> holding it."""
+    return {slur.get("number"): (notations, slur) for note in event for notations in note.findall("notations")
+            for slur in notations.findall("slur") if slur.get("type") == kind}
+
+
+def plain(event: list[ET.Element]) -> bool:
+    """No grace note and no articulation: a grace note slurred to its own pitch (Polish 017) and
+    portato, a slur over dotted repeated notes, are slurs."""
+    return all(note.find("grace") is None and note.find("notations/articulations") is None for note in event)
+
+
+def ties_from_slurs(part: ET.Element) -> None:
+    """A slur from one event to the voice's next, over exactly the same pitches, is a tie: the
+    print draws both with one arc, and the model reads about two in five ties as slurs. Where
+    the pitches differ even in part (049, a chord moving under a slur) it stays a slur."""
+    for events in events_by_voice(part).values():
+        for before, after in zip(events, events[1:]):
+            pitches = {pitch_of(note) for note in before}
+            if None in pitches or pitches != {pitch_of(note) for note in after} or not (plain(before) and plain(after)):
+                continue
+            stops = slur_ends(after, "stop")
+            for number, (notations, slur) in slur_ends(before, "start").items():
+                if number in stops:
+                    notations.remove(slur)
+                    stop_notations, stop = stops[number]
+                    stop_notations.remove(stop)
+                    tie_event(before, after)
+
+
+def tie_event(before: list[ET.Element], after: list[ET.Element]) -> None:
+    for note in before:
+        if not has_tie(note, "start"):
+            add_tie(note, "start")
+    for note in after:
+        if not has_tie(note, "stop"):
+            add_tie(note, "stop")
+
+
+def clefs_before_barlines(part: ET.Element) -> None:
+    """A clef change that opens a bar goes to the end of the bar before. The print draws a change
+    at a barline before the barline, and gold puts it there; the model writes it as the next bar's
+    first sign (Polish 095, 108). The first bar's clefs are the system's own and stay. Appended
+    last, the clef lands at the bar's end because the delinearizer ends each bar on a voice that
+    fills it; a bar ending in <backup> would put it earlier."""
+    measures = part.findall("measure")
+    for before, measure in zip(measures, measures[1:]):
+        opening = next((child for child in measure if child.tag in ("attributes", "note", "backup", "forward")), None)
+        if opening is None or opening.tag != "attributes" or opening.find("clef") is None:
+            continue
+        clefs = opening.findall("clef")
+        for clef in clefs:
+            opening.remove(clef)
+        ET.SubElement(before, "attributes").extend(clefs)
+        if len(opening) == 0:
+            measure.remove(opening)
+
+
 def state_grace_slashes(part: ET.Element) -> None:
     for grace in part.iter("grace"):
         grace.set("slash", grace.get("slash", "no"))
@@ -118,6 +177,8 @@ def finish_score(score: ET.Element) -> None:
         name.text = ""
     for part in score.findall("part"):
         pair_slurs(part)
+        ties_from_slurs(part)
         mend_ties(part)
+        clefs_before_barlines(part)
         state_grace_slashes(part)
         state_tuplet_brackets(part)

@@ -2,6 +2,7 @@
 
 usage: omr_ned.py PREDICTIONS GOLD --out RESULTS.json [--pred-format kern|musicxml]
                   [--gold-format kern|musicxml] [--jobs N] [--ambiguous-marks] [--either-ottava]
+                  [--whole-page-alignment]
 
 Runs in .venv-musicdiff (requirements-omr-ned.txt). PREDICTIONS and GOLD are directories of
 <sample>.krn or <sample>.musicxml. A page that cannot be parsed or compared scores 100, the
@@ -15,10 +16,18 @@ into the pitch, and keeps the better: the protocol's rule for both Corrected and
 --ambiguous-marks is for Print standard gold: where a reviewer could not tell a dot from a wedge
 (gold_overrides.py), a prediction's wedge is refunded the edit a staccato would not have cost. A
 missing mark is still charged. Everything else is the authors' metric.
+
+--whole-page-alignment aligns bars by the authors' own edit costs over the whole page. Their
+musicdiff first pins down the longest run of identical bars (Myers' diff) and aligns only between
+those pins. That maximises identical bars, not the lowest cost: on a page of repeated bars it can
+pin a bar to the wrong copy, and every bar between then counts as deleted and inserted. A correct
+change that makes one more bar identical can then raise the score (Polish 017: 452 to 1,063 where
+the whole-page alignment goes 376 to 352). Never higher than the authors' number; slower.
 """
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import functools
 import importlib.util
 import json
@@ -38,6 +47,16 @@ PAGE_MEMORY_BYTES = 6 << 30
 PAGE_TIMEOUT_S = 900
 FAILED = 100.0
 SUFFIX = {"kern": ".krn", "musicxml": ".musicxml"}
+
+
+@dataclasses.dataclass(frozen=True)
+class Options:
+    ambiguous_marks: bool = False
+    whole_page_alignment: bool = False
+
+
+def one_block_of_bars(original, compare_to):
+    return [{"original": list(original), "compare_to": list(compare_to)}]
 
 
 def authors_metric():
@@ -85,12 +104,14 @@ def compare_across_formats(metric, pred: Path, gold: Path, ambiguous_marks: bool
     return (min(100.0 * (distance + pred_ann.num_syntax_errors_fixed) / total, 100.0) if total else 0.0), None
 
 
-def score_page(pred: Path, gold: Path, pred_format: str, gold_format: str, ambiguous_marks: bool, answer) -> None:
+def score_page(pred: Path, gold: Path, pred_format: str, gold_format: str, options: Options, answer) -> None:
     resource.setrlimit(resource.RLIMIT_AS, (PAGE_MEMORY_BYTES, PAGE_MEMORY_BYTES))
     try:
         metric = authors_metric()
-        if pred_format != gold_format or ambiguous_marks:
-            answer.send(compare_across_formats(metric, pred, gold, ambiguous_marks))
+        if options.whole_page_alignment:
+            metric.Comparison._non_common_subsequences_of_measures = staticmethod(one_block_of_bars)
+        if pred_format != gold_format or options.ambiguous_marks:
+            answer.send(compare_across_formats(metric, pred, gold, options.ambiguous_marks))
             return
         compute = metric.compute_omr_ned if pred_format == "kern" else metric.compute_omr_ned_from_musicxml
         result = compute(pred.read_text(), gold.read_text())
@@ -99,12 +120,12 @@ def score_page(pred: Path, gold: Path, pred_format: str, gold_format: str, ambig
         answer.send((None, f"{type(e).__name__}: {str(e)[:150]}"))
 
 
-def page_score(job: tuple[Path, Path, str, str, bool]) -> tuple[str, float, str | None]:
-    pred, gold, pred_format, gold_format, ambiguous_marks = job
+def page_score(job: tuple[Path, Path, str, str, Options]) -> tuple[str, float, str | None]:
+    pred, gold, pred_format, gold_format, options = job
     if not pred.exists():
         return gold.stem, FAILED, "no prediction"
     receive, send = mp.Pipe(duplex=False)
-    worker = mp.get_context("spawn").Process(target=score_page, args=(pred, gold, pred_format, gold_format, ambiguous_marks, send))
+    worker = mp.get_context("spawn").Process(target=score_page, args=(pred, gold, pred_format, gold_format, options, send))
     worker.start()
     send.close()
     answered = receive.poll(PAGE_TIMEOUT_S)
@@ -130,7 +151,7 @@ def without_octave_shifts(musicxml: Path, folder: Path) -> Path:
     return folded
 
 
-def better_of_signed_and_folded(job: tuple[Path, Path, str, str, bool], folder: Path) -> tuple[str, float, str | None]:
+def better_of_signed_and_folded(job: tuple[Path, Path, str, str, Options], folder: Path) -> tuple[str, float, str | None]:
     """The page's better score of its ottavas as signs and folded into the pitch: gold signs
     some and folds others, and Corrected gold folds all (docs/EVALUATION_PROTOCOL.md)."""
     signed = page_score(job)
@@ -151,10 +172,13 @@ def main() -> None:
     ap.add_argument("--ambiguous-marks", action="store_true")
     ap.add_argument("--either-ottava", action="store_true",
                     help="each page's better score of its ottava signs kept and folded into the pitch")
+    ap.add_argument("--whole-page-alignment", action="store_true",
+                    help="align bars by edit cost over the whole page, not between runs of identical bars")
     ap.add_argument("--jobs", type=int, default=4)
     args = ap.parse_args()
     golds = sorted(args.gold.glob("*" + SUFFIX[args.gold_format]))
-    jobs = [(args.predictions / (g.stem + SUFFIX[args.pred_format]), g, args.pred_format, args.gold_format, args.ambiguous_marks) for g in golds]
+    options = Options(args.ambiguous_marks, args.whole_page_alignment)
+    jobs = [(args.predictions / (g.stem + SUFFIX[args.pred_format]), g, args.pred_format, args.gold_format, options) for g in golds]
     from multiprocessing.pool import ThreadPool
     with ThreadPool(args.jobs) as pool, tempfile.TemporaryDirectory() as folder:
         score = functools.partial(better_of_signed_and_folded, folder=Path(folder)) if args.either_ottava else page_score

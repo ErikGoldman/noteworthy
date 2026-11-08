@@ -18,7 +18,7 @@ with public weights. Orchestral, quartet and handwritten music are outside it.
 - Pipeline: `eval/seq_pages.py` at the commit that adds this file's frozen tag, reading each
   system at `CROP_HEIGHT_RATIOS`, cutting between systems at the middle of their gap, restoring
   tuplets and overbeamed groups (`eval/lmx_tuplets.py`), and finishing the page's MusicXML (`eval/page_musicxml.py`:
-  slurs paired per staff, grace slashes and tuplet brackets stated, ties mended).
+  slurs paired per staff, grace slashes and tuplet brackets stated, ties mended, a slur between events of the same pitches written as a tie, a clef change at a barline put before it).
 - Layout: the v5 U-Net in `cpp/`, used only to find systems.
 
 ## What was developed on real scans (disclosed)
@@ -68,8 +68,8 @@ fragments stay on one side; the dataset names no pieces, so this may miss some.
   - Print standard: Corrected, with notes on the staff they are drawn on and the print's ottavas
     as `*8va` lines, which the scorer's parser (converter21) reads for gold and kern predictions
     alike. The rule: a note belongs to the staff it is drawn on. Rests gold pads with that the
-    print does not draw are hidden, one slur per chord as drawn, and accidentals the print
-    restates are shown.
+    print does not draw are hidden, one slur per chord as drawn, printed slurs gold leaves open
+    are added, and accidentals the print restates are shown.
 - Print standard gold records staccatos, accents and wedges from the print. Where a mark is
   clearly there but a reviewer cannot tell a dot from a wedge, the note is flagged, and
   `omr_ned.py --ambiguous-marks` accepts either; a missing mark is still charged. Each flag is an
@@ -90,6 +90,14 @@ OMR-NED from the authors' `src/evaluation/omr_ned.py` at Transcoda commit d4e2e6
 with musicdiff 5.0.2, music21 9.9.1 and converter21 3.5.0. A page that fails to parse, compare
 or finish in 900 s, or that has no prediction, scores 100. Scores are means over pages.
 MusicXML predictions are compared directly with the `**kern` gold (floor 0.54 on Polish).
+
+Beside each OMR-NED, the same metric with bars aligned over the whole page
+(`omr_ned.py --whole-page-alignment`), for every system. musicdiff first pins the longest run of
+identical bars and aligns by cost only between those pins; on pages of repeated bars it pins
+the wrong copies, so a correct change can raise the score (Polish dev 017: 14.2 to 33.0 for
+correct slurs). The whole-page number is the minimum under the same costs, never above the
+authors'. The authors' number stays the headline, comparable to their paper; reports give both
+and say why. Added 2026-11-07, before any test run.
 
 Comparisons are paired, with a 95% range from 5,000 resamples of pages (of songs or pieces
 where those are the unit). A difference counts only if its range excludes zero. Every page

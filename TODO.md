@@ -70,9 +70,13 @@ unlocked scores, then 6-10.
   (start/stop against partial); 023's Trio was a gold error (short J), fixed in beams_closed.
 - 021: done (bars 21-23 accidentals shown). Bar 13: a natural read as a sharp by the model.
 - Accidentals: gold lacks `X` on accidentals the print restates (060 bars 25-26 after sharps); 
-  `show_accidental` override exists, 060 done for four notes; other pages need image review (144
+  `show_accidental` override exists, 060 done for four notes, 037 bar 14 (G#4, two voices); 037 bars
+  18-25 and other pages need image review at a finer scan than the 1050-px page images (144
   accidentdel, not all gold).
 - Slurs: gold leaves out printed slurs (017: grace slurs and long arcs); model misses some (030, 069).
+- Ties: model read 2 in 5 ties as slurs; P10 `ties_from_slurs` (2026-11-07, not committed) turns a slur
+  between events of the same pitches into a tie. Gold's 55 "orphan" ties are mostly
+  ties into another voice (096), not gold errors.
 
 ## For the next training run
 
@@ -86,12 +90,16 @@ unlocked scores, then 6-10.
 - Repeat barlines: `repeat:start` / `repeat:end` tokens (train/seq/repeats.py), in labels from our
   linearizer, drawn back as <barline> by seq_predict.delinearize, left out of SER. Round trip
   checked on 5 PDMX scores. In the run started 2026-11-07 (seq513).
+- Double and final barlines: gold has them (69 edits on dev, Print), our labels have no token for
+  them (only repeat:start/end). Add `barline:double` / `barline:final` like repeats.py. Next run.
 - Handwriting: no sequence model has any. Needs MUSCIMA++ as LMX; Smashcima drew no key signature
   on a 5-sharp system, is slow, and must exclude the test writers.
 
 ## Held for the user
 
 - Sealed test run. Numbers only, and only after gold and the model are frozen.
+- Headline metric: authors' OMR-NED or `--whole-page-alignment` (or both). Then the protocol text.
+- Email to the Transcoda authors: add the bar-pinning finding (017, 042).
 - Email to the Transcoda authors: draft at https://claude.ai/artifact/NDK3s41464hRbJP1ybf7Bp. Send
   after the review is finished. Add dot-or-wedge and the sealed results of the review as needed.
 - SMB application, which must come from the user.

@@ -1213,3 +1213,86 @@ Print 17.52 to 15.00); all 49 pages Corrected 14.08 to 14.05, Print 8.75 to 8.70
 - Tried and dropped: the beam rule on runs of like notes within a beam group, and on all such
   runs together (for 042, whose triplet 32nds share a beam with an eighth). Print 8.70 to 8.67, but
   057 6.48 to 7.88 and 069 worse, 042 unchanged. Reverted to the committed one-group rule.
+
+### Ties read as slurs (page_musicxml.ties_from_slurs, P10)
+
+Started from 069 (gold 21 same-pitch ties, ours 5). Over the 46 dev pages whose bar counts agree,
+gold has 396 ties that join the same pitch in the voice's next event; seq512 writes 215 of them.
+Misses are spread evenly: inside a bar, across a barline, across a system break, single notes and
+chords all about half. Of the 181 missed, 142 sit on a note where the output starts a slur instead,
+23 on a note with neither, 16 on no such note. Control: in gold 14% of tied notes also start a slur,
+in our output 36%, and away from gold's ties we write as many slurs as gold (1,618 vs 1,594). So the
+model reads about two in five ties as slurs: in print both are one arc (088 bars 16-18: long flat
+ties between half notes). The delinearizer and finish_score keep chord ties (checked on a made-up
+chord); P9 is not the cause (counts as low before it).
+- Fix: a slur from one event to the voice's next becomes a tie when both events have exactly the
+  same pitches, neither has a grace note (017) or articulation (portato). Run after pair_slurs.
+- Shared-pitch version (tie whatever the chords share) first: 138 slurs, but 049 false tie (a
+  chord moving under a slur, F4 common). Exact-pitch version: 100 slurs; Corrected 14.02 to 13.89,
+  Print 8.67 to 8.54, 20-21 pages better, 2 worse (at most +0.12). Kept that one. Ties found
+  after: 310 of 396. Gold freshly built from the current overrides; --either-ottava.
+- Lesson: the scratch gold copies (table/g_print3, 15:50) predate the later overrides and lack
+  one_slur_per_chord; they put both systems about 0.1 to 0.4 worse. Rebuild gold before scoring.
+- Left: 23 missed ties with no slur (model saw no arc), and gold's 55 tie starts with no same-pitch
+  partner in the same voice. Listed: most are ties into another voice (096 bars 5-10, the bass's
+  triplet Ab3 held into the other voice's chord) or onto a rest where voices renumber; not gold
+  errors. A few (069 bar 10, E5 to G5) may be; the scan is too coarse there to tell.
+
+### Whole bars inserted or deleted (P10 output, Print, unlocked)
+
+811 of 10,894: 30 gold bars unmatched (521) and 17 of ours (290). 110 holds 389: its last system's
+8va passage, which gold has at sounding pitch in triplets and we read at written pitch with no
+sign and no triplet mark. That is the missed-ottava cause the seq513 crops address (q512 and r4
+fixed 110). 065 (handwriting) holds 234. The other ten pages share about 190. Nothing new to fix
+before seq513 is scored.
+
+### Slurs (P10 output, fresh Print gold, unlocked)
+
+Slur edits: 325 of ours with no gold slur, 165 gold slurs we miss, 109 spans differing; repeats
+128 (seq513 adds repeat tokens). 017 has 43 of our extras: from system 2 on, every bar opens with
+a grace pair slurred to the main C and has a long arc over the bar (image checked, all five
+systems). Gold opens neither: no "(" on the grace pair, and the bar's closing ")" has no opening.
+New override op `slur` (gold_overrides.py) adds "(" / ")" / ")(" to a note; converter21 pairs them
+as drawn whatever their order in the token. 36 entries on 017 (system 1's grace pair at line 14
+left alone: too coarse to see). check_gold passes.
+- Result: 017 slur edits 45 to 11, but its score 14.2 to 33.0. The authors' bar alignment now
+  matches some repeated bars exactly and pairs the copies wrongly: bars 12-17 go from substituted
+  to deleted and inserted (whole-bar edits 82 to 673). Both have 29 bars and the same notes. A
+  metric artifact on a page of near-identical bars; the gold change is right. Print mean about
+  8.54 to 8.92. Left in place (uncommitted); flagged for the user.
+
+### Clef changes before the barline (page_musicxml.clefs_before_barlines, P11)
+
+Clef edits (Print): 55 gold clefs unmatched, 42 of ours, mostly in pairs per page. 108 and 095:
+gold puts a clef change at the end of the bar (beat 3 of bar 6), as the print draws it before the
+barline; our output opens the next bar with it. Rule: a clef that opens a bar (not the first) moves
+to the end of the bar before. 37 clefs moved; 108, 095 and 066 then match gold's positions exactly.
+Fresh gold, P10 output, 017 left out (its gold changed meanwhile): Corrected 13.75 to 13.69 (13
+better, 0 worse), Print 8.43 to 8.41 (12 better, 066 +1.95). 066's clef now matches gold exactly;
+its cost moved to whole bars and notes: the authors' bar alignment again (as 017).
+- Other extras: double and final barlines (69) need tokens, next run (TODO.md).
+
+### Whole-page bar alignment (omr_ned.py --whole-page-alignment)
+
+Why 017 scored worse with correct gold: musicdiff (5.0.2, under the authors' metric) first pins
+the longest run of identical bars (Myers' diff) and aligns by edit cost only between the pins.
+That maximises identical bars, not the lowest cost; on repeated bars it pins a bar to the wrong
+copy and the bars between become whole-bar deletes and inserts. The new flag replaces the pinning
+with one block, so the authors' own dynamic programme aligns all bars by cost. It is a minimum
+under the same costs, so never above the authors' number (checked: no page higher, on any system).
+017 (P10+P11 output): authors' 452 to 1,063 with the corrected slurs; whole-page 376 to 352.
+
+49 dev pages, fresh gold, --ambiguous-marks --either-ottava; authors' / whole-page:
+
+| System | Corrected | Print |
+|---|---|---|
+| seq512 + P10, P11 | 13.84 / 12.44 | 8.91 / 7.85 |
+| k512 | 16.25 / 15.09 | 12.31 / 11.26 |
+| Copisteria | 21.07 / 20.39 | 17.39 / 16.24 |
+| Transcoda | 49.32 / 49.21 | 48.68 / 48.64 |
+
+No page failed or timed out. Biggest drops for us: 042 (-30.3 Corrected, the anomaly noted
+earlier), 017 (-22.1 Print), 030, 093, 097, 066. Ranking and gaps unchanged.
+- 096's slur extras (28): mostly the same slurs at shifted onsets (gold 1.33-1.67, ours 1.5-2.0)
+  because its unprinted triplets are read as plain eighths. Downstream of the 096 triplet cause,
+  not a slur problem.
