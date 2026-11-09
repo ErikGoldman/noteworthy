@@ -228,3 +228,8 @@ ottava:8vb
 ottava:15mb
 repeat:start
 repeat:end
+barline:double
+barline:final
+time:common
+time:cut
+tuplet:hidden

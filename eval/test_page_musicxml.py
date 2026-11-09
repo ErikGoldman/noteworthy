@@ -5,7 +5,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from page_musicxml import (clefs_before_barlines, mend_ties, pair_slurs, shared_heads_shown_alike, state_tuplet_brackets,
-                           ties_across_system_breaks, ties_from_slurs, time_symbols_drawn, tuplets_closed)
+                           ties_across_system_breaks, ties_from_slurs, tuplets_closed)
 
 
 def note(pitch: str, *, chord: bool = False, staff: int = 1, voice: int = 1, grace: bool = False,
@@ -281,6 +281,10 @@ class TupletBrackets(unittest.TestCase):
     def test_unbeamed_triplet_takes_a_bracket(self):
         self.assertEqual(self.bracket(tuplet_note("C4", "start"), tuplet_note("D4"), tuplet_note("E4", "stop")), "yes")
 
+    def test_unbeamed_triplet_with_its_number_hidden_takes_none(self):
+        hidden = tuplet_note("C4", "start").replace('<tuplet type="start"/>', '<tuplet type="start" show-number="none"/>')
+        self.assertEqual(self.bracket(hidden, tuplet_note("D4"), tuplet_note("E4", "stop")), "no")
+
 
 class SharedHeads(unittest.TestCase):
     def test_accidental_of_a_shared_head_shows_in_both_voices(self):
@@ -329,22 +333,6 @@ class TupletsClosed(unittest.TestCase):
         first, second = p.findall("measure")
         self.assertEqual(tuplet_marks(first), [])
         self.assertEqual(tuplet_marks(second), [("start", "none"), ("stop", None)])
-
-
-class TimeSymbols(unittest.TestCase):
-    def symbol(self, beats: str, beat_type: str) -> str | None:
-        p = part(f"<attributes><time><beats>{beats}</beats><beat-type>{beat_type}</beat-type></time></attributes>")
-        time_symbols_drawn(p)
-        return p.find(".//time").get("symbol")
-
-    def test_four_four_is_common_time(self):
-        self.assertEqual(self.symbol("4", "4"), "common")
-
-    def test_two_two_is_cut_time(self):
-        self.assertEqual(self.symbol("2", "2"), "cut")
-
-    def test_other_meters_keep_their_numbers(self):
-        self.assertIsNone(self.symbol("3", "4"))
 
 
 if __name__ == "__main__":

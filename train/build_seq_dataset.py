@@ -59,7 +59,9 @@ from omr.held_out import is_held_out
 from omr.pieces import pdmx_license_conflicts
 from omr.render import FONTS, SVG_NS, UNITS_PER_INTERLINE_PER_UNIT, layout_svg
 from seq.ottava import TOKEN_ATTRIBUTE, move_octaves, notes_under_ottavas, written_part
-from seq.repeats import repeats_of, with_repeat_tokens
+from seq.barlines import barline_tokens_of, with_barline_tokens
+from seq.time_symbols import TOKEN_OF_SYMBOL, token_of, with_time_symbol
+from seq.tuplet_numbers import HIDDEN, START, starts_hidden_tuplet
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(os.environ.get("NW_DATA", ROOT / "data"))
@@ -76,9 +78,22 @@ MARGIN_INTERLINES = (0.5, 3.0)
 HUNG_SCORE_S = 300         # a score not done by then is hung inside Verovio
 PART_NAME_HIDDEN = 0.85    # only a score's first system shows the instrument name
 KEEP_FIRST_TUPLET_NUMBER = 0.5
+TUPLET_NUMBERS_HIDDEN = 0.2  # of systems with tuplets, as engravers do once a passage settles
+# Only a few percent of PDMX scores mark C or cut time, and only a score's first system shows it.
+METER_SYMBOL_DRAWN = 0.3
+METERS_WITH_SYMBOLS = {("4", "4"): "common", ("2", "2"): "cut"}
 SINGLE_BEAM_THICKENING = (1.0, 2.6)
 STACKED_BEAM_THICKENING = 1.35  # beyond this, stacked beams touch and their number is lost
 ROUND_HEAD_RADIUS_INTERLINES = (0.42, 0.55)
+# Some plates cut naturals small and thin, and at a page scan's resolution they look like sharps
+# (Polish 055, 022, 087); Verovio's are large and clear.
+NATURALS_SHRUNK = 0.3
+# French and other 19th-century plates draw the quarter rest as a mirrored eighth rest (SMuFL
+# restQuarterOld). Verovio never does; on OLiMPiC's scans seq512 reads it as an eighth rest and
+# seq513 as a half rest (197 of 8,314 visible rests).
+OLD_QUARTER_RESTS = 0.2
+QUARTER_REST, OLD_QUARTER_REST = "E4E5", "E4F2"
+NATURAL_SCALE = (0.6, 0.85)
 FILLED_NOTEHEAD = "#E0A4"  # SMuFL noteheadBlack; Verovio appends a per-file suffix
 XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
 SVG_UNITS_PER_INTERLINE = 180
@@ -95,8 +110,19 @@ DOTTED_OTTAVA_CHANCE = 0.5
 OTTAVA_DOTS = ("1 40", "1 60", "1 90")  # round caps make each 1-unit dash a dot
 OTTAVA_LINE_THICKNESS = (0.1, 0.35)  # Verovio's default is 0.2 interlines
 ALTERNATIVE_OTTAVA_SYMBOL_CHANCE = 0.5  # `8` alone, as on older plates, for `8va`
+# Polish 023: an upright bold `8` over a chain of short slanted dashes. The model reads the sign
+# when both are made Verovio's (an italic `8`, dots) and misses it when either is left as printed,
+# and every music font's glyph is italic: plates set the sign in their own type.
+TEXT_OTTAVA_CHANCE = 0.4
+TEXT_OTTAVA_INTERLINES = (1.3, 2.3)  # the font size
+TEXT_OTTAVA_FONTS = ("DejaVu Serif", "DejaVu Sans", "Ubuntu")
+# SMuFL 8, 8va, 8vb, 8ba, 8vb (not 15 or 22), and what plates print for each
+TEXT_OF_OTTAVA_GLYPH = {"#E510": ("8", "8."), "#E511": ("8", "8va", "8va.", "8ve"), "#E512": ("8", "8vb"),
+                        "#E513": ("8", "8ba"), "#E51C": ("8", "8vb")}
+CHAINED_OTTAVA_CHANCE = 0.3
+CHAIN_LINK_INTERLINES = (0.25, 0.45)  # one dash and the gap after it
 HIGHEST_OCTAVE, LOWEST_OCTAVE = 7, 1
-F_CLEF, SHARP = "#E062", "#E262"  # SMuFL; Verovio appends a per-file suffix
+F_CLEF, SHARP, NATURAL = "#E062", "#E262", "#E261"  # SMuFL; Verovio appends a per-file suffix
 OCTAVE_UNITS = 3.5 * SVG_UNITS_PER_INTERLINE
 
 
@@ -106,6 +132,11 @@ class Style:
     thick_beams: bool = False
     round_heads: bool = False
     marks: bool = False
+
+
+def is_training_score(source: str, conflicts: set[str]) -> bool:
+    """Not held out, and not a PDMX score with a license conflict (pdmx_license_conflicts)."""
+    return bool(source.strip()) and not is_held_out(Path(source)) and Path(source).name not in conflicts
 
 
 def load_musicxml(path: Path) -> ET.Element:
@@ -148,30 +179,46 @@ def has_tuplets(part: ET.Element) -> bool:
     return part.find(".//time-modification") is not None
 
 
-def hide_tuplet_numbers(score: ET.Element, rng: random.Random) -> None:
-    starts = [t for t in score.iter("tuplet") if t.get("type") == "start"]
+def hide_tuplet_numbers(part: ET.Element, rng: random.Random) -> None:
+    starts = [t for t in part.iter("tuplet") if t.get("type") == "start"]
     keep_first = rng.random() < KEEP_FIRST_TUPLET_NUMBER
     for tuplet in starts[1:] if keep_first else starts:
         tuplet.set("show-number", "none")
         tuplet.set("bracket", "no")
 
 
+def draw_some_meters_as_symbols(part: ET.Element, rng: random.Random) -> None:
+    """Some 4/4 and 2/2 signatures drawn as C and cut-C, for labels and image alike."""
+    for time in part.iter("time"):
+        symbol = METERS_WITH_SYMBOLS.get((time.findtext("beats"), time.findtext("beat-type")))
+        if symbol and time.get("symbol") not in TOKEN_OF_SYMBOL and rng.random() < METER_SYMBOL_DRAWN:
+            time.set("symbol", symbol)
+
+
 class WrittenLinearizer(Linearizer):
-    """OLiMPiC's linearizer, with each tagged note's ottava token straight after its pitch and
-    each measure's repeat signs as tokens (seq.repeats)."""
+    """OLiMPiC's linearizer, with each tagged note's ottava token straight after its pitch,
+    each measure's barline signs as tokens (seq.barlines), time signatures' symbols
+    (seq.time_symbols) and tuplets whose number is not drawn (seq.tuplet_numbers)."""
     def process_measure(self, measure: ET.Element):
         start = len(self.output_tokens)
         super().process_measure(measure)
-        self.output_tokens[start:] = with_repeat_tokens(self.output_tokens[start:], *repeats_of(measure))
+        self.output_tokens[start:] = with_barline_tokens(self.output_tokens[start:], *barline_tokens_of(measure))
+
+    def process_time_signature(self, time: ET.Element):
+        super().process_time_signature(time)
+        self.output_tokens[:] = with_time_symbol(self.output_tokens, token_of(time))
 
     def process_note(self, note: ET.Element, measure: ET.Element):
         self._ottava_token = note.get(TOKEN_ATTRIBUTE)
+        self._hides_tuplet_number = starts_hidden_tuplet(note)
         super().process_note(note, measure)
 
     def _emit(self, token: str):
         super()._emit(token)
         if token in PITCH_TOKENS and self._ottava_token:
             self.output_tokens.append(self._ottava_token)
+        if token == START and self._hides_tuplet_number:
+            self.output_tokens.append(HIDDEN)
 
 
 def linearize(part: ET.Element) -> str:
@@ -341,19 +388,86 @@ def round_noteheads(svg: bytes, radius_interlines: float) -> bytes:
     return etree.tostring(root)
 
 
+def chained(line: etree._Element, link: float) -> None:
+    """The straight line as a chain of short dashes slanted up to the right."""
+    x0, y, x1, _ = map(float, re.findall(r"[-\d.]+", line.get("d")))
+    rise = link * 0.3
+    links = [f"M{x:.0f} {y + rise:.0f} L{x + link * 0.6:.0f} {y - rise:.0f}" for x in np.arange(x0, x1 - link * 0.6, link)]
+    line.set("d", " ".join(links))
+    line.attrib.pop("stroke-dasharray", None)
+    line.set("stroke-linecap", "round")
+
+
+@dataclass(frozen=True)
+class OttavaType:
+    font: str
+    bold: bool
+    italic: bool
+    size_interlines: float
+    choice: float  # picks the wording among a glyph's
+
+    @staticmethod
+    def drawn(rng: random.Random) -> "OttavaType":
+        return OttavaType(rng.choice(TEXT_OTTAVA_FONTS), rng.random() < 0.6, rng.random() < 0.3,
+                          rng.uniform(*TEXT_OTTAVA_INTERLINES), rng.random())
+
+
+def with_text_ottava(group: etree._Element, glyph: etree._Element, wordings: tuple[str, ...], kind: OttavaType) -> None:
+    """The sign set in a text font in place of Verovio's glyph, centred on its line, which then
+    starts just after it."""
+    x = float(re.match(r"translate\(([-\d.]+),", glyph.get("transform"))[1])
+    size = kind.size_interlines * SVG_UNITS_PER_INTERLINE
+    wording = wordings[int(kind.choice * len(wordings))]
+    lines = group.findall(f"{{{SVG_NS}}}path")
+    line_y = float(re.findall(r"[-\d.]+", lines[0].get("d"))[1]) if lines else float(re.search(r",\s*([-\d.]+)\)", glyph.get("transform"))[1])
+    text = etree.Element(f"{{{SVG_NS}}}text", x=f"{x:.0f}", y=f"{line_y + 0.36 * size:.0f}",
+                         attrib={"font-family": kind.font, "font-size": f"{size:.0f}",
+                                 "font-weight": "bold" if kind.bold else "normal", "font-style": "italic" if kind.italic else "normal"})
+    text.text = wording
+    group.replace(glyph, text)
+    for line in lines:
+        _, y, x1, _ = re.findall(r"[-\d.]+", line.get("d"))
+        line.set("d", f"M{x + (0.6 * len(wording) + 0.15) * size:.0f} {y} L{x1} {y}")
+
+
+def with_headroom(root: etree._Element, units: float) -> None:
+    """More room above the drawing, at the same scale: a sign set in type can stand taller than
+    the glyph Verovio sized the page for."""
+    inner = root.find(f"{{{SVG_NS}}}svg")
+    x, y, width, height = map(float, inner.get("viewBox").split())
+    px_per_unit = float(root.get("height").removesuffix("px")) / height
+    inner.set("viewBox", f"{x} {y - units} {width} {height + units}")
+    root.set("height", f"{int(round((height + units) * px_per_unit))}px")
+
+
 def restyle_ottava_lines(svg: bytes, rng: random.Random) -> bytes:
-    """Dashed or dotted, as plates vary; Verovio draws only its own dashes."""
+    """Dashed, dotted or chained, as plates vary, and at times set in a text font; Verovio draws
+    only its own dashes and its music font's italic glyph."""
     dotted = rng.random() < DOTTED_OTTAVA_CHANCE
     dashes = rng.choice(OTTAVA_DOTS if dotted else OTTAVA_DASHES)
+    chain = rng.uniform(*CHAIN_LINK_INTERLINES) * SVG_UNITS_PER_INTERLINE if rng.random() < CHAINED_OTTAVA_CHANCE else None
+    text_type = OttavaType.drawn(rng) if rng.random() < TEXT_OTTAVA_CHANCE else None
+    set_in_type = False
     root = etree.fromstring(svg)
     for group in root.iter(f"{{{SVG_NS}}}g"):
         if "octave" in group.get("class", "").split():
+            if text_type:
+                for glyph in group.findall(f"{{{SVG_NS}}}use"):
+                    wordings = TEXT_OF_OTTAVA_GLYPH.get(glyph.get(XLINK_HREF, "")[:5])
+                    if wordings:
+                        with_text_ottava(group, glyph, wordings, text_type)
+                        set_in_type = True
             for line in group.findall(f"{{{SVG_NS}}}path"):
-                line.set("stroke-dasharray", dashes)
-                line.set("stroke-linecap", "round" if dotted else "butt")
+                if chain:
+                    chained(line, chain)
+                else:
+                    line.set("stroke-dasharray", dashes)
+                    line.set("stroke-linecap", "round" if dotted else "butt")
             if rng.random() < HOOKLESS_OTTAVA_CHANCE:  # the sign goes on past the system's end
                 for hook in group.findall(f"{{{SVG_NS}}}polyline"):
                     group.remove(hook)
+    if set_in_type:
+        with_headroom(root, text_type.size_interlines * SVG_UNITS_PER_INTERLINE)
     return etree.tostring(root)
 
 
@@ -376,6 +490,32 @@ def raise_bass_a_sharp(svg: bytes) -> bytes:
     return etree.tostring(root)
 
 
+def shrink_naturals(svg: bytes, factor: float) -> bytes:
+    """The SVG with the naturals before notes drawn smaller, from their left edge."""
+    root = etree.fromstring(svg)
+    for accidental in groups_of_class(root, "accid"):
+        for glyph in accidental.findall(f"{{{SVG_NS}}}use"):
+            if glyph.get(XLINK_HREF, "").startswith(NATURAL):
+                glyph.set("transform", re.sub(r"scale\(([-\d.]+),\s*([-\d.]+)\)",
+                                              lambda m: f"scale({float(m[1]) * factor}, {float(m[2]) * factor})",
+                                              glyph.get("transform", "")))
+    return etree.tostring(root)
+
+
+def glyph_path(font: str, code: str) -> str:
+    """The outline of a SMuFL glyph in one of Verovio's fonts (its files have no namespace)."""
+    return etree.parse(str(Path(verovio.__file__).parent / "data" / font / f"{code}.xml")).find("path").get("d")
+
+
+def old_quarter_rests(svg: bytes, font: str) -> bytes:
+    """The SVG with its quarter rests drawn in the old style, by redefining the glyph."""
+    root = etree.fromstring(svg)
+    for definition in root.iter(f"{{{SVG_NS}}}g"):
+        if definition.get("id", "").startswith(QUARTER_REST + "-"):
+            definition.find(f"{{{SVG_NS}}}path").set("d", glyph_path(font, OLD_QUARTER_REST))
+    return etree.tostring(root)
+
+
 def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style: Style = Style()) -> np.ndarray | None:
     """The system as a grayscale image cropped to its ink plus a random margin."""
     options = engraving_options(rng)
@@ -392,6 +532,10 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style:
         svg = round_noteheads(svg, rng.uniform(*ROUND_HEAD_RADIUS_INTERLINES))
     if style.marks:
         svg = raise_bass_a_sharp(restyle_ottava_lines(svg, rng))
+    if rng.random() < NATURALS_SHRUNK:
+        svg = shrink_naturals(svg, rng.uniform(*NATURAL_SCALE))
+    if rng.random() < OLD_QUARTER_RESTS:
+        svg = old_quarter_rests(svg, options["font"])
     use_smufl_fonts()  # music symbols in text (tempo marks) need the SMuFL fonts in cairo
     png = cairosvg.svg2png(bytestring=svg, background_color="white")
     image = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_GRAYSCALE)
@@ -433,12 +577,13 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
         try:
             if style.marks:
                 add_marks(system.part, rng)
+            draw_some_meters_as_symbols(system.part, rng)
+            if unmarked_tuplets or (has_tuplets(system.part) and rng.random() < TUPLET_NUMBERS_HIDDEN):
+                hide_tuplet_numbers(system.part, rng)
             lmx = linearize(system.part)
             score = part_to_score(system.part).getroot()
             if rng.random() < PART_NAME_HIDDEN:
                 hide_part_name(score)
-            if unmarked_tuplets:
-                hide_tuplet_numbers(score, rng)
             musicxml = ET.tostring(score, encoding="unicode", xml_declaration=True)
             image = render_system(tk, musicxml, rng, style) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
             drawn_right = image is not None and ottavas_drawn_as_labelled(tk, system.part)
@@ -473,7 +618,7 @@ def main() -> None:
     style = Style(args.thick_beams, args.round_heads, args.marks)
     jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets, style)
             for i, s in enumerate(sources)
-            if s.strip() and s not in hung and not is_held_out(Path(s)) and Path(s).name not in conflicts]
+            if s not in hung and is_training_score(s, conflicts)]
     total = 0
     # "spawn", not fork: Verovio keeps its font resources in C++ static state that forked
     # workers cannot use ("font resources are not available"); see build_dataset.py.

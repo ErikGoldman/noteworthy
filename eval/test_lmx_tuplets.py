@@ -56,6 +56,13 @@ class RunawayTuplets(unittest.TestCase):
         lmx = measure(beamed(["C4", "D4"], "eighth", "3in2"), *[beamed(["E4", "F4", "G4"], "eighth", "3in2")] * 2)
         self.assertEqual(imply_tuplets(lmx, THREE_FOUR).count("3in2"), 6)
 
+    def test_cleared_group_loses_its_hidden_number_token(self):
+        cleared = "C4 eighth 3in2 tuplet:start tuplet:hidden beam:begin D4 eighth 3in2 tuplet:stop beam:end"
+        kept = "E4 eighth 3in2 tuplet:start tuplet:hidden beam:begin F4 eighth 3in2 G4 eighth 3in2 tuplet:stop beam:end"
+        lmx = imply_tuplets(measure(cleared, kept, kept), THREE_FOUR)
+        self.assertEqual(lmx.count("tuplet:hidden"), 2)
+        self.assertTrue(lmx.startswith("measure C4 eighth beam:begin"))
+
     def test_marked_notes_in_a_full_bar_stay(self):
         lmx = measure(*[beamed(["C4", "D4", "E4"], "eighth", "3in2")] * 2, "F4 quarter")
         self.assertEqual(imply_tuplets(lmx, THREE_FOUR), lmx)

@@ -15,8 +15,10 @@ Resumes from OUT/last.pt; --init starts a new run from another run's weights.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
+import re
 import time
 from pathlib import Path
 
@@ -27,7 +29,9 @@ from torch.nn import functional as F
 from seq.data import SystemDataset, collate, samples, split_names
 from seq.model import Seq2Seq
 from seq.ottava import sounding
-from seq.repeats import without_repeats
+from seq.barlines import without_barlines
+from seq.time_symbols import without_time_symbols
+from seq.tuplet_numbers import without_hidden_numbers
 from seq.vocab import PAD, Vocab
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,9 +39,21 @@ VOCABULARY = ROOT / "train" / "seq" / "vocabulary.txt"
 GPU_MEMORY_FRACTION = 0.85
 
 
+# Note errors concentrate in rhythm (durations, beam counts, tuplets) on OLiMPiC's scans and Polish
+# alike, and few labels have the hard cases: 6% of PDMX crops, 24% of GrandStaff's.
+RHYTHM_HEAVY_REPEAT = 2
+RHYTHM_HEAVY = re.compile(r"(?:^| )(?:\d+in\d+|32nd|64th)(?: |$)")
+
+
+def rhythm_heavy(sample) -> bool:
+    return RHYTHM_HEAVY.search(sample.lmx.read_text()) is not None
+
+
 def dataset_items(spec: str):
     root, split, *weight = spec.split(":")
-    return samples(Path(root), split_names(Path(root), split)) * int(weight[0] if weight else 1)
+    items = samples(Path(root), split_names(Path(root), split))
+    items += [s for s in items if rhythm_heavy(s)] * (RHYTHM_HEAVY_REPEAT - 1)
+    return items * int(weight[0] if weight else 1)
 
 
 def plain(options: dict) -> dict:
@@ -55,9 +71,26 @@ def weights_for_model(weights: dict, model: Seq2Seq) -> dict:
     return {**weights, "row_embedding": stretched, "token_embedding.weight": embedding, "out.weight": embedding}
 
 
+# The weights' moving average, about the last 2,000 steps: a run's checkpoints swing in dev SER
+# by as much as two runs differ (seq512: 0.082 to 0.077 within 5,000 steps), and the average
+# is steadier and usually better than any one of them.
+EMA_DECAY = 0.9995
+SNAPSHOT_EVERY = 10000  # averaged weights kept along the way, to score a run's course
+
+
+@torch.no_grad()
+def update_average(average: torch.nn.Module, model: torch.nn.Module) -> None:
+    for kept, current in zip(average.state_dict().values(), model.state_dict().values()):
+        if kept.dtype.is_floating_point:
+            kept.mul_(EMA_DECAY).add_(current, alpha=1 - EMA_DECAY)
+        else:
+            kept.copy_(current)
+
+
 def comparable(lmx: str) -> str:
-    """LMX in OLiMPiC's form, as its dev labels are: ottavas applied, no repeat tokens."""
-    return without_repeats(sounding(lmx))[0]
+    """LMX in OLiMPiC's form, as its dev labels are: ottavas applied, none of our tokens for
+    barlines, time symbols or hidden tuplet numbers."""
+    return without_hidden_numbers(without_time_symbols(without_barlines(sounding(lmx))[0])[0])[0]
 
 
 def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
@@ -117,9 +150,11 @@ def main() -> None:
     step, best = 0, float("inf")
     if args.init and not (args.out / "last.pt").exists():
         model.load_state_dict(weights_for_model(torch.load(args.init, map_location=device)["model"], model))
+    average = copy.deepcopy(model)
     if (args.out / "last.pt").exists():
         state = torch.load(args.out / "last.pt", map_location=device)
         model.load_state_dict(state["model"]), opt.load_state_dict(state["opt"]), sched.load_state_dict(state["sched"])
+        average.load_state_dict(state.get("average", state["model"]))
         step, best = state["step"], state["best"]
     if step >= args.steps:
         print(f"already trained to step {step}; nothing to do")
@@ -140,22 +175,27 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
             sched.step()
+            update_average(average, model)
             step += 1
             seen += images.shape[0]
             if step % 100 == 0:
                 print(f"step {step} loss {loss.item():.4f} lr {sched.get_last_lr()[0]:.2e} "
                       f"{seen / (time.time() - started):.0f} samples/s", flush=True)
             if step % args.eval_every == 0 or step == args.steps:
-                dev_ser = ser(model, dev, vocab, device)
-                print(f"step {step} dev SER {dev_ser:.4f}", flush=True)
+                dev_ser = ser(average, dev, vocab, device)
+                print(f"step {step} dev SER {dev_ser:.4f} (averaged weights)", flush=True)
                 log.write(json.dumps({"step": step, "loss": loss.item(), "dev_ser": dev_ser}) + "\n")
                 log.flush()
-                state = {"model": model.state_dict(), "opt": opt.state_dict(), "sched": sched.state_dict(),
-                         "step": step, "best": min(best, dev_ser), "args": plain(vars(args))}
+                state = {"model": model.state_dict(), "average": average.state_dict(), "opt": opt.state_dict(),
+                         "sched": sched.state_dict(), "step": step, "best": min(best, dev_ser), "args": plain(vars(args))}
                 torch.save(state, args.out / "last.pt")
+                # best.pt and the snapshots hold the averaged weights as "model": what is scored.
+                scored = {"model": average.state_dict(), "step": step, "dev_ser": dev_ser, "args": plain(vars(args))}
                 if dev_ser < best:
                     best = dev_ser
-                    torch.save(state, args.out / "best.pt")
+                    torch.save(scored, args.out / "best.pt")
+                if step % SNAPSHOT_EVERY == 0:
+                    torch.save(scored, args.out / f"average_{step:06d}.pt")
             if step >= args.steps:
                 break
 

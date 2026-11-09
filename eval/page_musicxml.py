@@ -277,10 +277,12 @@ def tuplet_groups(part: ET.Element) -> list[tuple[ET.Element, list[ET.Element]]]
 
 
 def state_tuplet_brackets(part: ET.Element) -> None:
-    """A beam already groups a tuplet, so only unbeamed ones take a bracket. Any beam in the
-    group counts: a triplet that opens with a rest (Polish 003) has none on its first note."""
+    """A beam already groups a tuplet, so only unbeamed ones take a bracket, and none whose number
+    is hidden. Any beam in the group counts: a triplet that opens with a rest (Polish 003) has
+    none on its first note."""
     for start, notes in tuplet_groups(part):
-        start.set("bracket", "no" if any(note.find("beam") is not None for note in notes) else "yes")
+        grouped = start.get("show-number") == "none" or any(note.find("beam") is not None for note in notes)
+        start.set("bracket", "no" if grouped else "yes")
 
 
 def tuplets_closed(part: ET.Element) -> None:
@@ -381,18 +383,6 @@ def add_accidental(note: ET.Element, kind: str) -> None:
     note.insert(index, accidental)
 
 
-TIME_SYMBOLS = {("4", "4"): "common", ("2", "2"): "cut"}
-
-
-def time_symbols_drawn(part: ET.Element) -> None:
-    """4/4 and 2/2 as C and cut C. The model's tokens give only the numbers, and the prints of
-    this era draw these two meters as symbols (Polish 077, 079)."""
-    for time in part.iter("time"):
-        symbol = TIME_SYMBOLS.get((time.findtext("beats"), time.findtext("beat-type")))
-        if symbol:
-            time.set("symbol", symbol)
-
-
 def finish_score(score: ET.Element) -> None:
     """Also clears the part name: the delinearizer's is a constant, not something read."""
     for name in score.iter("part-name"):
@@ -406,5 +396,4 @@ def finish_score(score: ET.Element) -> None:
         shared_heads_shown_alike(part)
         state_grace_slashes(part)
         state_tuplet_brackets(part)
-        time_symbols_drawn(part)
         tuplets_closed(part)  # after the brackets: a group with no number shown takes no bracket either

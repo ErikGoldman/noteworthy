@@ -33,7 +33,9 @@ from app.symbolic.part_to_score import part_to_score  # noqa: E402
 from seq.data import SystemDataset, collate, samples, split_names  # noqa: E402
 from seq.model import Seq2Seq  # noqa: E402
 from seq.ottava import add_octave_shifts, shifts_of, sounding  # noqa: E402
-from seq.repeats import add_repeat_barlines, without_repeats  # noqa: E402
+from seq.barlines import add_barlines, without_barlines  # noqa: E402
+from seq.time_symbols import add_time_symbols, without_time_symbols  # noqa: E402
+from seq.tuplet_numbers import hide_numbers, without_hidden_numbers  # noqa: E402
 from seq.vocab import Vocab  # noqa: E402
 from train_seq import VOCABULARY, comparable  # noqa: E402
 
@@ -55,18 +57,24 @@ def rewind_to_measure_start(part: ET.Element) -> None:
 
 def delinearize(lmx: str, bar: Fraction | None = None) -> str:
     """MusicXML of an LMX string, unmarked tuplets and overbeamed groups restored (bar: see
-    imply_tuplets) and ottava tokens drawn as signs over sounding pitches. A sequence the
+    imply_tuplets) and ottava tokens drawn as signs over sounding pitches. Tokens OLiMPiC's
+    delinearizer does not know are taken out and drawn afterwards: barlines and time symbols
+    first, hidden tuplet numbers after the tuplet repairs, which drop one with a group they
+    clear. A sequence the
     delinearizer cannot parse becomes an empty part, as OLiMPiC's TEDn evaluation treats it (its
     error reporting itself can crash)."""
     delinearizer = Delinearizer(errout=None)
-    plain, repeats = without_repeats(sounding(lmx))
-    restored = dots_mended(extra_beams_dropped(imply_tuplets(plain, bar), bar), bar)
+    numbered, barlines = without_barlines(sounding(lmx))
+    plain, time_symbols = without_time_symbols(numbered)
+    restored, hidden_numbers = without_hidden_numbers(dots_mended(extra_beams_dropped(imply_tuplets(plain, bar), bar), bar))
     try:
         delinearizer.process_text(restored)
         part = delinearizer.part_element
         rewind_to_measure_start(part)
         add_octave_shifts(part, shifts_of(lmx))
-        add_repeat_barlines(part, repeats)
+        add_barlines(part, barlines)
+        add_time_symbols(part, time_symbols)
+        hide_numbers(part, hidden_numbers)
     except Exception:
         part = ET.Element("part")
     return ET.tostring(part_to_score(part).getroot(), encoding="unicode", xml_declaration=True)
