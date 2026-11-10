@@ -70,6 +70,15 @@ drawing nothing. Hidden rests are drawn as nothing, as in a print. A mark added 
 labels must be drawn by the fork or added to one of those lists. Writers draw quarter rests in
 many shapes, some like a 3: not a mismatch, but look twice at tuplet sheets.
 
+MusiCorpus crops (`train/build_musicorpus_crops.py`) are real pages: each piano grand staff,
+labelled from its own MusicXML, cut from the page with its symbols. What the label could not say
+is left out rather than mended: Dolores' training pages (their transcriptions omit the slurs the
+pages draw; its README says expression slurs are not annotated), octave clefs, hidden notes,
+hidden whole-measure rests (put where a page draws a measure-repeat sign), and grand staves where
+only some tuplets are numbered. The transcriptions do not say which numbers are drawn; the symbol
+annotations do (tuplet3 and the like): none drawn, all labelled hidden. Dynamics, lyrics, text,
+mordents and turns are drawn without a token, as noise.
+
 Sources to look at when adding a set: OLiMPiC synthetic and GrandStaff come as images, so a
 mismatch there cannot be re-rendered, only left out. Neither has octave clefs (checked
 2026-11-09).
@@ -94,3 +103,11 @@ copyright and other text, glissando lines.
   at the right by up to 4% (Smashcima's 24.4 mm inch: last notes and barline missing, still in
   the label; fixed, all earlier Smashcima crops void) and slurs drawn as thick blocks from
   tiny samples (fixed). All tokens in the table above are now checked for Smashcima crops.
+- 2026-11-10, MusiCorpus crops (all 53 training grand staves, 39 handwritten, 14 engraved).
+  Checked: tuplets (15 crops, 161 groups: numbers drawn on the first bar only and none after on
+  several; labels said every number shown; fixed from the symbol annotations, 10 grand staves with
+  some numbers drawn left out), ottava signs (4 crops: drawn where labelled), the cut (the
+  dataset's own clipped notes on ledger lines; now cut from the page with every symbol, and the
+  voice staff above a song's piano shows in part, as when recognizing), measure-repeat signs
+  (labelled as hidden measure rests: left out), Dolores slurs (drawn, never labelled: Dolores not
+  trained on).

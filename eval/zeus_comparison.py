@@ -2,7 +2,8 @@
 OLiMPiC system crops as ours, and their TEDn metric for any recognizer's output.
 
 Runs in .venv-zeus (TensorFlow 2.12, see scripts/setup_compare_env.sh) with the OLiMPiC code
-(scripts/fetch_benchmark_data.sh); it does not import our own modules.
+(scripts/fetch_training_data.sh) and the Zeus model (scripts/fetch_benchmark_data.sh); it does not
+import our own modules.
 
 usage:
   zeus_comparison.py predict --split dev|test --out DIR

@@ -11,14 +11,14 @@ git clone --recursive <this repository> noteworthy && cd noteworthy
 ./train.sh
 ```
 
-This sets up the Python environments, downloads the training sources (about 14 GB, each checked
+This sets up the Python environments, downloads the training sources (about 30 GB, each checked
 against a checksum or pinned commit), builds the training pages and crops, trains the
 segmentation network (it finds staves and systems), builds the C++ recognizer and trains the
 sequence model (it reads each system). Every stage skips work already done, so it is safe to
 rerun at any time; an interrupted run picks up where it stopped. Settings (step counts, data
 locations, worker counts) are environment variables listed in `scripts/common.sh`.
 
-Requirements: Linux, an NVIDIA GPU, about 60 GB of disk, and
+Requirements: Linux, an NVIDIA GPU, about 85 GB of disk, and
 `git curl unzip cmake g++ libopencv-dev` plus [uv](https://docs.astral.sh/uv/); without a
 display, also `xvfb` (MuseScore 3.6.2, which engraves some training crops and is downloaded
 by `fetch_training_data.sh`, opens a window).
@@ -30,12 +30,12 @@ by `fetch_training_data.sh`, opens a window).
 ```
 
 This runs `train.sh` first (skipping whatever a training already did), then sets up the
-benchmarks' and the other recognizers' environments, downloads the benchmark data (about 18 GB
+benchmarks' and the other recognizers' environments, downloads the benchmark data (about 3 GB
 more), runs our benchmarks (`docs/EVALUATION_PROTOCOL.md`; whole pages in
 `runs/sequence/pages-dev/report.txt`) with Transcoda, Copisteria, HOMR and Audiveris on the same
 pages, and compares with Zeus, the OLiMPiC authors' end-to-end recognizer. The sealed test halves
 run once, for the final evaluation: `scripts/benchmark_pages.sh test`.
-About 30 GB of disk beyond training. The MuseScore benchmark also needs MuseScore 4, on PATH or
+About 10 GB of disk beyond training. The MuseScore benchmark also needs MuseScore 4, on PATH or
 named by `$MUSESCORE` (under WSL, the Windows install's `MuseScore4.exe` works).
 
 Reproducible by design: the score lists and every training crop come out byte for byte the same
@@ -78,7 +78,7 @@ alone.
 | [OLiMPiC](https://github.com/ufal/olimpic-icdar24) (IMSLP scans of [OpenScore Lieder](https://github.com/OpenScore/Lieder) songs, with piano transcriptions) | benchmarks only | CC BY-SA 4.0; the Lieder transcriptions themselves are CC0 |
 | [OLiMPiC synthetic](https://github.com/ufal/olimpic-icdar24) (MuseScore renders of Lieder accompaniment systems) | sequence-model training | CC BY-SA 4.0 |
 | [GrandStaff](https://github.com/multiscore/e2e-pianoform) images with [GrandStaff-LMX](https://hdl.handle.net/11234/1-5423) transcriptions (piano excerpts) | sequence-model training | LMX: CC BY-SA 4.0; images: no license stated, published for research replication |
-| [MusiCorpus 1.0](http://hdl.handle.net/20.500.12800/1-6147) (historical manuscripts, mostly handwritten, with MusicXML transcriptions) | training (its train split); its test split is a sealed benchmark | CC BY-NC-SA 4.0 |
+| [MusiCorpus 1.0](http://hdl.handle.net/20.500.12800/1-6147) (historical manuscripts, mostly handwritten, with MusicXML transcriptions) | sequence-model training (OmniOMR's piano grand staves, train split); validation as a handwritten dev set; its test split is a sealed benchmark | CC BY-NC-SA 4.0 |
 | [MUSCIMA++ 1.0](https://hdl.handle.net/11372/LRT-2372) glyphs and [Moravian Library](https://www.mzk.cz/) paper scans, as Smashcima downloads them | handwritten training crops | MUSCIMA++: CC BY-NC-SA 4.0; paper: not stated by Smashcima (patches of scans from the library's public digital collection) |
 | [MuseScore 3.6.2](https://github.com/musescore/MuseScore/releases/tag/v3.6.2) | engraving training crops | GPL-3.0 (the program; its output is ours) |
 | [OLiMPiC code and Zeus model](https://github.com/ufal/olimpic-icdar24) (the authors' TEDn metric and end-to-end recognizer) | comparison only (`scripts/compare_zeus.sh`) | code MIT; Zeus model CC BY-SA 4.0 |

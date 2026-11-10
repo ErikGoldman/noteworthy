@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Downloads what the benchmarks and comparisons need, beyond the training data
-# (fetch_training_data.sh), into $NW_DATA/raw (about 22 GB), each checked against an md5 or a
+# (fetch_training_data.sh), into $NW_DATA/raw (about 3 GB), each checked against an md5 or a
 # pinned commit. None of it is trained on.
 #
 #   OLiMPiC    IMSLP scans of OpenScore Lieder songs, as whole pages, with their system
-#              locations (CC BY-SA 4.0); the authors' code (MIT: TEDn metric, linearization)
-#              and their trained Zeus model (CC BY-SA 4.0), to compare against
+#              locations (CC BY-SA 4.0), and the authors' trained Zeus model (CC BY-SA 4.0), to
+#              compare against
 #   Mutopia    piano pieces engraved by LilyPond (CC or public domain), with sources, PDFs and
 #              MIDI (eval/mutopia_pieces.txt)
 #   Transcoda  its authors' trained model (CC BY 4.0), to compare against, their metric's
@@ -13,16 +13,12 @@
 #   Copista    copisteria's trained weights (Apache-2.0), to compare against (the code is
 #              checked out by setup_compare_env.sh)
 #   Audiveris  5.11.0 (AGPL-3.0), to compare against
-#   MusiCorpus historical manuscripts with MusicXML transcriptions (CC BY-NC-SA 4.0); its test
-#              split is a sealed benchmark (scores only)
 #
 # A source already in place is not fetched again. Archives are deleted once unpacked.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
 OLIMPIC_RELEASE=https://github.com/ufal/olimpic-icdar24/releases/download/datasets
-OLIMPIC_REPO=https://github.com/ufal/olimpic-icdar24.git
-OLIMPIC_COMMIT=f4f45ac523ebe09832342270a68b1b4368f63da2
 ZEUS_MODEL=https://github.com/ufal/olimpic-icdar24/releases/download/zeus-release/zeus-olimpic-1.0-2024-02-12.model.tar.gz
 MUTOPIA_REPO=https://github.com/MutopiaProject/MutopiaProject.git
 MUTOPIA_COMMIT=2144afd6f52d56c5b6995b8b589ef1268b3139f0
@@ -34,14 +30,12 @@ TRANSCODA_COMMIT=d4e2e687d5679ae96ca4aa6f01e06a5b338cd488
 POLISH_SCORES=https://huggingface.co/datasets/btrkeks/polish-scores/resolve/55428225335e21c0e4d77a58b32dbb2b58e25954
 COPISTA_MODEL=https://huggingface.co/kobimusic/copista-28m/resolve/44464d11234a22ba23634ec8eb1e31e3b012021a
 AUDIVERIS_DEB=https://github.com/Audiveris/audiveris/releases/download/5.11.0/Audiveris-5.11.0-ubuntu24.04-x86_64.deb
-MUSICORPUS=https://lindat.mff.cuni.cz/repository/server/api/core/bitstreams/fdf9ba56-1854-45fc-a8d2-311dfb3ad8c3/content
 
 if [ ! -d "$RAW/olimpic/sources/imslp_systems" ]; then
   download "$OLIMPIC_RELEASE/olimpic-1.0-sources-for-scanned.2024-02-12.tar.gz.tgz" "$RAW/olimpic/sources.tgz" 2d2e7d3a4e05714b6e36a5b25a3dc801
   unpack "$RAW/olimpic/sources.tgz" "$RAW/olimpic/sources" corpus_to_imslp imslp_pdfs imslp_pngs imslp_systems
   rm "$RAW/olimpic/sources.tgz"
 fi
-checkout "$OLIMPIC_REPO" "$OLIMPIC_COMMIT" "$RAW/olimpic/code/repo"
 if [ ! -d "$RAW/olimpic/code/zeus-olimpic-1.0-2024-02-12.model" ]; then
   download "$ZEUS_MODEL" "$RAW/olimpic/code/zeus.tgz" c6dfa1175a740c145015073b481bdf51
   unpack "$RAW/olimpic/code/zeus.tgz" "$RAW/olimpic/code" zeus-olimpic-1.0-2024-02-12.model
@@ -78,11 +72,5 @@ while read -r _ piece pdf_md5 midi_md5; do
   download "$MUTOPIA_FILES/$piece/$name-a4.pdf" "$RAW/mutopia/pieces/$name-a4.pdf" "$pdf_md5"
   download "$MUTOPIA_FILES/$piece/$name.mid" "$RAW/mutopia/pieces/$name.mid" "$midi_md5"
 done < "$ROOT/eval/mutopia_pieces.txt"
-
-if [ ! -d "$RAW/musicorpus/musicorpus_v1.0" ]; then
-  download "$MUSICORPUS" "$RAW/musicorpus/musicorpus_v1.0.zip" 413a500ec1b61184fbb1938aa1244117
-  unpack "$RAW/musicorpus/musicorpus_v1.0.zip" "$RAW/musicorpus" musicorpus_v1.0
-  rm "$RAW/musicorpus/musicorpus_v1.0.zip"
-fi
 
 log "benchmark data ready"

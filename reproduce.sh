@@ -10,7 +10,7 @@
 # Page benchmarks run on the dev halves. The sealed test halves are run once, for the final
 # evaluation (docs/EVALUATION_PROTOCOL.md): scripts/benchmark_pages.sh test.
 #
-# On top of train.sh, a full run downloads about 18 GB more and takes about a day more. Settings
+# On top of train.sh, a full run downloads about 3 GB more and takes about a day more. Settings
 # are environment variables (scripts/common.sh); a shorter end-to-end check, which still builds
 # every crop set (hours):
 #

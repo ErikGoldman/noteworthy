@@ -9,7 +9,7 @@
 # at any time (after an interruption, or after a change) without downloading or recomputing
 # finished parts; reproduce.sh runs it first, so a reproduction redoes none of it.
 #
-# A full run downloads about 14 GB, needs about 60 GB of disk and an NVIDIA GPU, and takes
+# A full run downloads about 30 GB, needs about 85 GB of disk and an NVIDIA GPU, and takes
 # days. Settings are environment variables (scripts/common.sh).
 set -euo pipefail
 scripts="$(cd "$(dirname "$0")" && pwd)/scripts"

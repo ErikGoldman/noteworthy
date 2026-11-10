@@ -2,7 +2,8 @@
 # Builds the sequence model's training data in $NW_SEQ_DATA (default $NW_DATA): our PDMX system
 # crops engraved by Verovio (build_seq_dataset.py) in four styles and by MuseScore
 # (build_musescore_crops.py; without a display, on a virtual one), handwritten crops drawn by our
-# Smashcima fork (build_smashcima_crops.py), OLiMPiC synthetic relabelled with pitches as
+# Smashcima fork (build_smashcima_crops.py), real piano grand staves from MusiCorpus
+# (build_musicorpus_crops.py), OLiMPiC synthetic relabelled with pitches as
 # printed, and GrandStaff-LMX with time symbols and barlines as tokens.
 # Safe to stop and run again: the crop builders skip scores already built, and the relabelled sets
 # are rewritten whole. A changed builder needs a fresh data directory. Before training on new or
@@ -30,3 +31,4 @@ build_crops marks --systems-per-score 2 --thick-beams --marks
   --out "$crops/musescore")
 (cd "$ROOT/train" && "$SMASHCIMA_PY" build_smashcima_crops.py --scores "$NW_DATA/render_scores.txt" \
   --out "$crops/smashcima" --systems-per-score 1 --workers "$NW_SMASHCIMA_WORKERS")
+(cd "$ROOT/train" && "$PY" build_musicorpus_crops.py "$RAW/musicorpus/musicorpus_v1.0" --out "$data/musicorpus")

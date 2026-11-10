@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Downloads what training needs into $NW_DATA/raw (about 16 GB of downloads), each checked
+# Downloads what training needs into $NW_DATA/raw (about 30 GB of downloads), each checked
 # against an md5 or a pinned commit:
 #
 #   PDMX       public-domain MusicXML from MuseScore.com (Zenodo record 15571083)
@@ -8,9 +8,13 @@
 #              CVC-MUSCIMA images they annotate
 #   OLiMPiC    synthetic systems (CC BY-SA 4.0) for training the sequence model; scanned
 #              systems (CC BY-SA 4.0), whose dev split monitors training, and the Lieder
-#              corpus metadata (CC0), to leave out dev songs our sources also hold
+#              corpus metadata (CC0), to leave out dev songs our sources also hold; the
+#              authors' code (MIT), whose linearization turns MusicXML into our labels and back
 #   GrandStaff piano excerpts (images) with GrandStaff-LMX transcriptions (CC BY-SA 4.0),
 #              for training the sequence model
+#   MusiCorpus historical manuscripts, mostly handwritten, with MusicXML transcriptions (CC BY-NC-SA
+#              4.0): its piano grand staves train the sequence model; its test split is a sealed
+#              benchmark (scores only)
 #   Smashcima  assets for our fork's handwritten crops: MUSCIMA++ 1.0 glyphs (CC BY-NC-SA
 #              4.0) and paper from the Moravian Library's scans, checked against checksums
 #   MuseScore  3.6.2 (GPL), the engraver of the MuseScore training crops, into tools/musescore
@@ -26,7 +30,10 @@ MUSCIMA_PP=https://github.com/OMR-Research/muscima-pp/releases/download/v2.0/MUS
 CVC_MUSCIMA=https://github.com/apacha/OMR-Datasets/releases/download/datasets/CVCMUSCIMA_SR.zip
 OLIMPIC_RELEASE=https://github.com/ufal/olimpic-icdar24/releases/download/datasets
 LIEDER_SCORES=https://raw.githubusercontent.com/OpenScore/Lieder/38c5db510224d9facdc4b08d741fc788cfb58ea8/data/scores.yaml
+OLIMPIC_REPO=https://github.com/ufal/olimpic-icdar24.git
+OLIMPIC_COMMIT=f4f45ac523ebe09832342270a68b1b4368f63da2
 GRANDSTAFF_IMAGES=https://grfia.dlsi.ua.es/musicdocs/grandstaff.tgz
+MUSICORPUS=https://lindat.mff.cuni.cz/repository/server/api/core/bitstreams/fdf9ba56-1854-45fc-a8d2-311dfb3ad8c3/content
 MUSESCORE=https://github.com/musescore/MuseScore/releases/download/v3.6.2/MuseScore-3.6.2.548021370-x86_64.AppImage
 
 download "$PDMX_RECORD/PDMX.csv/content" "$RAW/pdmx/PDMX.csv" 30392ccf38bb63ce70e7afae70f9c88c
@@ -54,6 +61,7 @@ if [ ! -d "$RAW/olimpic/olimpic-1.0-scanned" ]; then
   rm "$RAW/olimpic/scanned.tar.gz"
 fi
 download "$LIEDER_SCORES" "$RAW/olimpic/lieder_scores.yaml" f9b27916cb7d3ebd5c8d5af50a6ad7d6
+checkout "$OLIMPIC_REPO" "$OLIMPIC_COMMIT" "$RAW/olimpic/code/repo"
 if [ ! -d "$RAW/olimpic/olimpic-1.0-synthetic" ]; then
   download "$OLIMPIC_RELEASE/olimpic-1.0-synthetic.2024-02-12.tar.gz" "$RAW/olimpic/synthetic.tar.gz" efaeb053fc85a10a74316d32aab13e22
   unpack "$RAW/olimpic/synthetic.tar.gz" "$RAW/olimpic" olimpic-1.0-synthetic
@@ -69,6 +77,12 @@ if [ ! -d "$RAW/olimpic/grandstaff-lmx" ]; then
   tar xzf "$RAW/olimpic/grandstaff.tgz" -C "$RAW/olimpic/.grandstaff/grandstaff-lmx" 2>/dev/null
   mv "$RAW/olimpic/.grandstaff/grandstaff-lmx" "$RAW/olimpic/grandstaff-lmx"
   rm -rf "$RAW/olimpic/.grandstaff" "$RAW/olimpic/grandstaff-lmx.tar.gz" "$RAW/olimpic/grandstaff.tgz"
+fi
+
+if [ ! -d "$RAW/musicorpus/musicorpus_v1.0" ]; then
+  download "$MUSICORPUS" "$RAW/musicorpus/musicorpus_v1.0.zip" 413a500ec1b61184fbb1938aa1244117
+  unpack "$RAW/musicorpus/musicorpus_v1.0.zip" "$RAW/musicorpus" musicorpus_v1.0
+  rm "$RAW/musicorpus/musicorpus_v1.0.zip"
 fi
 
 (cd "$ROOT/train" && "$SMASHCIMA_PY" install_smashcima_assets.py)
