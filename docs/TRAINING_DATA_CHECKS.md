@@ -59,6 +59,16 @@ and before a training run.
 | Stemless notes (`stem:none`) | Drawn as labelled | Drawn as labelled (a beam may float) | |
 | Text-font ottava signs, old-style quarter rests, small naturals | Verovio styles only; drawn as labelled | Not used | |
 
+Smashcima crops (`train/build_smashcima_crops.py`, our fork at `../Smashcima`) draw only what
+the fork knows: notes, rests, accidentals, dots, clefs and clef changes, key and time signatures
+(C and cut C too), ties, slurs (both drawn to the system edge when open there), triplet 3s,
+staccato, accent, tenuto, single, double, final and repeat barlines, brace. The builder strips
+grace notes, fermatas, arpeggios, ornaments, strong accents, ottava signs and non-triplet
+tuplet numbers (hidden in the label then), and leaves out a system with 32nd notes or shorter,
+breves, hidden rests, double flats or stemless notes (`UNDRAWN_TOKENS`). A mark added to the
+labels must be drawn by the fork or added to one of those lists. Writers draw quarter rests in
+many shapes, some like a 3: not a mismatch, but look twice at tuplet sheets.
+
 Sources to look at when adding a set: OLiMPiC synthetic and GrandStaff come as images, so a
 mismatch there cannot be re-rendered, only left out. Neither has octave clefs (checked
 2026-11-09).
@@ -73,3 +83,6 @@ copyright and other text, glissando lines.
   crops), octave clefs (about 2% of crops in every PDMX set). Re-rendered: 3,482 + 516 MuseScore
   scores, 1,500 Verovio score folders. Old crops in `data/seq514_data/musescore_ottava_before_fix`
   and `data/seq514_data/before_clef_tuplet_fix`. Left: open ties and slurs.
+- 2026-11-10, Smashcima crops (sample of 671, `--limit 450 --systems-per-score 2`). Checked:
+  tuplet 3s, accents, repeats (heavy barlines were drawn the height of a whole system: fixed,
+  scaled to one staff), double barlines. Not yet: every other rare token, before a run uses them.

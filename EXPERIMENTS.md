@@ -1709,3 +1709,63 @@ Conclusions:
 
 Next, by size: handwritten training data for the sequence model; then whatever of the triplet
 misses seq515 leaves; then 087 and 083's ottava extents.
+
+## Smashcima fork: handwritten crops for the sequence model (2026-11-10)
+
+Smashcima (OMR-Research, Apache-2.0) draws MusicXML with MUSCIMA++ writers' symbols. Forked to
+`ErikGoldman/Smashcima`, branch `noteworthy`, cloned at `../Smashcima` (not pushed). Our builder:
+`train/build_smashcima_crops.py`, run in `.venv-smashcima` (project requirements plus the fork,
+OpenCV 5; the fork's asset install needs OpenCV 4 contrib, done once into `data/raw/smashcima`).
+
+Speed. A system took about 4 s, 76% of it a pure-Python Dijkstra seam in the paper quilter.
+Replaced by the equivalent dynamic-programming seam (same least cost, checked against the old
+code on random errors). The seam error was also computed on uint8 arrays (it wrapped around) and
+patches came from the unseeded global numpy generator. With a page sized to the system: 0.55 s a
+system, about 4 systems/s on 4 workers.
+
+What it drew before, and now. Upstream draws noteheads, stems, beams, flags, rests, accidentals,
+dots, clefs and plain barlines only: no key or time signature (so a label's key disagreed with
+every image), no tie, slur, tuplet number, articulation, final, double or repeat barline, clef
+change or brace. All of these are now drawn, from MUSCIMA++ samples where it has them (ties,
+slurs, triplet 3s, accents, tenutos, heavy barlines, repeat dots, 0s and 1s, newly extracted);
+9s are half-turned 6s, cut-C a C with a stroke, small clefs scaled clefs. Ties and slurs are the
+sample nearest the target's shape, stretched and sheared between the notes, the pen width put
+back; ones open at a system edge run to the edge (as a print's half arc). Barlines are scaled to
+one staff (MUSCIMA++ heavy barlines can span the system). Loader fixes: a second `<attributes>`
+at one onset replaced the first; double sharps and flats crashed it.
+
+Labels. The builder strips what Smashcima still does not draw and the music can go without
+(grace notes, fermatas, arpeggios, ornaments, strong accents, ottava signs, non-triplet tuplet
+numbers, hidden then in the label) and leaves out a system with a token it cannot draw (32nd and
+shorter, breves, hidden rests, double flats, stemless notes). On 400 PDMX systems, 4 failed to
+draw (1%), all among those left out.
+
+Held-out writers. Glyphs from MUSCIMA++ v2's two test sets (our handwritten dev and test pages,
+40 pages) are not extracted: 43 writers remain (asset version 2).
+
+Stem positions, after Shatri, Mayer and Hajič, "Data-Driven Glyph Positioning for Handwritten
+Music Synthesis" (arXiv 2610.28899; no code or model released, none on Hugging Face). Their GNN
+takes every glyph's position as input, the stem's own too, so it cannot run before the stem is
+drawn; their synthesizer used hand-derived means instead. Their "stem length 3.8 mm" is a
+bbox-centre offset, about half a stem: as a length it would halve stems. Here
+(`train/stem_positions.py`) each chord is a node with only what Smashcima knows before drawing
+stems (notehead staff positions, stem direction, beams or flags, beam group, place on the staff),
+edges to its neighbours and its beam group; a 4-layer relational GraphSAGE (128 wide) predicts
+the length from the notehead nearest the tip to the tip. 14,832 stems from the training pages,
+5 folds by writer:
+
+| Stem tip error on unseen writers (RMSE, mm) | All | Single | Beamed |
+|---|---|---|---|
+| Smashcima, constant 5 mm | 2.93 | 2.26 | 3.30 |
+| Global mean | 2.19 | 1.86 | 2.38 |
+| Means per direction, beamed, beam count (the paper's kind) | 1.97 | 1.51 | 2.22 |
+| GNN | 1.46 | 1.34 | 1.54 |
+
+Real stems are 6.2-7.6 mm by this measure, longer than Smashcima's 5 mm. The fork runs the network
+in numpy (matches torch to 1e-6) and adds a draw from its held-out error spread (1.37 mm).
+Beamed stems are then refitted to the beam line as before. Not yet modelled: beam slope, flag
+and dot offsets (the paper finds no gain on dots and accidentals), spacing between notes.
+
+Not yet done: a training run with these crops; their share is meant to be 5-10% (about 19,000
+crops at one per score against seq514's 269,000). Crop checks (docs/TRAINING_DATA_CHECKS.md)
+done on a 671-crop sample for tuplets, accents, repeats and double barlines.

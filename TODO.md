@@ -164,8 +164,12 @@ unlocked scores, then 6-10.
   checked on 5 PDMX scores. In the run started 2026-11-07 (seq513).
 - Double and final barlines: gold has them (69 edits on dev, Print), our labels have no token for
   them (only repeat:start/end). Add `barline:double` / `barline:final` like repeats.py. Next run.
-- Handwriting: no sequence model has any. Needs MUSCIMA++ as LMX; Smashcima drew no key signature
-  on a 5-sharp system, is slow, and must exclude the test writers.
+- Handwriting: no sequence model has any. Smashcima fork now draws keys, times, ties, slurs,
+  triplets, articulations and barline styles, 0.55 s a system, test writers excluded
+  (EXPERIMENTS.md, "Smashcima fork"). Next: build about 19,000 crops
+  (train/build_smashcima_crops.py --systems-per-score 1), finish the by-eye checks for every
+  rare token, add to the next run at 5-10%. Later: beam slope and spacing from data; historical
+  hands from OmniOMR 1.0 (MusiCorpus; check licence and splits first).
 
 ## Held for the user
 
