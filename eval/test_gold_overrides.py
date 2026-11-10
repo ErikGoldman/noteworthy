@@ -52,6 +52,18 @@ class LineLocalOps(unittest.TestCase):
                                 override(6, slur={"column": 1, "marks": "("})])
         self.assertEqual(text.split("\n")[3:5], ["4C\t4cc", "4E\t8ccL("])
 
+    def test_tuplet_numbers_hidden_then_shown_again(self):
+        text = corrected(PAGE, [override(4, tuplet_numbers="hidden"), override(8, tuplet_numbers="shown")])
+        self.assertEqual(line(text, 4), "*Xtuplet\t*Xtuplet")
+        self.assertEqual(line(text, 5), "4C\t16qqccL")
+        self.assertEqual(line(text, 9), "*tuplet\t*tuplet")
+        self.assertEqual(line(text, 10), "=2\t=2")
+
+    def test_tuplet_numbers_go_before_an_edit_of_the_same_line(self):
+        text = corrected(PAGE, [override(4, tuplet_numbers="hidden"), override(4, slur={"column": 1, "marks": "("})])
+        self.assertEqual(line(text, 4), "*Xtuplet\t*Xtuplet")
+        self.assertEqual(line(text, 5), "4C\t16qqccL(")
+
     def test_no_overrides_leaves_the_page_alone(self):
         self.assertEqual(corrected(PAGE, []), PAGE)
 

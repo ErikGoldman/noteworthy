@@ -11,7 +11,7 @@ from lxml import etree
 
 from build_musescore_crops import (STYLE_VARIANTS, ExpectedDrawing, SystemOnPage, barlines_drawn, batches,
                                    closes_with_own_barline, engraving_style, ink_crop, staff_lines, staves, style_variant,
-                                   system_on_page, with_spare_measure)
+                                   system_on_page, with_label_ottavas, with_spare_measure)
 
 INTERLINE = 25.0
 UPPER_TOP, LOWER_TOP = 600.0, 860.0
@@ -140,6 +140,34 @@ class SpareMeasure(unittest.TestCase):
 
 
 OPENING_REPEAT = '<measure><barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline><note/></measure>'
+
+
+def note(octave: int) -> str:
+    return (f"<note><pitch><step>C</step><octave>{octave}</octave></pitch><duration>1</duration>"
+            "<voice>1</voice><type>quarter</type><staff>1</staff></note>")
+
+
+class Ottavas(unittest.TestCase):
+    def test_a_sign_running_into_the_next_system_is_closed_within_this_one(self):
+        start = ('<direction placement="above"><direction-type><octave-shift type="down" size="8"/>'
+                 '</direction-type><staff>1</staff></direction>')
+        part = ET.fromstring(f"<part><measure>{note(5)}{start}{note(6)}</measure><measure>{note(6)}</measure></part>")
+        self.assertTrue(with_label_ottavas(part, "measure C5 quarter C5 ottava:8va quarter measure C5 ottava:8va quarter"))
+        self.assertEqual([s.get("type") for s in part.iter("octave-shift")], ["down", "stop"])
+        last = part.findall("measure")[-1]
+        self.assertEqual([e.tag for e in last], ["note", "direction"])
+
+    def test_signs_follow_the_label_not_the_source(self):
+        stop = ('<direction><direction-type><octave-shift type="stop" size="8"/></direction-type>'
+                '<direction-type><words>dolce</words></direction-type><staff>1</staff></direction>')
+        part = ET.fromstring(f"<part><measure>{stop}{note(5)}</measure></part>")
+        self.assertTrue(with_label_ottavas(part, "measure C5 quarter"))
+        self.assertIsNone(next(part.iter("octave-shift"), None))
+        self.assertIsNotNone(next(part.iter("words"), None))
+
+    def test_a_label_the_notes_do_not_match_is_refused(self):
+        part = ET.fromstring(f"<part><measure>{note(6)}</measure></part>")
+        self.assertFalse(with_label_ottavas(part, "measure C5 ottava:8va quarter C5 ottava:8va quarter"))
 
 
 class BarlinesDrawn(unittest.TestCase):

@@ -37,6 +37,9 @@ and one of:
                omr_ned.py --ambiguous-marks
   slur         {"column": n, "marks": "(" or ")" or ")("}: a slur the print draws starts or ends
                (or both) at the note at `line` in that column
+  tuplet_numbers "hidden" or "shown": from `line` on, the print draws tuplet numbers or does not
+               (kern's *Xtuplet and *tuplet before that line); gold says nothing of it, so the
+               scorer otherwise takes every number as shown
   replace      {"last_line": n, "lines": [...]}: lines `line` to `last_line` become these, a
                passage transcribed afresh from the print where gold is wrong beyond a local fix
 Gold's own text is not repeated here: the dataset's licence is a placeholder, not a grant.
@@ -311,6 +314,14 @@ def with_accidental_shown(note: str) -> str:
     return note[:found.end()] + "X" + note[found.end():]
 
 
+TUPLET_NUMBERS = {"hidden": "*Xtuplet", "shown": "*tuplet"}
+
+
+def tuplet_numbers_line(before: str, display: str) -> str:
+    """An interpretation for every spine of the line it goes before."""
+    return "\t".join([TUPLET_NUMBERS[display]] * len(before.split("\t")))
+
+
 def with_graces_slashed(line: str, column: int) -> str:
     """The line with that field's grace notes slashed: kern's `qq` is an unslashed grace, `q` a slashed one."""
     fields = line.split("\t")
@@ -341,13 +352,20 @@ def one_slur_per_chord(text: str) -> str:
                      for line in text.split("\n"))
 
 
+def order_on_page(override: dict) -> tuple[int, int]:
+    return override["line"], 0 if "tuplet_numbers" in override else 2 if "articulate" in override else 1
+
+
 def corrected(text: str, overrides: list[dict]) -> str:
     lines = text.split("\n")
     # From the bottom up, so that earlier line numbers still mean the unchanged page. On one
-    # line, articulations come first: a move opens its range by inserting a line there.
-    for override in sorted(overrides, key=lambda o: (o["line"], "articulate" in o), reverse=True):
+    # line, articulations come first: a move opens its range by inserting a line there; and a
+    # tuplet-number line, inserted before the line, last, after every edit of the line itself.
+    for override in sorted(overrides, key=order_on_page, reverse=True):
         first = override["line"] - 1
-        if "articulate" in override:
+        if "tuplet_numbers" in override:
+            lines.insert(first, tuplet_numbers_line(lines[first], override["tuplet_numbers"]))
+        elif "articulate" in override:
             mark = override["articulate"]
             lines[first] = with_marks(lines[first], mark["column"], mark["mark"] + (AMBIGUOUS_SIGNIFIER if mark.get("ambiguous") else ""))
         elif "slur" in override:

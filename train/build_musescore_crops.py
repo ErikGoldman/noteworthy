@@ -57,6 +57,7 @@ from build_seq_dataset import (DATA, INTERLINE_PX, MARGIN_INTERLINES, MAX_TOKENS
                                load_musicxml, part_to_score, piano_part, split_part_to_systems)
 from omr.pieces import pdmx_license_conflicts  # noqa: E402
 from seq.barlines import REPEAT_START, barline_tokens_of  # noqa: E402
+from seq.ottava import add_octave_shifts, shifts_of  # noqa: E402
 
 MIN_TOKENS = 10
 NICENESS = 10
@@ -145,13 +146,34 @@ def with_spare_measure(part: ET.Element) -> None:
     ET.SubElement(part, "measure", number="spare")
 
 
+def without_octave_shifts(part: ET.Element) -> None:
+    for measure in part.findall("measure"):
+        for direction in measure.findall("direction"):
+            for kind in direction.findall("direction-type"):
+                if kind.find("octave-shift") is not None:
+                    direction.remove(kind)
+            if direction.find("direction-type") is None:
+                measure.remove(direction)
+
+
+def with_label_ottavas(part: ET.Element, lmx: str) -> bool:
+    """Redraws the system's ottava signs as its label gives them, each closed within the system;
+    False if they cannot be. A sign that runs on into the next system has no stop here, and
+    MuseScore drops an unclosed sign, drawing its notes where they sound: the label would then
+    give an ottava, at printed pitches, that the image does not show."""
+    shifts = shifts_of(lmx)
+    without_octave_shifts(part)
+    add_octave_shifts(part, shifts)
+    return not any(shifts) or next(part.iter("octave-shift"), None) is not None
+
+
 def labelled_system(part: ET.Element, name: str, rng: random.Random) -> LabelledSystem | None:
     """The system's label and its score for MuseScore, or None if its label is out of bounds."""
     draw_some_meters_as_symbols(part, rng)
     if has_tuplets(part) and rng.random() < TUPLET_NUMBERS_HIDDEN:
         hide_tuplet_numbers(part, rng)
     lmx = linearize(part)
-    if not MIN_TOKENS <= len(lmx.split()) <= MAX_TOKENS:
+    if not MIN_TOKENS <= len(lmx.split()) <= MAX_TOKENS or not with_label_ottavas(part, lmx):
         return None
     score = part_to_score(part).getroot()
     if rng.random() < PART_NAME_HIDDEN:

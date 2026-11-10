@@ -1621,3 +1621,30 @@ seq513 reads its own synthetic ottavas perfectly (60 training crops with signs: 
   seq513 reads a token on 41 crops, 460 tokens, false on 2 of 400; seq512 29 crops, 363 tokens, 1 of 400.
   seq513's ottava training works on real scans in general; 023's type and 110's weak read are the
   exceptions. This is the check to run on seq514 (scratchpad olimpic_ottavas.py).
+
+## seq514 (2026-11-09)
+
+Trained 192k steps on seq513's data plus MuseScore crops (53,854), relabelled GrandStaff
+(barlines, time symbols) and the seq514 styles; averaged weights (decay 0.9995). Paused once at
+140k for the user's GPU use and resumed from last.pt. Scored: `runs/seq514/average_192000.pt`,
+the final step's averaged weights (written from last.pt: snapshots were kept only at multiples
+of 10,000; fixed in train_seq.py).
+
+- OLiMPiC scanned dev: SER 7.37% (seq513 best 8.79%); note F1 of best.pt 0.943 against 0.934.
+  Token edits 27,849 against 33,221; tuplets missed 4,022 against 6,113, durations 4,844 against
+  6,118, pitch 3,331 against 3,744. Ottavas read in 43 of 56 crops (seq513 last 39, seq512 29), no
+  false sign in 400, but 546 tokens against 510 gold. Old-style quarter rests and 16th-for-32nd
+  fixed; quarter-for-half up (152 against 110).
+- Polish dev (49 pages, whole-page / authors'), against seq513 last.pt, same page code:
+  Print (now with D) 7.73 / 8.39 against 7.68 / 8.58; Corrected 12.00 / 12.58 against
+  11.92 / 12.38. No difference significant. Gains: 023 (-14 Corrected, ottava read), 110, 083,
+  091, 059, 064. Losses: 012 and 105 (octave misread, below), 096 (dense voices), 017.
+- Page output crashed on 065 (a grace eighth read into a 16th's beam); fixed in lmx_tuplets.
+  The fix changes seq513's 077 and 079 (+0.009 Print): comparisons use pages rebuilt with it.
+- D, Print gold for unprinted tuplet numbers, by page image: no number anywhere on 003, 037, 056,
+  077, 088; mixed on 096 (bars 1-13 and 16 hidden), 110 (6-7, 23-27), 060 (31), 095 (1, 3, 13-15);
+  printed on 010, 017, 042, 065, 076, 081, 087, 108. On 065 seq514 wrongly hid 5.
+- Cause of the octave misreads: MuseScore crops with a sign that runs on into the next system
+  (TODO, "MuseScore crops drew no ottava sign"). seq514 at both crop heights reads 012's low
+  treble notes an octave up, the F#4 in the bottom space as F#5 on the top line: the octave is
+  not read from the staff position.

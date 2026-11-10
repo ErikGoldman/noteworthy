@@ -112,8 +112,24 @@ unlocked scores, then 6-10.
     in the mix (6% of PDMX crops, 24% of GrandStaff's).
   - Training keeps a moving average of the weights (decay 0.9995): dev SER, best.pt and
     average_<step>.pt every 10,000 steps hold the averaged weights; last.pt holds both.
-  - Still to do for seq514's scoring: D, Print gold marking unprinted tuplet numbers (image per
-    page), and the publication note on B (see Decided 2026-11-08).
+  - D done 2026-11-09: `tuplet_numbers` override (kern's `*Xtuplet` / `*tuplet`), 20 entries on 9
+    dev pages, each from the image (EXPERIMENTS.md, "seq514"). Left for the user: 022 bar 21, 055
+    bars 10, 17, 19 (too faint at 1050 px). Publication note on B still to write.
+
+- **MuseScore crops drew no ottava sign where one runs into the next system (fixed 2026-11-09,
+  re-rendered, not yet trained).** MuseScore drops an unclosed `<octave-shift>` and draws the
+  notes where they sound, while the label gives printed pitches with ottava tokens: 728 of 53,854
+  crops, 516 scores. seq514 learned an octave that does not follow the notehead (Polish 012 bars
+  6-8, 105 bar 1: no sign, an octave high) and signs where none is drawn (043; 546 tokens against
+  510 on OLiMPiC scans). `with_label_ottavas` now redraws each system's signs from its label,
+  each closed within the system. The crops from before the fix are in
+  `data/seq514_data/musescore_ottava_before_fix`. Lesson: a renderer check by SER (3.7% on 150
+  crops) does not see a 1.4% class; check each rare token's crops by eye.
+- seq514's quarter-read-as-half on OLiMPiC scans (152 aligned notes against seq513's 110) sits in
+  a few crops (6010916/p2-s4, 6499366/p2-s2, 6189628/p2-s4): chords under a slur with a flagged
+  eighth after; no cause found yet.
+- 096 is still 8.5 worse on Print after D: dense voices, seq514 drops voice-2 rests and writes a
+  voice twice in bars 11-12; not investigated further.
 
 - Ottava signs: `8` alone, dotted lines, 8va above the lower staff are now in `build_seq_dataset.py
   --marks` (data/seq3/marks); tested by fine-tune q512: fixes 110, not 023 (see EXPERIMENTS.md). Long plain
