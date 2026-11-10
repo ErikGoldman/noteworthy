@@ -3031,3 +3031,5 @@
 {"page": "095", "line": 109, "source": "215d99598340d6fbd98f595cea7ad677ccc29c2a70a24c3ec26f69f2b8c64bb4", "tuplet_numbers": "hidden", "reason": "bars 13-15: sextuplet 16ths with no number printed", "standard": "print"}
 {"page": "095", "line": 151, "source": "215d99598340d6fbd98f595cea7ad677ccc29c2a70a24c3ec26f69f2b8c64bb4", "tuplet_numbers": "shown", "reason": "bar 16 on", "standard": "print"}
 {"page": "055", "line": 5, "source": "263508b83ad21553bae6423299d4b3f21195c9c34dfc6364002ef0eaefc1db8e", "tuplet_numbers": "hidden", "reason": "no tuplet number printed on the page (checked by the user)", "standard": "print"}
+{"page": "022", "line": 149, "source": "c763dde093d360ee714873ed11caba24acdbc9ec2a4ecf3d314d87d28cd9356b", "tuplet_numbers": "hidden", "reason": "bar 21: two triplet eighth groups with no number printed (checked by the user)", "standard": "print"}
+{"page": "022", "line": 159, "source": "c763dde093d360ee714873ed11caba24acdbc9ec2a4ecf3d314d87d28cd9356b", "tuplet_numbers": "shown", "reason": "bar 22 on", "standard": "print"}

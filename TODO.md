@@ -114,9 +114,8 @@ unlocked scores, then 6-10.
     average_<step>.pt every 10,000 steps hold the averaged weights; last.pt holds both.
   - D done 2026-11-09: `tuplet_numbers` override (kern's `*Xtuplet` / `*tuplet`), 20 entries on 9
     dev pages, each from the image (EXPERIMENTS.md, "seq514"); 055 added (user: no number on the page).
-    Open: 022 bar 21 has no printed number, but gold's six triplet eighths after a tied quarter
-    may be the eight 16ths of the last system's first bar; 055 bar 10 has the same gold text (same
-    piece). Asked the user. Publication note on B still to write.
+    022 bar 21 added (user: two unmarked triplet groups after a tied quarter). Every dev page
+    with gold tuplets is now checked. Publication note on B still to write.
 
 - **MuseScore crops drew no ottava sign where one runs into the next system (fixed 2026-11-09,
   re-rendered, not yet trained).** MuseScore drops an unclosed `<octave-shift>` and draws the
