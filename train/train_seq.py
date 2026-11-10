@@ -194,7 +194,7 @@ def main() -> None:
                 if dev_ser < best:
                     best = dev_ser
                     torch.save(scored, args.out / "best.pt")
-                if step % SNAPSHOT_EVERY == 0:
+                if step % SNAPSHOT_EVERY == 0 or step == args.steps:
                     torch.save(scored, args.out / f"average_{step:06d}.pt")
             if step >= args.steps:
                 break

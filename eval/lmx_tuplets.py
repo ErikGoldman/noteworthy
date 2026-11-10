@@ -288,7 +288,9 @@ def overbeamed_group(voice: Voice, tokens: list[str], bar: Fraction) -> list[Not
 
 def doubling_fills(notes: list[Note], tokens: list[str], missing: Fraction) -> bool:
     timed = [n for n in notes if n.advances]
-    names = {tokens[n.duration_at] for n in timed}
+    # Every note, graces and chord members too, as every one is redrawn: a grace eighth read
+    # into a 16th's beam (Polish 065, seq514) has no beam to lose.
+    names = {tokens[n.duration_at] for n in notes}
     undotted = all(tokens[n.duration_at + 1] != "dot" for n in notes if n.duration_at + 1 < len(tokens))
     alike = len({tokens[n.tuplet_at] if n.marked else None for n in notes}) == 1
     return len(names) == 1 and names <= ONE_BEAM_FEWER.keys() and undotted and alike \

@@ -81,6 +81,11 @@ class ExtraBeams(unittest.TestCase):
         lmx = measure(beamed(["C5", "D5", "E5", "F5"], "32nd"), "G5 quarter", "A5 quarter")
         self.assertIn("16th", extra_beams_dropped(lmx, THREE_FOUR))
 
+    def test_a_grace_eighth_read_into_a_16ths_beam_leaves_it_alone(self):
+        # Polish 065 (seq514): every note in the group would lose a beam, and the grace has none to lose
+        lmx = measure("grace:slash A4 eighth beam:begin G4 16th beam:end beam:backward-hook",
+                      "B4 half", "C5 eighth")
+        self.assertEqual(extra_beams_dropped(lmx, THREE_FOUR), lmx)
 
 
 class Dots(unittest.TestCase):
