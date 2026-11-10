@@ -29,7 +29,9 @@ uv pip install -q --python "$PY" -r "$ROOT/requirements.txt"
 git -C "$ROOT" submodule update --init third_party/smashcima
 [ -x "$SMASHCIMA_PY" ] || uv venv "$ROOT/.venv-smashcima" --python 3.12 -q
 # Synced to the lock, not installed into: an OpenCV build left from an earlier install would
-# otherwise stay and could hide the contrib one (requirements-smashcima.overrides.txt).
-uv pip sync -q --python "$SMASHCIMA_PY" "$ROOT/requirements-smashcima.lock.txt"
+# otherwise stay and could hide the contrib one (requirements-smashcima.overrides.txt). All three
+# share cv2's files, so removing a stray one takes the contrib build's files with it: reinstalled.
+uv pip sync -q --python "$SMASHCIMA_PY" --reinstall-package opencv-contrib-python-headless \
+  "$ROOT/requirements-smashcima.lock.txt"
 uv pip install -q --python "$SMASHCIMA_PY" --no-deps -e "$ROOT/third_party/smashcima"
 log "python environments ready"
