@@ -1713,7 +1713,7 @@ misses seq515 leaves; then 087 and 083's ottava extents.
 ## Smashcima fork: handwritten crops for the sequence model (2026-11-10)
 
 Smashcima (OMR-Research, Apache-2.0) draws MusicXML with MUSCIMA++ writers' symbols. Forked to
-`ErikGoldman/Smashcima`, branch `noteworthy`, cloned at `../Smashcima` (not pushed). Our builder:
+`ErikGoldman/Smashcima`, branch `noteworthy`, cloned at `../Smashcima` (pushed). Our builder:
 `train/build_smashcima_crops.py`, run in `.venv-smashcima` (project requirements plus the fork,
 OpenCV 5; the fork's asset install needs OpenCV 4 contrib, done once into `data/raw/smashcima`).
 
@@ -1737,8 +1737,38 @@ at one onset replaced the first; double sharps and flats crashed it.
 Labels. The builder strips what Smashcima still does not draw and the music can go without
 (grace notes, fermatas, arpeggios, ornaments, strong accents, ottava signs, non-triplet tuplet
 numbers, hidden then in the label) and leaves out a system with a token it cannot draw (32nd and
-shorter, breves, hidden rests, double flats, stemless notes). On 400 PDMX systems, 4 failed to
-draw (1%), all among those left out.
+shorter, breves, double flats, stemless notes), a hidden pitched note, or a measure drawing
+nothing. Hidden rests are drawn as nothing, as in a print (the fork reads them as `<forward>`).
+
+Failures, on 600 PDMX scores through the builder (946 systems): 44 failed to draw (4.6%), not the
+1% first measured on hand-cut systems. 40 were the page-edge check: the crop's random margin ran
+past a 3 mm side padding, and some writers' braces reach 8.3 mm left of the staves (the left edge
+was not checked, so braces were cut). Now 12 mm for the brace plus the widest margin, every edge
+checked. The other 4 were fork bugs, fixed: a whole-measure rest without a time signature took 4
+beats, not its own `<duration>`; a unison of up- and down-stem voices next to a second lost the
+side for one stem; a measure of only `<forward>` had no event for its signatures. After, on a
+fresh sample (700 scores, 1,111 systems, after the units fix below): 11 failed to draw (1.0%),
+all left out rightly: 5 reach past the padding (chords on 6+ ledger lines, a few very dense
+systems), 4 give a key for staff 1 only (the label has one key for both), 1 has display-octave
+39, 1 a beam open at the system's end.
+
+Crops cut short (found by eye, 2026-11-10). Upstream Smashcima put 24.4 mm in an inch
+(`geometry/units.py`), so it rendered 4.1% more pixels per millimetre than the builder assumed:
+every crop lost up to 4% of its width at the right (12 mm of a 300 mm system), the last notes
+and barline of labels that still held them. Every Smashcima crop before this fix is wrong;
+none was used in training. Fixed in the fork (25.4; glyph assets re-extracted as version 3, as
+they store millimetres), the builder converts with Smashcima's own units, and the page layout
+constants are the old layout in true millimetres. The stem model was trained in true
+millimetres, so its stems were 4% long before; now as measured.
+
+Curves. A few slurs were drawn as thick blocks: a tiny sample (17 x 5 px) enlarged 6 times, its
+stroke with it. Now the sample is picked by size as well as shape, enlarging interpolates, and a
+stroke grown thick is thinned back to the sample's pen width. What is left out, on 5,867 systems of 600 scores: 13% held an undrawn token
+(7.3% hidden rests, now drawn; 4.5% 32nd notes or shorter, which MUSCIMA++ has no flags or rests
+for; breves 1.2%, double flats 0.9%), but only 6 of 467 scores had no drawable system. Accepted:
+fast passages are under-represented within scores, not scores themselves. Every build writes
+`outcomes.json` (what became of each system) and `manifest.json` (both commits, uncommitted
+changes, the score list's hash, options); a restart with other code stops.
 
 Held-out writers. Glyphs from MUSCIMA++ v2's two test sets (our handwritten dev and test pages,
 40 pages) are not extracted: 43 writers remain (asset version 2).
@@ -1762,8 +1792,12 @@ the length from the notehead nearest the tip to the tip. 14,832 stems from the t
 | GNN | 1.46 | 1.34 | 1.54 |
 
 Real stems are 6.2-7.6 mm by this measure, longer than Smashcima's 5 mm. The fork runs the network
-in numpy (matches torch to 1e-6) and adds a draw from its held-out error spread (1.37 mm).
-Beamed stems are then refitted to the beam line as before. Not yet modelled: beam slope, flag
+in numpy (matches torch to 2e-6; the feature scale is exported with the weights) and adds noise
+in the parts the held-out errors (1.37 mm) split into: a writer's habit, 0.66 mm, drawn once per
+system; then a lone stem's own, 1.09 mm, or for beamed stems a beam group's, 0.89 mm, and each
+stem's within it, 0.91 mm (one-way random effects). Independent noise per stem had tilted beams
+at random and, since the beam is placed so as only to lengthen stems, made beamed stems too
+long. Beamed stems are then refitted to the beam line as before. Not yet modelled: beam slope, flag
 and dot offsets (the paper finds no gain on dots and accidentals), spacing between notes.
 
 Not yet done: a training run with these crops; their share is meant to be 5-10% (about 19,000

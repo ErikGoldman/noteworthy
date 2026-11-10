@@ -36,10 +36,12 @@ NOTEHEADS = {"noteheadFull", "noteheadHalf"}
 FLAGS = {"flag8thUp", "flag8thDown", "flag16thUp", "flag16thDown", "flag32ndUp", "flag32ndDown"}
 
 FEATURES = ["top_position", "bottom_position", "noteheads", "stem_up", "filled", "beams", "flags",
-            "beamed", "group_size", "group_index", "x_mm"]
+            "beamed", "group_size", "group_index", "gap_mm"]
 """Per chord, in this order. Positions in staff steps from the middle line (up positive);
-group_index runs 0 to 1 along a beam group; x_mm from the staff's left end, only to order and
-space neighbours."""
+group_index runs 0 to 1 along a beam group; gap_mm from the previous chord on the staff (0 for
+the first)."""
+FEATURE_SCALE = np.array([8, 8, 1, 1, 1, 1, 1, 1, 8, 1, 10], dtype=np.float32)
+"Divides each feature to about unit range; exported with the weights, so the fork scales alike"
 TARGETS = ["length_mm", "dx_mm"]
 SEQUENCE, BEAM_GROUP = 0, 1
 EDGE_TYPES = 2
@@ -52,6 +54,7 @@ class Staff:
     features: np.ndarray  # chords x FEATURES
     targets: np.ndarray   # chords x TARGETS
     edges: list[tuple[int, int, int]]  # (source, target, type), both directions
+    groups: list[int]     # beam group per chord; an unbeamed chord is alone in its own
 
 
 def centre(node) -> tuple[float, float]:
@@ -102,7 +105,7 @@ def page_staves(page: Page) -> list[Staff]:
             stem=stem_id, beams=beams, x=tip_x,
             features=[max(positions), min(positions), len(heads), float(stem_up),
                       float(any(h.class_name == "noteheadFull" for h, _ in heads)), len(beams), flags,
-                      float(len(beams) > 0), 1.0, 0.0, (tip_x - staff.left) * MM_PER_PX],
+                      float(len(beams) > 0), 1.0, 0.0, 0.0],
             targets=[abs(tip_y - tip) * MM_PER_PX, (centre(stem)[0] - tip_x) * MM_PER_PX]))
     return [staff_of(page.writer, chords) for chords in chords_by_staff.values() if len(chords) > 0]
 
@@ -129,6 +132,8 @@ def staff_of(writer: int, chords: list[dict]) -> Staff:
     for i, g in enumerate(groups):
         members[g].append(i)
     features = np.array([c["features"] for c in chords], dtype=np.float32)
+    x_mm = np.array([c["x"] for c in chords]) * MM_PER_PX
+    features[:, FEATURES.index("gap_mm")] = np.diff(x_mm, prepend=x_mm[:1])
     for g, indices in members.items():
         if len(indices) > 1 and features[indices[0], FEATURES.index("beamed")]:
             for k, i in enumerate(indices):
@@ -139,7 +144,8 @@ def staff_of(writer: int, chords: list[dict]) -> Staff:
         edges += [(i, i + 1, SEQUENCE), (i + 1, i, SEQUENCE)]
     for indices in members.values():
         edges += [(i, j, BEAM_GROUP) for i in indices for j in indices if i != j]
-    return Staff(writer, features, np.array([c["targets"] for c in chords], dtype=np.float32), edges)
+    return Staff(writer, features, np.array([c["targets"] for c in chords], dtype=np.float32), edges,
+                 groups)
 
 
 def all_staves() -> list[Staff]:
@@ -149,13 +155,7 @@ def all_staves() -> list[Staff]:
 # ---- models ------------------------------------------------------------------------------------
 
 def normalised(features: np.ndarray) -> np.ndarray:
-    """Features scaled to about unit range; x as the gap to the previous chord"""
-    f = features.copy()
-    x = f[:, FEATURES.index("x_mm")]
-    f[:, FEATURES.index("x_mm")] = np.diff(x, prepend=x[:1]) / 10.0
-    f[:, :2] /= 8.0
-    f[:, FEATURES.index("group_size")] /= 8.0
-    return f
+    return features / FEATURE_SCALE
 
 
 class StemGNN(nn.Module):
@@ -266,36 +266,60 @@ def evaluate(folds: int = 5) -> None:
               f"{rmse(tip[~beamed]):7.2f} {rmse(tip[beamed]):7.2f}")
 
 
-def residual_spread(model: StemGNN, staves: list[Staff]) -> np.ndarray:
-    with torch.no_grad():
-        x, y, edges = batched(staves)
-        return (model(x, edges) - y).std(0).numpy()
+def variance_components(values: np.ndarray, keys: list) -> tuple[float, float]:
+    """(between, within) standard deviations of values grouped by key: one-way random effects,
+    the between part net of the within part's share in each group mean"""
+    groups = defaultdict(list)
+    for v, k in zip(values, keys):
+        groups[k].append(v)
+    groups = [np.array(g) for g in groups.values() if len(g) > 1]
+    within_var = sum(((g - g.mean()) ** 2).sum() for g in groups) / sum(len(g) - 1 for g in groups)
+    means = np.array([g.mean() for g in groups])
+    between_var = means.var() - np.mean([within_var / len(g) for g in groups])
+    return float(np.sqrt(max(between_var, 0.0))), float(np.sqrt(within_var))
 
 
-def export(out: Path, held_out_spread: np.ndarray | None = None) -> None:
-    """Weights as plain arrays for the fork's numpy inference, with the residual spread to
-    sample around the prediction (from writer-held-out folds when given)"""
-    staves = all_staves()
-    model = train_gnn(staves)
-    arrays = {name: p.detach().numpy() for name, p in model.state_dict().items()}
-    spread = held_out_spread if held_out_spread is not None else residual_spread(model, staves)
-    np.savez(out, features=np.array(FEATURES), targets=np.array(TARGETS), residual_std=spread, **arrays)
-    print(f"wrote {out} from {len(staves)} staves; residual std {spread}")
-
-
-def held_out_spread(folds: int = 5) -> np.ndarray:
-    """Residual spread of models on writers they did not see: how much to vary a prediction"""
+def length_spread(folds: int = 5) -> dict[str, float]:
+    """How far stem lengths stray from the model's, on writers it did not see, in parts the fork
+    draws separately: a writer's habit, then a lone stem's own, or a beam group's (its stems end
+    on one beam) and each beamed stem's within it"""
     staves = all_staves()
     writers = sorted({s.writer for s in staves})
     random.Random(0).shuffle(writers)
-    residuals = []
+    residuals, writer_keys, group_keys, beamed = [], [], [], []
     for k in range(folds):
         held = set(writers[k::folds])
         model = train_gnn([s for s in staves if s.writer not in held])
-        with torch.no_grad():
-            x, y, edges = batched([s for s in staves if s.writer in held])
-            residuals.append((model(x, edges) - y).numpy())
-    return np.concatenate(residuals).std(0)
+        for index, staff in enumerate(staves):
+            if staff.writer not in held:
+                continue
+            with torch.no_grad():
+                x, y, edges = batched([staff])
+                residuals.append((model(x, edges) - y).numpy()[:, 0])
+            writer_keys += [staff.writer] * len(staff.groups)
+            group_keys += [(index, g) for g in staff.groups]
+            beamed.append(staff.features[:, FEATURES.index("beamed")] > 0)
+    residuals, beamed = np.concatenate(residuals), np.concatenate(beamed)
+    writer_std, _ = variance_components(residuals, writer_keys)
+    writer_means = defaultdict(list)
+    for r, w in zip(residuals, writer_keys):
+        writer_means[w].append(r)
+    own = residuals - np.array([np.mean(writer_means[w]) for w in writer_keys])
+    group_std, inside_group_std = variance_components(own[beamed], [g for g, b in zip(group_keys, beamed) if b])
+    return dict(writer_std=writer_std, single_std=float(own[~beamed].std()),
+                group_std=group_std, inside_group_std=inside_group_std)
+
+
+def export(out: Path) -> None:
+    """Weights as plain arrays for the fork's numpy inference, with the feature scale and the
+    spread of lengths to sample around the prediction (length_spread)"""
+    spread = length_spread()
+    staves = all_staves()
+    model = train_gnn(staves)
+    arrays = {name: p.detach().numpy() for name, p in model.state_dict().items()}
+    np.savez(out, features=np.array(FEATURES), feature_scale=FEATURE_SCALE, targets=np.array(TARGETS),
+             **{f"length_{k}": np.float32(v) for k, v in spread.items()}, **arrays)
+    print(f"wrote {out} from {len(staves)} staves; length spread (mm) {spread}")
 
 
 def main() -> None:
@@ -307,7 +331,7 @@ def main() -> None:
     if args.command == "evaluate":
         evaluate()
     else:
-        export(args.out, held_out_spread())
+        export(args.out)
 
 
 if __name__ == "__main__":

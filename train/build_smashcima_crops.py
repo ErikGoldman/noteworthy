@@ -11,27 +11,35 @@ self-contained by OLiMPiC's split_part_to_systems and labelled by linearize. Bef
 each system loses what Smashcima does not draw and can go without (drawable_system): grace notes,
 ornaments, fermatas, arpeggios, strong accents, ottava signs (its notes then sit where they
 sound, as the label gives them) and the numbers of tuplets other than triplets. A system whose
-label still holds a token Smashcima cannot draw (UNDRAWN_TOKENS: 32nd notes and shorter, breves,
-hidden rests, double flats, stemless notes) is left out.
+label still holds a token Smashcima cannot draw (UNDRAWN_TOKENS: 32nd notes and shorter, which
+MUSCIMA++ has no flags or rests for, breves, double flats, stemless notes), a hidden note other
+than a rest, or a measure with nothing drawn in it is left out. Hidden rests stay: the fork, like
+a print, draws nothing for them.
 
 Each system is drawn on its own page, sized to it, in one MUSCIMA++ writer's hand on a scanned
 paper texture, and resized to a random interline. Glyphs come only from MUSCIMA++ pages outside
 its two test sets, which are our handwritten dev and test pages (the fork leaves them out).
 
 Output: DIR/samples/<index>/s<k>.png + .lmx and DIR/samples.train.txt, read by train_seq.py as
---data DIR:train. A score's directory appears only once complete, so the run may be killed at
-any time and restarted.
+--data DIR:train; DIR/manifest.json, the code and options that drew them; DIR/outcomes.json,
+what became of the systems tried, summed from each score's outcome.json. A score's directory
+appears only once complete, so the run may be killed at any time and restarted, with the same
+code and options (the manifest's).
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import multiprocessing as mp
 import os
 import random
 import shutil
+import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,7 +52,8 @@ from build_seq_dataset import (DATA, INTERLINE_PX, MARGIN_INTERLINES, MAX_TOKENS
                                break_into_systems, draw_some_meters_as_symbols, hide_part_name,
                                is_training_score, linearize, load_musicxml, part_to_score,
                                piano_part, split_part_to_systems, without_octave_clefs)
-from build_musescore_crops import without_octave_shifts, write_sample_list  # noqa: E402
+from build_musescore_crops import (without_octave_shifts, write_atomically,  # noqa: E402
+                                   write_sample_list)
 from omr.pieces import pdmx_license_conflicts  # noqa: E402
 
 MIN_TOKENS = 10
@@ -52,22 +61,29 @@ NICENESS = 10
 
 # Tokens of a label that Smashcima cannot draw: a system holding one is left out.
 UNDRAWN_TOKENS = {"32nd", "64th", "128th", "256th", "512th", "1024th", "breve", "long", "maxima",
-                  "print-object:no", "flat-flat", "stem:none"}
+                  "flat-flat", "stem:none"}
 STRIPPED_NOTATIONS = ("fermata", "arpeggiate", "non-arpeggiate", "ornaments", "technical",
                       "glissando", "slide", "dynamics", "accidental-mark", "other-notation")
 DRAWN_ARTICULATIONS = {"staccato", "accent", "tenuto"}
 
-# Page around one system, in millimetres (MUSCIMA++'s staff space is about 2.4 mm).
-STAFF_HEIGHT_MM = 4 * 2.435
-STAFF_GAP_MM = (9.0, 16.0)
+# Page around one system, in millimetres.
+STAFF_SPACE_MM = 2.435
+"MUSCIMA++'s: 28.75 px at 300 DPI"
+STAFF_HEIGHT_MM = 4 * STAFF_SPACE_MM
+STAFF_GAP_MM = (9.4, 16.6)
 "Between the two staves of the system"
-PAGE_PADDING_MM = 30.0
+PAGE_PADDING_MM = 31.0
 "Above and below the system on its page: room for any ledger lines and marks, cut off again"
-SIDE_PADDING_MM = 3.0
-MM_PER_COLUMN = (5.5, 8.0)
+BRACE_MM = 12.0
+"How far the brace may reach left of the staves: up to 8.3 mm in a 600-score sweep, by writer"
+SIDE_PADDING_MM = BRACE_MM + MARGIN_INTERLINES[1] * STAFF_SPACE_MM
+"Room for the brace and the widest margin of paper the crop keeps around the ink"
+MM_PER_COLUMN = (5.7, 8.3)
 "Width per note column (a distinct onset in a measure); Smashcima packs columns tightly"
-MM_PER_MEASURE = 5.0
-HEADER_MM = 32.0
+MM_PER_MEASURE = 5.2
+HEADER_MM = 33.3
+# The layout above was tuned when Smashcima put 24.4 mm in an inch, and is that layout in true
+# millimetres: tighter, and dense systems overflow the page.
 
 
 def without_graces(part: ET.Element) -> None:
@@ -99,6 +115,21 @@ def with_only_triplet_numbers(part: ET.Element) -> None:
             number = tuplet.findtext("tuplet-actual/tuplet-number") or actual
             if tuplet.get("type") == "start" and number != "3":
                 tuplet.set("show-number", "none")
+
+
+def is_hidden(note: ET.Element) -> bool:
+    return note.get("print-object") == "no"
+
+
+def has_hidden_note(part: ET.Element) -> bool:
+    """A hidden note that is not a rest: the fork draws only hidden rests (as nothing)"""
+    return any(is_hidden(n) and n.find("rest") is None for n in part.iter("note"))
+
+
+def has_measure_drawing_nothing(part: ET.Element) -> bool:
+    """A measure of only <forward>s and hidden rests: Smashcima has no event to set its
+    signatures at"""
+    return any(all(is_hidden(n) for n in measure.findall("note")) for measure in part.findall("measure"))
 
 
 def drawable_system(part: ET.Element) -> None:
@@ -153,6 +184,8 @@ def labelled_systems(source: Path, k: int, rng: random.Random) -> list[LabelledS
     for system in parts:
         if len(chosen) == k:
             break
+        if has_hidden_note(system) or has_measure_drawing_nothing(system):
+            continue
         drawable_system(system)
         draw_some_meters_as_symbols(system, rng)
         lmx = linearize(system)
@@ -172,8 +205,9 @@ class Drawer:
     def __init__(self):
         import smashcima as sc
         from smashcima.geometry import Vector2
+        from smashcima.geometry.units import mm_to_px
         from smashcima.synthesis.page.SimplePageSynthesizer import PageSetup
-        self.sc, self.Vector2, self.PageSetup = sc, Vector2, PageSetup
+        self.sc, self.Vector2, self.PageSetup, self.mm_to_px = sc, Vector2, PageSetup, mm_to_px
         self.model = sc.orchestration.BaseHandwrittenModel()
 
     def page_for(self, system: LabelledSystem, rng: random.Random):
@@ -184,7 +218,9 @@ class Drawer:
                               padding_left=SIDE_PADDING_MM, padding_right=SIDE_PADDING_MM, staff_count=2)
 
     def ink_box_px(self, page, dpi: float) -> tuple[int, int, int, int]:
-        """(left, top, right, bottom) of everything drawn on the page but the paper, in pixels"""
+        """(left, top, right, bottom) of everything drawn on the page but the paper, in pixels.
+        Converted with Smashcima's own units: it rendered with them (they once put 24.4 mm in
+        an inch, and crops computed with 25.4 lost 4% of the music at the right)"""
         points = []
         for sprite, transform in self.sc.scene.Sprite.traverse_sprites(page.space):
             if sprite.space is page.space:  # the paper texture
@@ -193,9 +229,8 @@ class Drawer:
                            (sprite.pixel_width, sprite.pixel_height)):
                 points.append(transform.apply_to(self.Vector2(*corner)))
         origin = page.view_box.rectangle
-        to_px = dpi / 25.4
-        xs = [(p.x - origin.x) * to_px for p in points]
-        ys = [(p.y - origin.y) * to_px for p in points]
+        xs = [self.mm_to_px(p.x - origin.x, dpi) for p in points]
+        ys = [self.mm_to_px(p.y - origin.y, dpi) for p in points]
         return int(min(xs)), int(min(ys)), int(np.ceil(max(xs))), int(np.ceil(max(ys)))
 
     def draw(self, system: LabelledSystem, rng: random.Random) -> np.ndarray:
@@ -208,13 +243,13 @@ class Drawer:
             raise ValueError("system broke onto a second page")
         page = scene.pages[0]
         gray = cv2.cvtColor(scene.render(page)[:, :, :3], cv2.COLOR_BGR2GRAY)
-        interline_px = 28.75 * scene.dpi / 300  # MUSCIMA++'s staff space at the render DPI
+        interline_px = self.mm_to_px(STAFF_SPACE_MM, scene.dpi)
         left, top, right, bottom = self.ink_box_px(page, scene.dpi)
         margins = [int(rng.uniform(*MARGIN_INTERLINES) * interline_px) for _ in range(4)]
-        top, bottom = max(0, top - margins[0]), min(gray.shape[0], bottom + margins[1])
-        left, right = max(0, left - margins[2]), min(gray.shape[1], right + margins[3])
-        if top == 0 or bottom == gray.shape[0] or right == gray.shape[1]:
-            raise ValueError("system reaches the page edge")
+        top, bottom = top - margins[0], bottom + margins[1]
+        left, right = left - margins[2], right + margins[3]
+        if top < 0 or left < 0 or bottom > gray.shape[0] or right > gray.shape[1]:
+            raise ValueError("system and its margins reach past the page")
         crop = gray[top:bottom, left:right]
         scale = rng.uniform(*INTERLINE_PX) / interline_px
         return cv2.resize(crop, (round(crop.shape[1] * scale), round(crop.shape[0] * scale)),
@@ -234,15 +269,23 @@ def score_dir(out: Path, index: int) -> Path:
     return out / "samples" / f"{index:06d}"
 
 
+def failure(e: Exception) -> str:
+    """The exception's kind and first words, to tally failures by"""
+    return f"{type(e).__name__}: {str(e)[:80]}"
+
+
 def build_score(job: tuple[int, str, Path, int]) -> int:
-    """Draws up to k systems of one score; returns how many"""
+    """Draws up to k systems of one score, noting what became of them; returns how many were
+    drawn. Nothing may escape to the pool (see build_seq_dataset.build_score)."""
     index, source, out, k = job
     target = score_dir(out, index)
     rng = random.Random(index)
+    outcomes: Counter = Counter()
     try:
         systems = labelled_systems(Path(source), k, rng)
-    except Exception:
+    except Exception as e:
         systems = []
+        outcomes[f"score unread: {failure(e)}"] += 1
     partial = target.with_name(target.name + ".partial")
     shutil.rmtree(partial, ignore_errors=True)
     partial.mkdir(parents=True)
@@ -250,19 +293,64 @@ def build_score(job: tuple[int, str, Path, int]) -> int:
     for system in systems:
         try:
             image = DRAWER.draw(system, rng)
-        except Exception:
-            # Nothing may escape to the pool (see build_seq_dataset.build_score).
+        except Exception as e:
+            outcomes[f"undrawn: {failure(e)}"] += 1
             continue
         cv2.imwrite(str(partial / f"s{written}.png"), image)
         (partial / f"s{written}.lmx").write_text(system.lmx + "\n")
         written += 1
+    outcomes["drawn"] += written
+    (partial / "outcome.json").write_text(json.dumps(outcomes) + "\n")
     partial.rename(target)
     return written
+
+
+def outcomes(out: Path, indices: set[int]) -> Counter:
+    tally: Counter = Counter()
+    for index in indices:
+        path = score_dir(out, index) / "outcome.json"
+        if path.exists():
+            tally.update(json.loads(path.read_text()))
+    return tally
 
 
 def discard_unfinished(out: Path) -> None:
     for partial in (out / "samples").glob("*.partial"):
         shutil.rmtree(partial)
+
+
+def git_state(directory: Path) -> dict:
+    def git(*args):
+        return subprocess.run(["git", "-C", str(directory), *args], capture_output=True, text=True,
+                              check=True).stdout.strip()
+    return {"commit": git("rev-parse", "HEAD"), "uncommitted": bool(git("status", "--porcelain"))}
+
+
+def manifest(args: argparse.Namespace) -> dict:
+    """What a crop set depends on. Smashcima's assets follow its commit: a fork that changes
+    them bumps their version, and Smashcima then reinstalls them."""
+    import smashcima
+    return {
+        "noteworthy": git_state(Path(__file__).resolve().parent),
+        "smashcima": git_state(Path(smashcima.__file__).resolve().parent),
+        "scores": str(args.scores.resolve()),
+        "scores_sha256": hashlib.sha256(args.scores.read_bytes()).hexdigest(),
+        "systems_per_score": args.systems_per_score,
+        "limit": args.limit,
+    }
+
+
+def check_manifest(out: Path, current: dict) -> None:
+    """Records the manifest of a new crop set; a restarted one must match it, or its crops would
+    come from two versions of the code"""
+    path = out / "manifest.json"
+    if path.exists():
+        recorded = json.loads(path.read_text())
+        if recorded != current:
+            sys.exit(f"{out} was built by other code or options; use a new --out.\n"
+                     f"recorded: {recorded}\nnow:      {current}")
+    else:
+        write_atomically(path, json.dumps(current, indent=1) + "\n")
 
 
 def main() -> None:
@@ -278,8 +366,9 @@ def main() -> None:
     conflicts = pdmx_license_conflicts(DATA / "raw" / "pdmx")
     scores = [(i, s) for i, s in enumerate(sources) if is_training_score(s, conflicts)]
     indices = {i for i, _ in scores}
-    discard_unfinished(args.out)
     (args.out / "samples").mkdir(parents=True, exist_ok=True)
+    check_manifest(args.out, manifest(args))
+    discard_unfinished(args.out)
     pending = [(i, s, args.out, args.systems_per_score) for i, s in scores
                if not score_dir(args.out, i).exists()]
     print(f"{len(scores)} scores, {len(pending)} to draw", flush=True)
@@ -295,6 +384,8 @@ def main() -> None:
                           f"{(time.time() - start) / done:.2f} s per score", flush=True)
         finally:
             discard_unfinished(args.out)
+            tally = outcomes(args.out, indices)
+            write_atomically(args.out / "outcomes.json", json.dumps(dict(tally.most_common()), indent=1) + "\n")
             print(f"{write_sample_list(args.out, indices)} systems from {len(scores)} scores")
 
 

@@ -1,7 +1,11 @@
+import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
-from build_smashcima_crops import drawable_system, label_drawn, note_columns
+from build_smashcima_crops import (check_manifest, drawable_system, has_hidden_note,
+                                   has_measure_drawing_nothing, label_drawn,
+                                   note_columns)
 
 
 def part(measures: str) -> ET.Element:
@@ -57,3 +61,37 @@ class NoteColumnsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HiddenNotesTest(unittest.TestCase):
+    def test_a_measure_of_only_forwards_draws_nothing(self):
+        self.assertTrue(has_measure_drawing_nothing(part(
+            "<measure><note><rest/><duration>4</duration></note></measure>"
+            "<measure><forward><duration>4</duration></forward></measure>")))
+
+    def test_a_measure_of_only_hidden_rests_draws_nothing(self):
+        self.assertTrue(has_measure_drawing_nothing(part(
+            "<measure><note print-object='no'><rest/><duration>4</duration></note></measure>")))
+
+    def test_a_measure_with_a_visible_rest_draws_it(self):
+        self.assertFalse(has_measure_drawing_nothing(part(
+            "<measure><note print-object='no'><rest/><duration>2</duration></note>"
+            "<note><rest/><duration>2</duration></note></measure>")))
+
+    def test_a_hidden_rest_is_drawable_and_a_hidden_pitch_is_not(self):
+        self.assertFalse(has_hidden_note(part("<measure><note print-object='no'><rest/></note></measure>")))
+        self.assertTrue(has_hidden_note(part(
+            "<measure><note print-object='no'><pitch><step>C</step><octave>4</octave></pitch></note></measure>")))
+
+
+class ManifestTest(unittest.TestCase):
+    def test_a_restart_with_the_same_code_continues(self):
+        with tempfile.TemporaryDirectory() as out:
+            check_manifest(Path(out), {"smashcima": "a"})
+            check_manifest(Path(out), {"smashcima": "a"})
+
+    def test_a_restart_with_other_code_stops(self):
+        with tempfile.TemporaryDirectory() as out:
+            check_manifest(Path(out), {"smashcima": "a"})
+            with self.assertRaises(SystemExit):
+                check_manifest(Path(out), {"smashcima": "b"})

@@ -166,10 +166,11 @@ unlocked scores, then 6-10.
   them (only repeat:start/end). Add `barline:double` / `barline:final` like repeats.py. Next run.
 - Handwriting: no sequence model has any. Smashcima fork now draws keys, times, ties, slurs,
   triplets, articulations and barline styles, 0.55 s a system, test writers excluded
-  (EXPERIMENTS.md, "Smashcima fork"). Next: build about 19,000 crops
-  (train/build_smashcima_crops.py --systems-per-score 1), finish the by-eye checks for every
-  rare token, add to the next run at 5-10%. Later: beam slope and spacing from data; historical
-  hands from OmniOMR 1.0 (MusiCorpus; check licence and splits first).
+  (EXPERIMENTS.md, "Smashcima fork"); every rare token checked by eye (2026-11-10). Next: build
+  about 19,000 crops into a new directory (train/build_smashcima_crops.py --systems-per-score
+  1, from committed code: the manifest records it), add to the next run at 5-10%. Later: beam
+  slope and spacing from data; historical hands from OmniOMR 1.0 (MusiCorpus; check licence and
+  splits first; upstream's OmniOMRModel needs a proto-dataset zip placed by hand).
 
 ## Held for the user
 

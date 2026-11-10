@@ -65,7 +65,8 @@ the fork knows: notes, rests, accidentals, dots, clefs and clef changes, key and
 staccato, accent, tenuto, single, double, final and repeat barlines, brace. The builder strips
 grace notes, fermatas, arpeggios, ornaments, strong accents, ottava signs and non-triplet
 tuplet numbers (hidden in the label then), and leaves out a system with 32nd notes or shorter,
-breves, hidden rests, double flats or stemless notes (`UNDRAWN_TOKENS`). A mark added to the
+breves, double flats or stemless notes (`UNDRAWN_TOKENS`), hidden pitched notes, or a measure
+drawing nothing. Hidden rests are drawn as nothing, as in a print. A mark added to the
 labels must be drawn by the fork or added to one of those lists. Writers draw quarter rests in
 many shapes, some like a 3: not a mismatch, but look twice at tuplet sheets.
 
@@ -86,3 +87,10 @@ copyright and other text, glissando lines.
 - 2026-11-10, Smashcima crops (sample of 671, `--limit 450 --systems-per-score 2`). Checked:
   tuplet 3s, accents, repeats (heavy barlines were drawn the height of a whole system: fixed,
   scaled to one staff), double barlines. Not yet: every other rare token, before a run uses them.
+- 2026-11-10, Smashcima crops again (fresh samples of 1,100, `--limit 700 --systems-per-score 2`).
+  Checked: hidden rests (drawn as nothing), keys of 5-7 accidentals, time signatures (C, cut,
+  odd beats), double sharps, tenutos, staccatos, the G1 clef, hidden tuplet numbers, beam
+  hooks, measure rests, ties and slurs open at the system's end. Found: every crop cut short
+  at the right by up to 4% (Smashcima's 24.4 mm inch: last notes and barline missing, still in
+  the label; fixed, all earlier Smashcima crops void) and slurs drawn as thick blocks from
+  tiny samples (fixed). All tokens in the table above are now checked for Smashcima crops.
