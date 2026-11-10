@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Checks system prerequisites and creates or updates the Python environments: .venv for
-# everything of ours, .venv-smashcima for the handwritten crops (our Smashcima fork, a submodule
-# in third_party/smashcima), .venv-zeus for the OLiMPiC authors' recognizer we compare against.
+# Checks system prerequisites and creates or updates the Python environments that training and
+# recognition need: .venv for everything of ours, .venv-smashcima for the handwritten crops (our
+# Smashcima fork, a submodule in third_party/smashcima). The benchmarks' and other recognizers'
+# environments are setup_compare_env.sh's.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
@@ -29,20 +30,4 @@ git -C "$ROOT" submodule update --init third_party/smashcima
 [ -x "$SMASHCIMA_PY" ] || uv venv "$ROOT/.venv-smashcima" --python 3.12 -q
 uv pip install -q --python "$SMASHCIMA_PY" -r "$ROOT/requirements-smashcima.txt"
 uv pip install -q --python "$SMASHCIMA_PY" --no-deps -e "$ROOT/third_party/smashcima"
-[ -x "$ZEUS_PY" ] || uv venv "$ROOT/.venv-zeus" --python 3.11 -q
-uv pip install -q --python "$ZEUS_PY" -r "$ROOT/requirements-zeus.txt"
-[ -x "$TRANSCODA_PY" ] || uv venv "$ROOT/.venv-transcoda" --python 3.12 -q
-uv pip install -q --python "$TRANSCODA_PY" --index-strategy unsafe-best-match \
-  --extra-index-url https://download.pytorch.org/whl/cpu -r "$ROOT/requirements-transcoda.txt"
-
-[ -x "$MUSICDIFF_PY" ] || uv venv "$ROOT/.venv-musicdiff" --python 3.12 -q
-uv pip install -q --python "$MUSICDIFF_PY" -r "$ROOT/requirements-omr-ned.txt"
-[ -x "$HOMR_PY" ] || uv venv "$ROOT/.venv-homr" --python 3.12 -q
-uv pip install -q --python "$HOMR_PY" -r "$ROOT/requirements-homr.txt"
-# Copisteria (compared against on Polish pages, eval/copisteria_pages.sh) is installed editable from
-# its checkout, as its README asks: it finds its models/ from the repository's root. fetch_data.sh
-# downloads the weights into it.
-checkout https://github.com/kobimusic/copisteria c685f280914d91a694494588d9f6a376d7917eba "$RAW/copisteria/src"
-[ -x "$COPISTERIA_PY" ] || uv venv "$ROOT/.venv-copisteria" --python 3.12 -q
-uv pip install -q --python "$COPISTERIA_PY" -e "$RAW/copisteria/src"
-log "python environment ready"
+log "python environments ready"

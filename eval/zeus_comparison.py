@@ -1,8 +1,8 @@
 """Zeus, the OLiMPiC authors' end-to-end recognizer (Mayer et al., ICDAR 2024), on the same
 OLiMPiC system crops as ours, and their TEDn metric for any recognizer's output.
 
-Runs in .venv-zeus (TensorFlow 2.12, see scripts/setup_env.sh) with the OLiMPiC code
-(scripts/fetch_data.sh); it does not import our own modules.
+Runs in .venv-zeus (TensorFlow 2.12, see scripts/setup_compare_env.sh) with the OLiMPiC code
+(scripts/fetch_benchmark_data.sh); it does not import our own modules.
 
 usage:
   zeus_comparison.py predict --split dev|test --out DIR

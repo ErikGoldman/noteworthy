@@ -25,7 +25,7 @@ Develop against dev; test is held out like Night Album (look at its number, neve
 errors). Songs whose piece also exists in the training sources are left out: songs on
 PDMX (by MuseScore id) and songs with a copy in PDMX or ASAP (omr.pieces).
 
-Data (scripts/fetch_data.sh): $NW_DATA/raw/olimpic/{olimpic-1.0-scanned,sources,lieder_scores.yaml}.
+Data: $NW_DATA/raw/olimpic/{olimpic-1.0-scanned,lieder_scores.yaml} (scripts/fetch_training_data.sh) and sources (scripts/fetch_benchmark_data.sh).
 """
 from __future__ import annotations
 

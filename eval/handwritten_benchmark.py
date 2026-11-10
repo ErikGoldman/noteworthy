@@ -15,7 +15,7 @@ like Night Album (look at its number, never at its errors); omr.muscima keeps bo
 training. Every writer copied the same 20 pieces, so the pieces themselves are always in
 training in other hands.
 
-Data (scripts/fetch_data.sh): $NW_DATA/raw/muscima.
+Data (scripts/fetch_training_data.sh): $NW_DATA/raw/muscima.
 """
 from __future__ import annotations
 

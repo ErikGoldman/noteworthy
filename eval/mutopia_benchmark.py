@@ -13,7 +13,7 @@ of repertoire and engraving, not scan quality. Pieces with grace notes, free tim
 played-out repeats have no reliable MIDI truth and are left out, so those are not tested
 here. test is held out like Night Album (look at its number, never at its errors).
 
-Data (scripts/fetch_data.sh): $NW_DATA/raw/mutopia.
+Data (scripts/fetch_benchmark_data.sh): $NW_DATA/raw/mutopia.
 """
 from __future__ import annotations
 

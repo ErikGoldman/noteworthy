@@ -4,32 +4,42 @@ Optical music recognition: sheet-music PDFs or images in, MusicXML out. A U-Net
 (PyTorch) segments symbols; a C++ pipeline reads staves, symbols, rhythm and pitch.
 Current scope: notes and rhythm of engraved piano music.
 
-## Reproduce everything
+## Train a recognizer
 
 ```
 git clone --recursive <this repository> noteworthy && cd noteworthy
+./train.sh
+```
+
+This sets up the Python environments, downloads the training sources (about 14 GB, each checked
+against a checksum or pinned commit), builds the training pages and crops, trains the
+segmentation network (it finds staves and systems), builds the C++ recognizer and trains the
+sequence model (it reads each system). Every stage skips work already done, so it is safe to
+rerun at any time; an interrupted run picks up where it stopped. Settings (step counts, data
+locations, worker counts) are environment variables listed in `scripts/common.sh`.
+
+Requirements: Linux, an NVIDIA GPU, about 60 GB of disk, and
+`git curl unzip cmake g++ libopencv-dev` plus [uv](https://docs.astral.sh/uv/); without a
+display, also `xvfb` (MuseScore 3.6.2, which engraves some training crops and is downloaded
+by `fetch_training_data.sh`, opens a window).
+
+## Reproduce our results
+
+```
 ./reproduce.sh
 ```
 
-This sets up the Python environments, downloads the sources (about 22 GB, each checked against
-a checksum or pinned commit), builds the training data, trains the networks, builds the C++
-recognizer, runs the benchmarks and compares with Zeus, the OLiMPiC authors' end-to-end
-recognizer (in its own Python 3.11 environment, `.venv-zeus`). Every stage skips work already
-done, so it is safe to rerun at any time; an interrupted run picks up where it stopped. Settings
-(page and step counts, data locations, worker counts) are environment variables listed in
-`scripts/common.sh`; `reproduce.sh` shows a minutes-long smoke configuration.
+This runs `train.sh` first (skipping whatever a training already did), then sets up the
+benchmarks' and the other recognizers' environments, downloads the benchmark data (about 18 GB
+more), runs our benchmarks and compares with Zeus, the OLiMPiC authors' end-to-end recognizer.
+About 30 GB of disk beyond training. The MuseScore benchmark also needs MuseScore 4, on PATH or
+named by `$MUSESCORE` (under WSL, the Windows install's `MuseScore4.exe` works).
 
 Reproducible by design: the score lists and every training crop come out byte for byte the same
 on any machine and with any worker count (each crop is seeded by its score, never by its
 worker), and training is seeded (`train_seq.py --seed`). What still varies between runs is the
 GPU's own arithmetic order, so two trainings agree to within run-to-run noise, not bit for bit.
-A training resumed with `--resume` draws a new batch order from its step.
-
-Requirements: Linux, an NVIDIA GPU, about 90 GB of disk, and
-`git curl unzip cmake g++ libopencv-dev` plus [uv](https://docs.astral.sh/uv/); without a
-display, also `xvfb` (MuseScore 3.6.2, which engraves some training crops and is downloaded
-by `fetch_data.sh`, opens a window). The MuseScore benchmark also needs MuseScore 4, on PATH
-or named by `$MUSESCORE` (under WSL, the Windows install's `MuseScore4.exe` works).
+A training that stopped and resumed draws a new batch order from the step it resumed at.
 
 ## Recognize a score
 
@@ -43,11 +53,11 @@ cpp/build/noteworthy score.pdf --model runs/finetune/model.onnx -o score.musicxm
 - `third_party/smashcima` our fork of [Smashcima](https://github.com/OMR-Research/Smashcima) (Apache-2.0), which draws the handwritten crops; a submodule
 - `cpp/` the recognizer
 - `eval/` benchmarks and error analysis; `EXPERIMENTS.md` is the experiment log
-- `scripts/` the stages `reproduce.sh` runs
+- `scripts/` the stages `train.sh` and `reproduce.sh` run
 
 ## Data and licenses
 
-`reproduce.sh` downloads these; none are redistributed here.
+`train.sh` and `reproduce.sh` download these; none are redistributed here.
 
 | data | used for | license |
 |---|---|---|
