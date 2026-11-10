@@ -157,6 +157,15 @@ def piano_part(score: ET.Element) -> ET.Element | None:
     return None
 
 
+def without_octave_clefs(part: ET.Element) -> None:
+    """Plain clefs for octave clefs (a treble clef with an 8 below, 2% of piano parts). Our clef
+    tokens have no octave and labels give sounding pitch, so a crop drawn with the 8 would put
+    every note an octave from its label's; drawn plain, the notes sit where they sound."""
+    for clef in part.iter("clef"):
+        for change in clef.findall("clef-octave-change"):
+            clef.remove(change)
+
+
 def break_into_systems(part: ET.Element, rng: random.Random) -> None:
     """Replaces the part's layout with system breaks every few measures."""
     measures = part.findall("measure")
@@ -558,6 +567,7 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
         part = piano_part(load_musicxml(Path(source)))
         if part is None:
             return 0
+        without_octave_clefs(part)
         break_into_systems(part, rng)
         systems = [s for page in split_part_to_systems(part) for s in page.systems]
         if unmarked_tuplets:

@@ -126,9 +126,27 @@ unlocked scores, then 6-10.
   each closed within the system. The crops from before the fix are in
   `data/seq514_data/musescore_ottava_before_fix`. Lesson: a renderer check by SER (3.7% on 150
   crops) does not see a 1.4% class; check each rare token's crops by eye.
+- **Training-crop check by eye, 2026-11-09 (before seq515), each rare token's crops.** Fixed and
+  re-rendered: (1) MuseScore 3.6 ignores MusicXML's show-number="none" and draws every tuplet
+  number: 642 MuseScore crops labelled hidden numbers it drew. Its crops now label every number
+  shown (`show_every_tuplet_number`); hidden numbers come from the Verovio crops, which draw them
+  as labelled. Likely a cause of seq514 hiding 23% of printed 3s. (2) Octave clefs (treble with
+  an 8, 2.4% of piano parts): labels give sounding pitch with a plain clef while both engravers
+  draw the 8 and the notes an octave off. Now drawn plain (`without_octave_clefs`), both
+  pipelines. OLiMPiC synthetic and GrandStaff have none. Re-rendered: 4,622 MuseScore scores
+  (tuplets or octave clefs), 1,146 per Verovio set; old crops in
+  `data/seq514_data/before_clef_tuplet_fix`.
+  Checked and right: ottavas (8va, 8vb, 15ma, 15mb, after the fix), tremolos, arpeggios, slashed
+  graces, C and cut time, repeats and voltas, hidden rests, rare clefs, stemless notes.
+  Left as is: a tie or slur open at a system's end (or arriving from the last one) is in the
+  label but drawn by neither engraver, where a print draws a half arc; about 3.4% of crops each
+  way. Fixing it means drawing the half arc; not done.
 - seq514's quarter-read-as-half on OLiMPiC scans (152 aligned notes against seq513's 110) sits in
   a few crops (6010916/p2-s4, 6499366/p2-s2, 6189628/p2-s4): chords under a slur with a flagged
   eighth after; no cause found yet.
+- After each new model: re-measure each kept page-output rule in eval/lmx_tuplets.py (wrong tuplet
+  marks cleared, triplets under a second beam, one beam too many) on its readings, and count the
+  bars each makes worse against gold, not only the net. A rule whose gain is not significant comes out.
 - 096 is still 8.5 worse on Print after D: dense voices, seq514 drops voice-2 rests and writes a
   voice twice in bars 11-12; not investigated further.
 

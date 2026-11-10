@@ -52,8 +52,8 @@ from lxml import etree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_seq_dataset import (DATA, INTERLINE_PX, MARGIN_INTERLINES, MAX_TOKENS, PART_NAME_HIDDEN,  # noqa: E402
-                               ROOT, TUPLET_NUMBERS_HIDDEN, break_into_systems, draw_some_meters_as_symbols,
-                               has_tuplets, hide_part_name, hide_tuplet_numbers, is_training_score, linearize,
+                               ROOT, break_into_systems, draw_some_meters_as_symbols,
+                               hide_part_name, is_training_score, linearize, without_octave_clefs,
                                load_musicxml, part_to_score, piano_part, split_part_to_systems)
 from omr.pieces import pdmx_license_conflicts  # noqa: E402
 from seq.barlines import REPEAT_START, barline_tokens_of  # noqa: E402
@@ -146,6 +146,14 @@ def with_spare_measure(part: ET.Element) -> None:
     ET.SubElement(part, "measure", number="spare")
 
 
+def show_every_tuplet_number(part: ET.Element) -> None:
+    """MuseScore 3.6 draws every tuplet's number, ignoring MusicXML's show-number="none", so
+    its crops label every number shown, the source's hidden ones too. Hidden numbers are
+    taught by the Verovio crops, which draw them as labelled."""
+    for tuplet in part.iter("tuplet"):
+        tuplet.attrib.pop("show-number", None)
+
+
 def without_octave_shifts(part: ET.Element) -> None:
     for measure in part.findall("measure"):
         for direction in measure.findall("direction"):
@@ -170,8 +178,7 @@ def with_label_ottavas(part: ET.Element, lmx: str) -> bool:
 def labelled_system(part: ET.Element, name: str, rng: random.Random) -> LabelledSystem | None:
     """The system's label and its score for MuseScore, or None if its label is out of bounds."""
     draw_some_meters_as_symbols(part, rng)
-    if has_tuplets(part) and rng.random() < TUPLET_NUMBERS_HIDDEN:
-        hide_tuplet_numbers(part, rng)
+    show_every_tuplet_number(part)
     lmx = linearize(part)
     if not MIN_TOKENS <= len(lmx.split()) <= MAX_TOKENS or not with_label_ottavas(part, lmx):
         return None
@@ -189,6 +196,7 @@ def labelled_systems(source: Path, k: int, rng: random.Random) -> list[LabelledS
     part = piano_part(load_musicxml(source))
     if part is None:
         raise ValueError("no two-staff part")
+    without_octave_clefs(part)
     break_into_systems(part, rng)
     parts = [s.part for page in split_part_to_systems(part) for s in page.systems]
     rng.shuffle(parts)

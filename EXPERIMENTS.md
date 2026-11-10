@@ -1648,3 +1648,9 @@ of 10,000; fixed in train_seq.py).
   (TODO, "MuseScore crops drew no ottava sign"). seq514 at both crop heights reads 012's low
   treble notes an octave up, the F#4 in the bottom space as F#5 on the top line: the octave is
   not read from the staff position.
+
+- Rest-led triplets with candidate subsets (rule c, 2026-11-08): deleted 2026-11-09 with the
+  user. Never significant on Polish (Print -0.10 [-0.28, +0.02]), the worst rule on OLiMPiC, and
+  the one most likely to rewrite a bar around a single misread note (a subset that happens to
+  fill an overfull bar). The rules kept in lmx_tuplets are re-measured on each new model, with
+  the bars each makes worse counted, not only the net (TODO).

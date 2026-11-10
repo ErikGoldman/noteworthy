@@ -9,9 +9,10 @@ import xml.etree.ElementTree as ET
 import numpy as np
 from lxml import etree
 
+from build_seq_dataset import without_octave_clefs
 from build_musescore_crops import (STYLE_VARIANTS, ExpectedDrawing, SystemOnPage, barlines_drawn, batches,
                                    closes_with_own_barline, engraving_style, ink_crop, staff_lines, staves, style_variant,
-                                   system_on_page, with_label_ottavas, with_spare_measure)
+                                   show_every_tuplet_number, system_on_page, with_label_ottavas, with_spare_measure)
 
 INTERLINE = 25.0
 UPPER_TOP, LOWER_TOP = 600.0, 860.0
@@ -168,6 +169,24 @@ class Ottavas(unittest.TestCase):
     def test_a_label_the_notes_do_not_match_is_refused(self):
         part = ET.fromstring(f"<part><measure>{note(6)}</measure></part>")
         self.assertFalse(with_label_ottavas(part, "measure C5 ottava:8va quarter C5 ottava:8va quarter"))
+
+
+class OctaveClefs(unittest.TestCase):
+    def test_an_octave_clef_is_drawn_plain_and_its_notes_keep_their_pitch(self):
+        part = ET.fromstring("<part><measure><attributes><clef><sign>G</sign><line>2</line>"
+                             f"<clef-octave-change>-1</clef-octave-change></clef></attributes>{note(4)}</measure></part>")
+        without_octave_clefs(part)
+        self.assertIsNone(part.find(".//clef-octave-change"))
+        self.assertEqual(part.find(".//clef/sign").text, "G")
+        self.assertEqual(part.findtext(".//octave"), "4")
+
+
+class TupletNumbers(unittest.TestCase):
+    def test_a_hidden_number_is_shown_as_musescore_draws_it(self):
+        part = ET.fromstring('<part><measure><note><notations><tuplet type="start" show-number="none" bracket="no"/>'
+                             '</notations></note></measure></part>')
+        show_every_tuplet_number(part)
+        self.assertEqual(part.find(".//tuplet").attrib, {"type": "start", "bracket": "no"})
 
 
 class BarlinesDrawn(unittest.TestCase):
