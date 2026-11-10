@@ -1,5 +1,8 @@
 # .venv-smashcima: requirements.txt plus our Smashcima fork (third_party/smashcima, installed
 # without its own dependency list, which asks for the GUI build of OpenCV) and what the fork needs.
+# setup_env.sh syncs the lock made from this file; after changing it, or requirements.txt:
+#   uv pip compile requirements-smashcima.txt --override requirements-smashcima.overrides.txt \
+#     --python-version 3.12 --python-platform x86_64-unknown-linux-gnu -o requirements-smashcima.lock.txt
 -r requirements.txt
 albumentations==2.0.8
 augraphy==8.2.6

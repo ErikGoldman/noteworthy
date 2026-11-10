@@ -1,0 +1,5 @@
+# augraphy asks for opencv-python and albumentations for opencv-python-headless; each installs the
+# same cv2 module as opencv-contrib-python-headless (requirements.txt) and, installed after it,
+# hides cv2.ximgproc.thinning, which Smashcima's glyph extraction needs. Never install them.
+opencv-python; sys_platform == "never"
+opencv-python-headless; sys_platform == "never"

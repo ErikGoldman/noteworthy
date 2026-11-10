@@ -28,6 +28,8 @@ uv pip install -q --python "$PY" --index-url "$TORCH_INDEX" -r "$ROOT/requiremen
 uv pip install -q --python "$PY" -r "$ROOT/requirements.txt"
 git -C "$ROOT" submodule update --init third_party/smashcima
 [ -x "$SMASHCIMA_PY" ] || uv venv "$ROOT/.venv-smashcima" --python 3.12 -q
-uv pip install -q --python "$SMASHCIMA_PY" -r "$ROOT/requirements-smashcima.txt"
+# Synced to the lock, not installed into: an OpenCV build left from an earlier install would
+# otherwise stay and could hide the contrib one (requirements-smashcima.overrides.txt).
+uv pip sync -q --python "$SMASHCIMA_PY" "$ROOT/requirements-smashcima.lock.txt"
 uv pip install -q --python "$SMASHCIMA_PY" --no-deps -e "$ROOT/third_party/smashcima"
 log "python environments ready"
