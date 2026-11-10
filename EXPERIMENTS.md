@@ -1654,3 +1654,18 @@ of 10,000; fixed in train_seq.py).
   the one most likely to rewrite a bar around a single misread note (a subset that happens to
   fill an overfull bar). The rules kept in lmx_tuplets are re-measured on each new model, with
   the bars each makes worse counted, not only the net (TODO).
+
+### Page-output rules re-measured on seq514 (2026-11-09)
+
+Each kept rule in eval/lmx_tuplets switched off in turn on the same readings (49 dev pages,
+whole-page OMR-NED), paired against all rules on; "helps / hurts" counts pages:
+
+| Rule | Print: change with the rule off | helps / hurts | Corrected: change |
+|---|---|---|---|
+| Implied tuplets (incl. triplets under a second beam) | +0.62 [+0.15, +1.22] | 10 / 3 | +0.60 [+0.14, +1.21] |
+| Wrong tuplet marks cleared | +0.46 [+0.03, +0.94] | 13 / 2 | +0.46 [+0.04, +0.93] |
+| One beam too many dropped | +0.13 [+0.01, +0.29] | 5 / 0 | +0.13 [+0.01, +0.29] |
+| A dot too many taken away | +0.04 [+0.01, +0.09] | 6 / 0 | +0.04 [+0.01, +0.09] |
+
+All four still pay on seq514, each range clear of zero; the two tuplet rules make 5 pages worse
+between them. Same check for seq515 is in the scratchpad's after515.sh.
