@@ -52,7 +52,8 @@ download() {
   fi
   mkdir -p "$(dirname "$dest")"
   log "downloading $url"
-  curl -fL --retry 3 -C - -o "$dest.partial" "$url"
+  # A dropped connection resumes where it stopped (-C -); plain --retry gives up on those.
+  curl -fL --retry 5 --retry-all-errors -C - -o "$dest.partial" "$url"
   echo "$md5  $dest.partial" | md5sum -c --quiet - || { echo "checksum mismatch for $url" >&2; exit 1; }
   mv "$dest.partial" "$dest"
 }
