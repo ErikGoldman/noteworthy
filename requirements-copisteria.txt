@@ -1,5 +1,0 @@
-# .venv-copisteria: eval/copisteria_pages.sh. Editable, as its README asks: it finds models/
-# from its repository's root. Weights: hf download kobimusic/copista-28m --include "*.pt"
-# --local-dir data/raw/copisteria/src/models
--e data/raw/copisteria/src
-huggingface_hub[cli]

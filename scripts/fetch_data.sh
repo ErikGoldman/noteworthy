@@ -16,6 +16,8 @@
 #              with sources, PDFs and MIDI (eval/mutopia_pieces.txt)
 #   Transcoda  benchmark only: its authors' trained model (CC BY 4.0), to compare against,
 #              their metric's code, and their Polish benchmark (evaluation only)
+#   Copista    benchmark only: copisteria's trained weights (Apache-2.0), to compare against
+#              (the code is checked out by setup_env.sh)
 #   MusiCorpus historical manuscripts with MusicXML transcriptions (CC BY-NC-SA 4.0); its test
 #              split is a sealed benchmark (scores only)
 #   Smashcima  assets for our fork's handwritten crops: MUSCIMA++ 1.0 glyphs (CC BY-NC-SA
@@ -45,8 +47,7 @@ TRANSCODA_MODEL=https://huggingface.co/btrkeks/transcoda-59M-zeroshot-v1/resolve
 TRANSCODA_REPO=https://github.com/btrkeks/Transcoda.git
 TRANSCODA_COMMIT=d4e2e687d5679ae96ca4aa6f01e06a5b338cd488
 POLISH_SCORES=https://huggingface.co/datasets/btrkeks/polish-scores/resolve/55428225335e21c0e4d77a58b32dbb2b58e25954
-COPISTERIA_REPO=https://github.com/kobimusic/copisteria
-COPISTERIA_COMMIT=c685f280914d91a694494588d9f6a376d7917eba
+COPISTA_MODEL=https://huggingface.co/kobimusic/copista-28m/resolve/44464d11234a22ba23634ec8eb1e31e3b012021a
 AUDIVERIS_DEB=https://github.com/Audiveris/audiveris/releases/download/5.11.0/Audiveris-5.11.0-ubuntu24.04-x86_64.deb
 MUSICORPUS=https://lindat.mff.cuni.cz/repository/server/api/core/bitstreams/fdf9ba56-1854-45fc-a8d2-311dfb3ad8c3/content
 MUSESCORE=https://github.com/musescore/MuseScore/releases/download/v3.6.2/MuseScore-3.6.2.548021370-x86_64.AppImage
@@ -122,7 +123,9 @@ FILES
 
 checkout "$TRANSCODA_REPO" "$TRANSCODA_COMMIT" "$RAW/transcoda_repo/src"
 download "$POLISH_SCORES/data/train-00000-of-00001.parquet" "$RAW/polish_scores/polish.parquet" 8d6f6a9c3ab07e16018d4b7477143a20
-checkout "$COPISTERIA_REPO" "$COPISTERIA_COMMIT" "$RAW/copisteria/src"
+download "$COPISTA_MODEL/evidence-2m.pt" "$RAW/copisteria/src/models/evidence-2m.pt" 34e71c035eaf7f4f423806046da38009
+download "$COPISTA_MODEL/small/v7_obj-recall-30m_best.pt" "$RAW/copisteria/src/models/small/v7_obj-recall-30m_best.pt" \
+  ab5d420ac94c5cddd7b392a4dd93281f
 download "$AUDIVERIS_DEB" "$RAW/audiveris/audiveris.deb" 392b146938867806fcc4bdfe8af13ddf
 [ -d "$RAW/audiveris/unpacked" ] || dpkg -x "$RAW/audiveris/audiveris.deb" "$RAW/audiveris/unpacked"
 

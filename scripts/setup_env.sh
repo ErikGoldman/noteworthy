@@ -39,6 +39,10 @@ uv pip install -q --python "$TRANSCODA_PY" --index-strategy unsafe-best-match \
 uv pip install -q --python "$MUSICDIFF_PY" -r "$ROOT/requirements-omr-ned.txt"
 [ -x "$HOMR_PY" ] || uv venv "$ROOT/.venv-homr" --python 3.12 -q
 uv pip install -q --python "$HOMR_PY" -r "$ROOT/requirements-homr.txt"
+# Copisteria (compared against on Polish pages, eval/copisteria_pages.sh) is installed editable from
+# its checkout, as its README asks: it finds its models/ from the repository's root. fetch_data.sh
+# downloads the weights into it.
+checkout https://github.com/kobimusic/copisteria c685f280914d91a694494588d9f6a376d7917eba "$RAW/copisteria/src"
 [ -x "$COPISTERIA_PY" ] || uv venv "$ROOT/.venv-copisteria" --python 3.12 -q
-(cd "$ROOT" && uv pip install -q --python "$COPISTERIA_PY" -r requirements-copisteria.txt)
+uv pip install -q --python "$COPISTERIA_PY" -e "$RAW/copisteria/src"
 log "python environment ready"
