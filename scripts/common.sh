@@ -10,6 +10,7 @@ TRANSCODA_PY="$ROOT/.venv-transcoda/bin/python"
 MUSICDIFF_PY="$ROOT/.venv-musicdiff/bin/python"
 HOMR_PY="$ROOT/.venv-homr/bin/python"
 COPISTERIA_PY="$ROOT/.venv-copisteria/bin/python"
+SMASHCIMA_PY="$ROOT/.venv-smashcima/bin/python"
 NW_DATA=${NW_DATA:-$ROOT/data}
 NW_RUNS=${NW_RUNS:-$ROOT/runs}
 NW_PAGES=${NW_PAGES:-12000}                 # synthetic training pages
@@ -19,11 +20,24 @@ NW_EVAL_EVERY=${NW_EVAL_EVERY:-5000}
 NW_SEQ_STEPS=${NW_SEQ_STEPS:-192000}       # sequence model (train_seq.sh)
 NW_RENDER_WORKERS=${NW_RENDER_WORKERS:-$(nproc)}
 NW_TRAIN_WORKERS=${NW_TRAIN_WORKERS:-$(( $(nproc) < 10 ? $(nproc) : 10 ))}
+NW_SMASHCIMA_WORKERS=${NW_SMASHCIMA_WORKERS:-6}  # each holds MUSCIMA++'s glyphs in memory (about 2 GB)
 NW_BENCH_COUNT=${NW_BENCH_COUNT:-100}
 
 RAW="$NW_DATA/raw"
+export MC_ASSETS_CACHE="$RAW/smashcima"   # where Smashcima keeps its glyphs and paper
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
+
+# The scores every crop builder draws from; a sample's index is its line in this list.
+make_score_list() {
+  [ -f "$NW_DATA/render_scores.txt" ] && return
+  (cd "$ROOT/train" && "$PY" list_scores.py "$RAW/pdmx" "$RAW/asap" "$NW_DATA")
+}
+
+# Runs a command that opens windows (MuseScore) on the display, or on a virtual one without.
+with_display() {
+  if [ -n "${DISPLAY:-}" ]; then "$@"; else xvfb-run -a "$@"; fi
+}
 
 # Each stage checks for its own outputs and skips work already done, so the pipeline can
 # be rerun at any point without downloading or recomputing finished parts. Outputs are

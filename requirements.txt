@@ -7,7 +7,7 @@ mido==1.3.3
 onnx==1.23.2
 onnxruntime==1.31.1
 onnxscript==0.7.2           # torch.onnx dynamo exporter (export_seq_onnx.py)
-opencv-python-headless==5.0.0.93
+opencv-contrib-python-headless==5.0.0.93  # contrib: Smashcima extracts glyphs with ximgproc
 pillow==13.0.0
 pyyaml==6.0.3
 scipy==1.18.1

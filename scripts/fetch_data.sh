@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Downloads the raw training sources into $NW_DATA/raw (about 6 GB of downloads).
+# Downloads the raw training sources into $NW_DATA/raw (about 22 GB of downloads).
 #
 #   PDMX       public-domain MusicXML from MuseScore.com (Zenodo record 15571083)
 #   ASAP       classical piano scores (MusicXML), pinned commit
@@ -16,6 +16,11 @@
 #              with sources, PDFs and MIDI (eval/mutopia_pieces.txt)
 #   Transcoda  benchmark only: its authors' trained model (CC BY 4.0), to compare against,
 #              their metric's code, and their Polish benchmark (evaluation only)
+#   MusiCorpus historical manuscripts with MusicXML transcriptions (CC BY-NC-SA 4.0); its test
+#              split is a sealed benchmark (scores only)
+#   Smashcima  assets for our fork's handwritten crops: MUSCIMA++ 1.0 glyphs (CC BY-NC-SA
+#              4.0) and paper from the Moravian Library's scans, checked against checksums
+#   MuseScore  3.6.2 (GPL), the engraver of the MuseScore training crops, into tools/musescore
 #
 # A source already in place is not fetched again. Archives are deleted once unpacked.
 set -euo pipefail
@@ -43,6 +48,8 @@ POLISH_SCORES=https://huggingface.co/datasets/btrkeks/polish-scores/resolve/5542
 COPISTERIA_REPO=https://github.com/kobimusic/copisteria
 COPISTERIA_COMMIT=c685f280914d91a694494588d9f6a376d7917eba
 AUDIVERIS_DEB=https://github.com/Audiveris/audiveris/releases/download/5.11.0/Audiveris-5.11.0-ubuntu24.04-x86_64.deb
+MUSICORPUS=https://lindat.mff.cuni.cz/repository/server/api/core/bitstreams/fdf9ba56-1854-45fc-a8d2-311dfb3ad8c3/content
+MUSESCORE=https://github.com/musescore/MuseScore/releases/download/v3.6.2/MuseScore-3.6.2.548021370-x86_64.AppImage
 
 download "$PDMX_RECORD/PDMX.csv/content" "$RAW/pdmx/PDMX.csv" 30392ccf38bb63ce70e7afae70f9c88c
 if [ ! -d "$RAW/pdmx/mxl" ]; then
@@ -125,5 +132,22 @@ while read -r _ piece pdf_md5 midi_md5; do
   download "$MUTOPIA_FILES/$piece/$name-a4.pdf" "$RAW/mutopia/pieces/$name-a4.pdf" "$pdf_md5"
   download "$MUTOPIA_FILES/$piece/$name.mid" "$RAW/mutopia/pieces/$name.mid" "$midi_md5"
 done < "$ROOT/eval/mutopia_pieces.txt"
+
+if [ ! -d "$RAW/musicorpus/musicorpus_v1.0" ]; then
+  download "$MUSICORPUS" "$RAW/musicorpus/musicorpus_v1.0.zip" 413a500ec1b61184fbb1938aa1244117
+  unpack "$RAW/musicorpus/musicorpus_v1.0.zip" "$RAW/musicorpus" musicorpus_v1.0
+  rm "$RAW/musicorpus/musicorpus_v1.0.zip"
+fi
+
+(cd "$ROOT/train" && "$SMASHCIMA_PY" install_smashcima_assets.py)
+
+musescore="$ROOT/tools/musescore"
+if [ ! -d "$musescore/squashfs-root" ]; then
+  download "$MUSESCORE" "$musescore/musescore.AppImage" 8a7c100a19fd78e1c43fccd5c1db27a6
+  chmod +x "$musescore/musescore.AppImage"
+  rm -rf "$musescore/.extract" && mkdir "$musescore/.extract"
+  (cd "$musescore/.extract" && ../musescore.AppImage --appimage-extract >/dev/null)
+  mv "$musescore/.extract/squashfs-root" "$musescore/squashfs-root" && rmdir "$musescore/.extract"
+fi
 
 log "raw data ready"

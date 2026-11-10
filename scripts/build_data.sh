@@ -4,9 +4,7 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
-if [ ! -f "$NW_DATA/render_scores.txt" ]; then
-  (cd "$ROOT/train" && "$PY" list_scores.py "$RAW/pdmx" "$RAW/asap" "$NW_DATA")
-fi
+make_score_list
 
 # build_dataset.py renders only the pages not yet on disk.
 (cd "$ROOT/train" && "$PY" build_dataset.py --scores "$NW_DATA/render_scores.txt" --out "$NW_DATA/synth" \

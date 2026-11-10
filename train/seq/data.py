@@ -89,6 +89,7 @@ class SystemDataset(torch.utils.data.Dataset):
         self.vocab = vocab
         self.train = train
         self.max_tokens = max_tokens
+        self.rng: np.random.Generator | None = None
 
     def __len__(self) -> int:
         return len(self.items)
@@ -97,9 +98,16 @@ class SystemDataset(torch.utils.data.Dataset):
         sample = self.items[i]
         image = load_scaled(sample.image, self.height)
         if self.train:
-            image = augment(np.random.default_rng(), image)
+            image = augment(self.augmentation_rng(), image)
         tokens = self.vocab.encode(sample.lmx.read_text())[: self.max_tokens]
         return to_tensor(image), torch.tensor(tokens)
+
+    def augmentation_rng(self) -> np.random.Generator:
+        """One generator per loader worker, seeded with the worker's torch seed: the loader derives
+        those from the training seed, and hands each worker its batches in a fixed order"""
+        if self.rng is None:
+            self.rng = np.random.default_rng(torch.initial_seed())
+        return self.rng
 
 
 def collate(batch):

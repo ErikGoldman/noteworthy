@@ -1,0 +1,9 @@
+# .venv-smashcima: requirements.txt plus our Smashcima fork (third_party/smashcima, installed
+# without its own dependency list, which asks for the GUI build of OpenCV) and what the fork needs.
+-r requirements.txt
+albumentations==2.0.8
+augraphy==8.2.6
+muscima==0.10.0
+nameof==0.0.1
+punq==0.9.0
+requests==2.34.2

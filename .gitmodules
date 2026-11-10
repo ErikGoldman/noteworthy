@@ -1,0 +1,4 @@
+[submodule "third_party/smashcima"]
+	path = third_party/smashcima
+	url = https://github.com/ErikGoldman/Smashcima.git
+	branch = noteworthy

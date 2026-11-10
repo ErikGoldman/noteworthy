@@ -124,7 +124,9 @@ def main() -> None:
     ap.add_argument("--init", type=Path, help="weights to start from, for fine-tuning")
     ap.add_argument("--height", type=int, default=256, help="crop height at the model's input")
     ap.add_argument("--row-stride", type=int, default=32, choices=[8, 16, 32])
+    ap.add_argument("--seed", type=int, default=0, help="decides the initial weights, batches and augmentation")
     args = ap.parse_args()
+    torch.manual_seed(args.seed)
 
     device = torch.device("cuda")
     # Under WSL the driver silently backs GPU allocations beyond the card with system
@@ -159,6 +161,9 @@ def main() -> None:
     if step >= args.steps:
         print(f"already trained to step {step}; nothing to do")
         return
+    # A resumed run cannot pick up the loader's order where it stopped; it starts a new order,
+    # the same every time it resumes at this step.
+    torch.manual_seed(args.seed + step)
     print(f"{len(train_items)} training samples, {sum(p.numel() for p in model.parameters()) / 1e6:.1f}M parameters")
 
     log = (args.out / "log.jsonl").open("a")
