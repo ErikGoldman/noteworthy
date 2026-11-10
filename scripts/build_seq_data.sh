@@ -4,7 +4,8 @@
 # (build_musescore_crops.py, which needs tools/musescore and a display: WSLg's), OLiMPiC synthetic
 # relabelled with pitches as printed, and GrandStaff-LMX with time symbols and barlines as tokens.
 # Safe to stop and run again: the crop builders skip scores already built, and the relabelled sets
-# are rewritten whole. A changed builder needs a fresh data directory.
+# are rewritten whole. A changed builder needs a fresh data directory. Before training on new or
+# changed crops, check them by eye: docs/TRAINING_DATA_CHECKS.md.
 # usage: build_seq_data.sh
 set -euo pipefail
 source "$(dirname "$0")/common.sh"

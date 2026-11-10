@@ -138,6 +138,8 @@ unlocked scores, then 6-10.
   `data/seq514_data/before_clef_tuplet_fix`.
   Checked and right: ottavas (8va, 8vb, 15ma, 15mb, after the fix), tremolos, arpeggios, slashed
   graces, C and cut time, repeats and voltas, hidden rests, rare clefs, stemless notes.
+  Verovio sets checked the same way: nothing new. Checklist, per-engraver table and tool
+  (`train/crop_sheets.py`): docs/TRAINING_DATA_CHECKS.md.
   Left as is: a tie or slur open at a system's end (or arriving from the last one) is in the
   label but drawn by neither engraver, where a print draws a half arc; about 3.4% of crops each
   way. Fixing it means drawing the half arc; not done.
