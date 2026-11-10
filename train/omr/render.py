@@ -206,9 +206,18 @@ class _ChannelRasterizer:
         return bgra[: self._height, : self._width, 3].copy()
 
 
+def seeded_toolkit() -> verovio.toolkit:
+    """A Verovio toolkit whose element ids are the same on every run. Unseeded, they are random,
+    and where elements overlap the page's pixels and masks depend on them (1 page in 24 of the
+    segmenter's training set came out differently on every build)."""
+    tk = verovio.toolkit()
+    tk.setOptions({"xmlIdSeed": 1})
+    return tk
+
+
 def render_score_pages(musicxml_path: str, options: dict, target_interline_px: float,
                        max_pages: int, rng: random.Random) -> list[RenderedPage]:
-    tk = verovio.toolkit()
+    tk = seeded_toolkit()
     tk.setOptions(options)
     if not tk.loadFile(musicxml_path):
         return []

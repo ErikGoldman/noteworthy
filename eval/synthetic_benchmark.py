@@ -32,7 +32,6 @@ from pathlib import Path
 
 import cairosvg
 import numpy as np
-import verovio
 from lxml import etree
 from PIL import Image
 
@@ -45,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "train"))
 from omr.augment import capture_degradation  # noqa: E402
 from omr.held_out import is_held_out  # noqa: E402
 from omr.pieces import PieceIndex, pdmx_pieces  # noqa: E402
+from omr.render import seeded_toolkit  # noqa: E402
 
 ROOT_DATA = Path(os.environ.get("NW_DATA", Path(__file__).resolve().parent.parent / "data"))
 INTERLINE_PX = 24.0
@@ -70,7 +70,7 @@ def split_scores(scores: list[Path], count: int, split: str) -> list[Path]:
 
 def render_verovio(score: Path) -> tuple[np.ndarray, int]:
     """Page 1 as grayscale, and how many measures it holds."""
-    tk = verovio.toolkit()
+    tk = seeded_toolkit()
     tk.setOptions({"pageWidth": 2100, "pageHeight": 2970, "breaks": "auto", "header": "none", "footer": "none"})
     if not tk.loadFile(str(score)):
         raise RuntimeError("verovio could not load")

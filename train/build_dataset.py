@@ -45,7 +45,7 @@ def _render_job(args: tuple[int, str, Path]) -> tuple[int, str | None]:
     stem = out_dir / f"{index:06d}"
     Image.fromarray(page.image).save(stem.with_suffix(".png"))
     np.savez_compressed(stem.with_suffix(".npz"), masks=page.masks)
-    stem.with_suffix(".svg.gz").write_bytes(gzip.compress(page.svg))
+    stem.with_suffix(".svg.gz").write_bytes(gzip.compress(page.svg, mtime=0))  # no timestamp: same bytes every build
     stem.with_suffix(".json").write_text(json.dumps({
         "source": score_path, "font": page.font, "interline_px": page.interline_px, "options": options,
     }))
