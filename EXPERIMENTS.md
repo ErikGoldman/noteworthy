@@ -1669,3 +1669,43 @@ whole-page OMR-NED), paired against all rules on; "helps / hurts" counts pages:
 
 All four still pay on seq514, each range clear of zero; the two tuplet rules make 5 pages worse
 between them. Same check for seq515 is in the scratchpad's after515.sh.
+
+## Note errors on Polish dev, seq514 against seq513 (2026-11-10)
+
+OMR-NED gives a page's cost; `eval/note_errors.py` says what kind of reading went wrong. For each
+gold note (Print gold, 49 dev pages, sounding pitch, graces left out): right, wrong duration, an
+octave off, another wrong pitch, wrong onset, missing; plus the prediction's extra notes. Bars are
+paired by an order-keeping alignment on onset and pitch class (difflib paired repeated passages
+far apart; exact pitch left bars read an octave off unpaired).
+
+| Fate of gold notes | seq514 | seq513 last.pt |
+|---|---|---|
+| Right | 14,404 (91.9%) | 14,380 (91.8%) |
+| Wrong duration | 147 | 154 |
+| An octave off | 95 | 129 |
+| Another wrong pitch | 357 | 322 |
+| Wrong onset | 186 | 149 |
+| Missing | 486 | 541 |
+| Extra (in the prediction) | 453 | 463 |
+
+The two models make about as many note errors (1,724 against 1,758), in different places: seq514
+fixes 023 and 110's ottavas and loses 012 (octave, the MuseScore ottava bug) and 096.
+
+Conclusions:
+- The errors are concentrated: six pages hold half of them (096, 051, 093, 065, 087, 056), twelve
+  pages two thirds. A page-level fix, not a general one, is what each of these needs.
+- **Handwriting is the largest single cause.** 051 and 093 are manuscripts, second and third worst
+  (359 errors, 21% of all). The sequence model has no handwritten training data (TODO: MUSCIMA++
+  as LMX; Smashcima's problems). Handwriting is in scope at 5-10% of training (memory).
+- **Unmarked triplets missed** are the next: 096's worst bars (8-10, both staves) are triplet bars
+  where seq514 drops the 3in2 marks, so every later onset in the voice shifts (onset 51, missing
+  and extra 111 on that page). OLiMPiC scans say the same: missed tuplet tokens are seq514's
+  largest error kind there (4,022). The over-hidden-number label bug fixed for seq515 may be part
+  of it; seq515 will tell.
+- Octave errors: 012 (fixed in seq515's data); 087 (17) and 083 (24 at scorer level) are ottava
+  pages, not yet looked at.
+- Not the cause: durations alone (147, 1%) and barline styles (seq514 writes 19 double and 42 final
+  barlines where gold has 19 and 44).
+
+Next, by size: handwritten training data for the sequence model; then whatever of the triplet
+misses seq515 leaves; then 087 and 083's ottava extents.
