@@ -7,6 +7,8 @@ usage: seq_pages.py CHECKPOINT mutopia --binary NOTEWORTHY --model MODEL.onnx --
        seq_pages.py CHECKPOINT pages --pages DIR --binary NOTEWORTHY --model MODEL.onnx --out DIR
        seq_pages.py CHECKPOINT rendered --pages DIR --scores LIST --binary NOTEWORTHY --model MODEL.onnx
                     --out DIR [--count N] [--split dev|test]
+       seq_pages.py CHECKPOINT score --inputs SCORE.pdf|PAGE.png... --binary NOTEWORTHY --model MODEL.onnx
+                    --out SCORE.musicxml
 
 Mutopia PDFs are rendered by the recognizer, so its normalized debug pages are cropped; OLiMPiC
 scans are cropped as they are, with the layouts olimpic_benchmark.py pages left behind.
@@ -21,6 +23,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -239,6 +242,17 @@ def transcribe_pages(args, model, vocab, device) -> None:
         print(image.stem, f"{len(systems)} systems", flush=True)
 
 
+def transcribe_score(args, model, vocab, device) -> None:
+    """One MusicXML score from a PDF or page images, in the order given. The layout is found
+    afresh in a temporary directory: a cached one may belong to another input of the same name."""
+    with tempfile.TemporaryDirectory() as work:
+        layout, pages = layout_of(args, args.inputs, Path(work))
+        systems = piano_systems(layout, page_scales(layout))
+        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch)
+    args.out.write_text(joined_musicxml(lmx))
+    print(f"{len(systems)} systems: {args.out}")
+
+
 def layout_of(args, inputs: list[Path], work: Path) -> tuple[dict, list[np.ndarray]]:
     """Systems found by the recognizer, and the pages they refer to, as it saw them."""
     work.mkdir(parents=True, exist_ok=True)
@@ -304,11 +318,12 @@ def bench_olimpic(args, model, vocab, device) -> dict[str, Counter]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("checkpoint", type=Path)
-    ap.add_argument("source", choices=["mutopia", "olimpic", "pages", "rendered"])
+    ap.add_argument("source", choices=["mutopia", "olimpic", "pages", "rendered", "score"])
     ap.add_argument("--binary", help="mutopia: finds the systems")
     ap.add_argument("--model", help="mutopia: the recognizer's model")
     ap.add_argument("--layouts", type=Path, help="olimpic: <song>.json from olimpic_benchmark.py pages")
     ap.add_argument("--pages", type=Path, help="pages, rendered: a directory of page images")
+    ap.add_argument("--inputs", type=Path, nargs="+", help="score: a PDF or page images, in order")
     ap.add_argument("--scores", help="rendered: the list given to synthetic_benchmark.py")
     ap.add_argument("--count", type=int, default=100, help="rendered: as for synthetic_benchmark.py")
     ap.add_argument("--out", type=Path, required=True)
@@ -320,6 +335,9 @@ def main() -> None:
     model = load_model(args.checkpoint, device)
     if args.source == "pages":
         transcribe_pages(args, model, vocab, device)
+        return
+    if args.source == "score":
+        transcribe_score(args, model, vocab, device)
         return
     bench = {"mutopia": bench_mutopia, "olimpic": bench_olimpic, "rendered": bench_rendered}[args.source]
     results = bench(args, model, vocab, device)

@@ -3,7 +3,7 @@
 #   base      from scratch on uniformly sampled crops
 #   finetune  half the crops centred on a class present on the page, so rare symbols
 #             (time-signature digits, tuplets) get enough examples; lower learning rate
-# Result: $NW_RUNS/finetune/model.onnx
+# Result: $NW_RUNS/finetune/model.onnx ($SEGMENTER)
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
@@ -27,7 +27,7 @@ train_stage() {
 mkdir -p "$NW_RUNS"
 train_stage base "$NW_BASE_STEPS"
 train_stage finetune "$NW_FINETUNE_STEPS" --init "$NW_RUNS/base/last.pt" --lr 5e-4 --balanced-crops 0.5
-model="$NW_RUNS/finetune/model.onnx"
+model="$SEGMENTER"
 if [ ! "$model" -nt "$NW_RUNS/finetune/last.pt" ]; then
   "$PY" "$ROOT/train/export_onnx.py" "$NW_RUNS/finetune/last.pt" "$model"
 fi

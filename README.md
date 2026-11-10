@@ -31,7 +31,10 @@ by `fetch_training_data.sh`, opens a window).
 
 This runs `train.sh` first (skipping whatever a training already did), then sets up the
 benchmarks' and the other recognizers' environments, downloads the benchmark data (about 18 GB
-more), runs our benchmarks and compares with Zeus, the OLiMPiC authors' end-to-end recognizer.
+more), runs our benchmarks (`docs/EVALUATION_PROTOCOL.md`; whole pages in
+`runs/sequence/pages-dev/report.txt`) with Transcoda, Copisteria, HOMR and Audiveris on the same
+pages, and compares with Zeus, the OLiMPiC authors' end-to-end recognizer. The sealed test halves
+run once, for the final evaluation: `scripts/benchmark_pages.sh test`.
 About 30 GB of disk beyond training. The MuseScore benchmark also needs MuseScore 4, on PATH or
 named by `$MUSESCORE` (under WSL, the Windows install's `MuseScore4.exe` works).
 
@@ -43,9 +46,17 @@ A training that stopped and resumed draws a new batch order from the step it res
 
 ## Recognize a score
 
+After `./train.sh`:
+
 ```
-cpp/build/noteworthy score.pdf --model runs/finetune/model.onnx -o score.musicxml
+./recognize.sh score.pdf -o score.musicxml
+./recognize.sh page1.png page2.png -o score.musicxml
 ```
+
+The segmentation network finds the systems and the sequence model reads each one; it was
+trained on piano music (two staves per system). `cpp/build/noteworthy score.pdf --model
+runs/finetune/model.onnx -o score.musicxml` runs the older recognizer, the segmentation network
+alone.
 
 ## Layout
 

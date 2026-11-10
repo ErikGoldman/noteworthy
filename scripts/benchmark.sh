@@ -10,7 +10,7 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
-model="$NW_RUNS/finetune/model.onnx"
+model="$SEGMENTER"
 binary="$ROOT/cpp/build/noteworthy"
 report="$NW_RUNS/benchmark.txt"
 jobs=3

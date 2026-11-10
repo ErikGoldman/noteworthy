@@ -24,6 +24,11 @@ NW_SMASHCIMA_WORKERS=${NW_SMASHCIMA_WORKERS:-6}  # each holds MUSCIMA++'s glyphs
 NW_BENCH_COUNT=${NW_BENCH_COUNT:-100}
 
 RAW="$NW_DATA/raw"
+NW_SEQ_RUN=${NW_SEQ_RUN:-sequence}         # the sequence model's run directory under NW_RUNS
+# What recognize.sh uses and the benchmarks score: the segmentation network, and the sequence
+# model's averaged weights at the end of its fixed schedule (best.pt is chosen on real scans).
+SEGMENTER="$NW_RUNS/finetune/model.onnx"
+SEQ_CHECKPOINT="$NW_RUNS/$NW_SEQ_RUN/average_$(printf '%06d' "$NW_SEQ_STEPS").pt"
 export MC_ASSETS_CACHE="$RAW/smashcima"   # where Smashcima keeps its glyphs and paper
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }

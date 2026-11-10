@@ -6,7 +6,6 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
-run="${NW_SEQ_RUN:-seq512}"
-predictions="$NW_RUNS/$run/benchmark/olimpic-systems"
-(cd "$ROOT/eval" && "$PY" seq_predict.py "$NW_RUNS/$run/best.pt" --split dev --out "$predictions" \
-  && "$PY" olimpic_benchmark.py systems --predictions "$predictions" --out "$predictions") | tee "$NW_RUNS/${run}_benchmark.txt"
+predictions="$NW_RUNS/$NW_SEQ_RUN/benchmark/olimpic-systems"
+(cd "$ROOT/eval" && "$PY" seq_predict.py "$SEQ_CHECKPOINT" --split dev --out "$predictions" \
+  && "$PY" olimpic_benchmark.py systems --predictions "$predictions" --out "$predictions") | tee "$NW_RUNS/${NW_SEQ_RUN}_benchmark.txt"

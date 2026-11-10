@@ -7,6 +7,9 @@
 # environments and data, our benchmarks, and the comparisons with other recognizers. Each stage
 # skips what is already done, so the command can be rerun at any time.
 #
+# Page benchmarks run on the dev halves. The sealed test halves are run once, for the final
+# evaluation (docs/EVALUATION_PROTOCOL.md): scripts/benchmark_pages.sh test.
+#
 # On top of train.sh, a full run downloads about 18 GB more and takes about a day more. Settings
 # are environment variables (scripts/common.sh); a shorter end-to-end check, which still builds
 # every crop set (hours):
@@ -22,4 +25,5 @@ scripts="$root/scripts"
 "$scripts/fetch_benchmark_data.sh"
 "$scripts/benchmark.sh"
 "$scripts/benchmark_seq.sh"
+"$scripts/benchmark_pages.sh" dev
 "$scripts/compare_zeus.sh"
