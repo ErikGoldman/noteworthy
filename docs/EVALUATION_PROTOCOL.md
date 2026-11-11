@@ -132,6 +132,11 @@ Before scoring, each benchmark is checked for copies of training pieces with
 piece, 0.10 as the threshold, on the known copy in OLiMPiC dev (share 0.81) as positive control.
 Results are given with and without flagged pages. Polish: 7 pages flagged, none at 0.26.
 OLiMPiC test: 4 songs flagged, none at 0.26.
+Each new training source is checked the same way before it is trained on
+(`eval/benchmark_overlap.py`). MusiCorpus' 53 training grand staves (from seq516), 2026-11-10:
+none of Polish's 112 pages (largest share 0.061), OLiMPiC scanned's 200 dev and test songs
+(0.077) or Mutopia's 17 pieces (0.001) reaches 0.10. Smashcima crops are drawn from the PDMX
+scores already checked.
 
 ## Reporting
 

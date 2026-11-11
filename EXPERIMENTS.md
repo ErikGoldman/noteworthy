@@ -1803,3 +1803,25 @@ and dot offsets (the paper finds no gain on dots and accidentals), spacing betwe
 Not yet done: a training run with these crops; their share is meant to be 5-10% (about 19,000
 crops at one per score against seq514's 269,000). Crop checks (docs/TRAINING_DATA_CHECKS.md)
 done on a 671-crop sample for tuplets, accents, repeats and double barlines.
+
+## MusiCorpus in training, and what zero-shot means (2026-11-10)
+
+The protocol said "all synthetic, no labelled real scans". Amended (user's decision, before any
+test run): zero-shot means nothing of a benchmark is trained on, its pages, pieces or editions;
+training data is otherwise chosen for what helps. seq516 adds 53 real piano grand staves from
+MusiCorpus 1.0's OmniOMR training split (39 handwritten, 14 engraved;
+`train/build_musicorpus_crops.py`, checked by eye: docs/TRAINING_DATA_CHECKS.md).
+
+Overlap with the benchmarks, by the protocol's melodic check (`eval/benchmark_overlap.py`: the
+largest share of a benchmark item's 8-interval fragments found in one training piece; 0.10 marks
+a copy):
+
+| Benchmark | Items | At or over 0.10 | Largest share |
+|---|---|---|---|
+| Polish | 112 pages | 0 | 0.061 |
+| OLiMPiC scanned (dev and test) | 200 songs | 0 | 0.077 |
+| Mutopia (dev and test) | 17 pieces | 0 | 0.001 |
+
+No benchmark item shares a piece with them. The check, a scratch script before, is now in the
+repo, for every new training source.
+
