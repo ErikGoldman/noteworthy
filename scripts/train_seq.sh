@@ -13,7 +13,7 @@ data="${NW_SEQ_DATA:-$NW_DATA}"
 crops="$data/seq2"
 written="$data/olimpic_written"
 grandstaff="$data/grandstaff_written"
-# Handwriting, about 8% of samples: drawn by Smashcima, and real (MusiCorpus: 53 grand staves,
+# Handwriting, about 10% of samples: drawn by Smashcima, and real (MusiCorpus: 53 grand staves,
 # about 0.5%, each seen often; more would teach those pages rather than handwriting).
 SMASHCIMA_WEIGHT=2
 MUSICORPUS_WEIGHT=30
