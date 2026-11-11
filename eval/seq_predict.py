@@ -35,8 +35,9 @@ from seq.ottava import add_octave_shifts, shifts_of, sounding  # noqa: E402
 from seq.barlines import add_barlines, without_barlines  # noqa: E402
 from seq.time_symbols import add_time_symbols, without_time_symbols  # noqa: E402
 from seq.tuplet_numbers import hide_numbers, without_hidden_numbers  # noqa: E402
+from seq.meter import without_meter  # noqa: E402
 from seq.vocab import Vocab  # noqa: E402
-from train_seq import VOCABULARY, comparable  # noqa: E402
+from train_seq import VOCABULARY, comparable, meter_starts  # noqa: E402
 
 
 def rewind_to_measure_start(part: ET.Element) -> None:
@@ -84,7 +85,7 @@ def load_model(checkpoint: Path, device) -> Seq2Seq:
     args = state["args"]
     # Tokens are only ever added at the end, so an older model's ids still hold.
     model = Seq2Seq(len(state["model"]["out.weight"]), max_tokens=args["max_tokens"], height=args.get("height", 256),
-                    row_stride=args.get("row_stride", 32)).to(device)
+                    row_stride=args.get("row_stride", 32), meter_context=args.get("meter_context", False)).to(device)
     model.load_state_dict(state["model"])
     return model.eval()
 
@@ -100,15 +101,16 @@ def main() -> None:
     vocab = Vocab.load(VOCABULARY)
     model = load_model(args.checkpoint, device)
     names = split_names(SCANNED, args.split)
-    loader = torch.utils.data.DataLoader(SystemDataset(samples(SCANNED, names), vocab, False, model.max_tokens, model.height),
+    loader = torch.utils.data.DataLoader(SystemDataset(samples(SCANNED, names), vocab, False, model.max_tokens, model.height,
+                                                       model.meter_context),
                                          batch_size=args.batch, num_workers=6, collate_fn=collate)
     errors = total = 0
     done = 0
     for images, widths, tokens in loader:
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            predicted = model.generate(images.to(device), widths)
+            predicted = model.generate(images.to(device), widths, starts=meter_starts(tokens, vocab))
         for name, p, g in zip(names[done:], predicted, tokens.tolist()):
-            lmx, gold = comparable(vocab.decode(p)), comparable(vocab.decode(g[1:]))
+            lmx, gold = comparable(without_meter(vocab.decode(p))), comparable(without_meter(vocab.decode(g[1:])))
             errors += Levenshtein.distance(lmx.split(), gold.split())
             total += len(gold.split())
             path = args.out / name
@@ -116,7 +118,8 @@ def main() -> None:
             path.with_suffix(".lmx").write_text(lmx + "\n")
             path.with_suffix(".musicxml").write_text(delinearize(lmx))
         done += len(predicted)
-    print(f"SER = {100 * errors / total:.2f}% over {done} systems ({args.split})")
+    told = ", each given its label's meter" if model.meter_context else ""
+    print(f"SER = {100 * errors / total:.2f}% over {done} systems ({args.split}{told})")
 
 
 if __name__ == "__main__":

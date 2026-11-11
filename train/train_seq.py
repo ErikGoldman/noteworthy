@@ -27,6 +27,7 @@ import torch
 from torch.nn import functional as F
 
 from seq.data import SystemDataset, collate, samples, split_names
+from seq.meter import METER, PREFIX_LENGTH, without_meter
 from seq.model import Seq2Seq
 from seq.ottava import sounding
 from seq.barlines import without_barlines
@@ -54,6 +55,14 @@ def dataset_items(spec: str):
     items = samples(Path(root), split_names(Path(root), split))
     items += [s for s in items if rhythm_heavy(s)] * (RHYTHM_HEAVY_REPEAT - 1)
     return items * int(weight[0] if weight else 1)
+
+
+def targets_of(tokens: torch.Tensor, vocab: Vocab) -> torch.Tensor:
+    """What each position predicts: the next token, but nothing for a meter prefix, which the
+    model is given and never asked to write"""
+    targets = tokens[:, 1:].clone()
+    targets[tokens[:, 1] == vocab.index[METER], :PREFIX_LENGTH] = PAD
+    return targets
 
 
 def plain(options: dict) -> dict:
@@ -93,15 +102,21 @@ def comparable(lmx: str) -> str:
     return without_hidden_numbers(without_time_symbols(without_barlines(sounding(lmx))[0])[0])[0]
 
 
+def meter_starts(tokens: torch.Tensor, vocab: Vocab) -> list[list[int]]:
+    """Each label's meter prefix (seq.meter), given to the model as it was in training"""
+    meter = vocab.index[METER]
+    return [t[1:1 + PREFIX_LENGTH] if t[1] == meter else [] for t in tokens.tolist()]
+
+
 def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
     model.eval()
     errors = total = 0
     for images, widths, tokens in loader:
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            predicted = model.generate(images.to(device), widths)
+            predicted = model.generate(images.to(device), widths, starts=meter_starts(tokens, vocab))
         for p, g in zip(predicted, tokens.tolist()):
-            gold = comparable(vocab.decode(g[1:])).split()
-            errors += Levenshtein.distance(comparable(vocab.decode(p)).split(), gold)
+            gold = comparable(without_meter(vocab.decode(g[1:]))).split()
+            errors += Levenshtein.distance(comparable(without_meter(vocab.decode(p))).split(), gold)
             total += len(gold)
     model.train()
     return errors / max(1, total)
@@ -125,6 +140,7 @@ def main() -> None:
     ap.add_argument("--height", type=int, default=256, help="crop height at the model's input")
     ap.add_argument("--row-stride", type=int, default=32, choices=[8, 16, 32])
     ap.add_argument("--seed", type=int, default=0, help="decides the initial weights, batches and augmentation")
+    ap.add_argument("--meter-context", action="store_true", help="labels start with the meter in force (seq.meter)")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
 
@@ -139,12 +155,15 @@ def main() -> None:
     dev_root, dev_split = args.dev.split(":")
     dev_names = args.dev_samples.read_text().split() if args.dev_samples else split_names(Path(dev_root), dev_split)
     dev_items = samples(Path(dev_root), dev_names[: args.dev_count])
-    train = torch.utils.data.DataLoader(SystemDataset(train_items, vocab, True, args.max_tokens, args.height), batch_size=args.batch,
+    train = torch.utils.data.DataLoader(SystemDataset(train_items, vocab, True, args.max_tokens, args.height, args.meter_context),
+                                        batch_size=args.batch,
                                         shuffle=True, num_workers=args.workers, collate_fn=collate, drop_last=True,
                                         persistent_workers=True)
-    dev = torch.utils.data.DataLoader(SystemDataset(dev_items, vocab, False, args.max_tokens, args.height), batch_size=32,
+    dev = torch.utils.data.DataLoader(SystemDataset(dev_items, vocab, False, args.max_tokens, args.height, args.meter_context),
+                                      batch_size=32,
                                       num_workers=4, collate_fn=collate)
-    model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride).to(device)
+    model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
+                    meter_context=args.meter_context).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     schedule = lambda s: min(1.0, s / args.warmup) * 0.5 * (1 + math.cos(math.pi * min(1.0, s / args.steps)))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, schedule)
@@ -173,7 +192,7 @@ def main() -> None:
             images, tokens = images.to(device, non_blocking=True), tokens.to(device, non_blocking=True)
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 logits = model(images, widths, tokens)
-            loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), tokens[:, 1:].reshape(-1),
+            loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), targets_of(tokens, vocab).reshape(-1),
                                    ignore_index=PAD, label_smoothing=0.1)
             opt.zero_grad(set_to_none=True)
             loss.backward()

@@ -43,9 +43,11 @@ def _sinusoid(n: int, dim: int, device) -> torch.Tensor:
 
 class Seq2Seq(nn.Module):
     def __init__(self, vocab_size: int, dim: int = 384, encoder_layers: int = 2, decoder_layers: int = 6,
-                 heads: int = 8, max_tokens: int = 1024, height: int = 256, row_stride: int = 32, dropout: float = 0.1):
+                 heads: int = 8, max_tokens: int = 1024, height: int = 256, row_stride: int = 32, dropout: float = 0.1,
+                 meter_context: bool = False):
         super().__init__()
         self.height = height
+        self.meter_context = meter_context  # trained to read a seq.meter prefix
         rows = height // row_stride
         into_128, into_256, into_dim = STAGE_STRIDES[row_stride]
         self.cnn = nn.Sequential(
@@ -89,13 +91,17 @@ class Seq2Seq(nn.Module):
         return self.decode(tokens[:, :-1], memory, padding)
 
     @torch.no_grad()
-    def generate(self, images, widths, max_tokens: int | None = None) -> list[list[int]]:
-        """Greedy decoding."""
+    def generate(self, images, widths, max_tokens: int | None = None,
+                 starts: list[list[int]] | None = None) -> list[list[int]]:
+        """Greedy decoding, each sequence after <bos> and its start tokens (a context the model
+        reads, such as seq.meter's), which are returned with it."""
+        if starts and len({len(s) for s in starts}) > 1:
+            return self.generate_grouped(images, widths, max_tokens, starts)
         memory, padding = self.encode(images, widths)
         b = images.shape[0]
-        tokens = torch.full((b, 1), BOS, device=images.device)
+        tokens = torch.tensor([[BOS] + s for s in starts] if starts else [[BOS]] * b, device=images.device)
         done = torch.zeros(b, dtype=torch.bool, device=images.device)
-        for _ in range((max_tokens or self.max_tokens) - 1):
+        for _ in range((max_tokens or self.max_tokens) - tokens.shape[1]):
             nxt = self.decode(tokens, memory, padding)[:, -1].argmax(-1)
             nxt = torch.where(done, torch.full_like(nxt, PAD), nxt)
             tokens = torch.cat([tokens, nxt[:, None]], 1)
@@ -103,3 +109,13 @@ class Seq2Seq(nn.Module):
             if done.all():
                 break
         return [t[1:].tolist() for t in tokens]
+
+    def generate_grouped(self, images, widths, max_tokens, starts) -> list[list[int]]:
+        """generate for start tokens of several lengths, one batch per length"""
+        out: list[list[int]] = [[] for _ in starts]
+        for length in sorted({len(s) for s in starts}):
+            chosen = [i for i, s in enumerate(starts) if len(s) == length]
+            for i, tokens in zip(chosen, self.generate(images[chosen], widths[chosen], max_tokens,
+                                                         [starts[i] for i in chosen])):
+                out[i] = tokens
+        return out

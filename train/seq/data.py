@@ -15,6 +15,7 @@ import torch
 
 from omr.augment import capture_degradation, stroke_weight
 
+from .meter import with_meter
 from .vocab import PAD, Vocab
 
 HEIGHT = 256
@@ -83,8 +84,10 @@ def to_tensor(image: np.ndarray) -> torch.Tensor:
 
 
 class SystemDataset(torch.utils.data.Dataset):
-    def __init__(self, items: list[Sample], vocab: Vocab, train: bool, max_tokens: int, height: int = HEIGHT):
+    def __init__(self, items: list[Sample], vocab: Vocab, train: bool, max_tokens: int, height: int = HEIGHT,
+                 meter_context: bool = False):
         self.height = height
+        self.meter_context = meter_context
         self.items = items
         self.vocab = vocab
         self.train = train
@@ -99,7 +102,10 @@ class SystemDataset(torch.utils.data.Dataset):
         image = load_scaled(sample.image, self.height)
         if self.train:
             image = augment(self.augmentation_rng(), image)
-        tokens = self.vocab.encode(sample.lmx.read_text())[: self.max_tokens]
+        lmx = sample.lmx.read_text()
+        if self.meter_context:
+            lmx = with_meter(lmx, self.augmentation_rng() if self.train else None)
+        tokens = self.vocab.encode(lmx)[: self.max_tokens]
         return to_tensor(image), torch.tensor(tokens)
 
     def augmentation_rng(self) -> np.random.Generator:

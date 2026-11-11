@@ -233,3 +233,4 @@ barline:final
 time:common
 time:cut
 tuplet:hidden
+meter

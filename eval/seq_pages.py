@@ -27,6 +27,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 
 import cv2
@@ -47,6 +48,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
 from seq.data import collate, scale_to_height, to_tensor  # noqa: E402
 from seq.lmx_tuplets import bar_fill, written_bar  # noqa: E402
+from seq.meter import meter_tokens, without_meter  # noqa: E402
 from seq.ottava import sounding  # noqa: E402
 from seq.vocab import BOS, EOS, Vocab  # noqa: E402
 from train_seq import VOCABULARY  # noqa: E402
@@ -148,30 +150,46 @@ def page_crops(pages: list[np.ndarray], systems: list[SystemCrop], height_ratio:
     return crops
 
 
-def transcribe(model, vocab: Vocab, crops: list[np.ndarray], device, batch: int) -> list[str]:
-    """LMX of each crop; widest together, so a batch pads little."""
+def transcribe(model, vocab: Vocab, crops: list[np.ndarray], device, batch: int,
+               bars: list[Fraction | None] | None = None) -> list[str]:
+    """LMX of each crop; widest together, so a batch pads little. bars: each crop's meter in force,
+    for a model that reads one (seq.meter)."""
     order = sorted(range(len(crops)), key=lambda i: crops[i].shape[1] / crops[i].shape[0])
     out = [""] * len(crops)
     empty = torch.tensor([BOS, EOS])
     for start in range(0, len(order), batch):
         chosen = order[start:start + batch]
         images, widths, _ = collate([(to_tensor(scale_to_height(crops[i], model.height)), empty) for i in chosen])
+        starts = [vocab.encode(" ".join(meter_tokens(bars[i])))[1:-1] if bars and bars[i] else [] for i in chosen]
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            predicted = model.generate(images.to(device), widths)
+            predicted = model.generate(images.to(device), widths, starts=starts)
         for i, tokens in zip(chosen, predicted):
-            out[i] = vocab.decode(tokens)
+            out[i] = without_meter(vocab.decode(tokens))
     return out
+
+
+def meters_in_force(lmx_of_systems: list[str]) -> list[Fraction | None]:
+    """Each system's meter: its own time signature, or the last one read before it"""
+    bars, in_force = [], None
+    for lmx in lmx_of_systems:
+        in_force = written_bar(lmx.split()) or in_force
+        bars.append(in_force)
+    return bars
 
 
 def best_readings(model, vocab: Vocab, pages: list[np.ndarray], systems: list[SystemCrop], wanted, device,
                   batch: int) -> list[str]:
     """LMX of each wanted system: of its reading at each crop height, the one that fills its
     bars best, the earlier height among equals. Neighbours bound a crop, wanted or not."""
-    readings = []
-    for ratio in CROP_HEIGHT_RATIOS:
-        crops = [c for s, c in zip(systems, page_crops(pages, systems, ratio)) if wanted(s)]
-        readings.append(transcribe(model, vocab, crops, device, batch))
-    return [max(reads, key=lambda lmx: bar_fill(sounding(lmx))) for reads in zip(*readings)]
+    def read(bars=None) -> list[str]:
+        readings = []
+        for ratio in CROP_HEIGHT_RATIOS:
+            crops = [c for s, c in zip(systems, page_crops(pages, systems, ratio)) if wanted(s)]
+            readings.append(transcribe(model, vocab, crops, device, batch, bars))
+        return [max(reads, key=lambda lmx: bar_fill(sounding(lmx))) for reads in zip(*readings)]
+    chosen = read()
+    # A model that reads the meter reads again, given what the first reading found in force.
+    return read(meters_in_force(chosen)) if model.meter_context else chosen
 
 
 def measure_count(musicxml: str) -> int:
