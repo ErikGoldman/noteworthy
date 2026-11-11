@@ -146,7 +146,7 @@ unlocked scores, then 6-10.
 - seq514's quarter-read-as-half on OLiMPiC scans (152 aligned notes against seq513's 110) sits in
   a few crops (6010916/p2-s4, 6499366/p2-s2, 6189628/p2-s4): chords under a slur with a flagged
   eighth after; no cause found yet.
-- After each new model: re-measure each kept page-output rule in eval/lmx_tuplets.py (wrong tuplet
+- After each new model: re-measure each kept page-output rule in train/seq/lmx_tuplets.py (wrong tuplet
   marks cleared, triplets under a second beam, one beam too many) on its readings, and count the
   bars each makes worse against gold, not only the net. A rule whose gain is not significant comes out.
 - 096 is still 8.5 worse on Print after D: dense voices, seq514 drops voice-2 rests and writes a

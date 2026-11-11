@@ -18,7 +18,7 @@ with public weights. Orchestral, quartet and handwritten music are outside it.
   `license_conflict` scores. All synthetic. No labelled real scans.
 - Pipeline: `eval/seq_pages.py` at the commit that adds this file's frozen tag, reading each
   system at `CROP_HEIGHT_RATIOS`, cutting between systems at the middle of their gap, restoring
-  tuplets and overbeamed groups (`eval/lmx_tuplets.py`), and finishing the page's MusicXML (`eval/page_musicxml.py`:
+  tuplets and overbeamed groups (`train/seq/lmx_tuplets.py`, in `eval/` until 2026-11-10), and finishing the page's MusicXML (`eval/page_musicxml.py`:
   slurs paired per staff, grace slashes and tuplet brackets stated, ties mended, a slur between events of the same pitches written as a tie, a clef change at a barline put before it).
 - Layout: the v5 U-Net in `cpp/`, used only to find systems.
 

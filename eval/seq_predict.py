@@ -20,10 +20,9 @@ from pathlib import Path
 import Levenshtein
 import torch
 
-from lmx_tuplets import dots_mended, extra_beams_dropped, imply_tuplets
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
+from seq.lmx_tuplets import dots_mended, extra_beams_dropped, imply_tuplets  # noqa: E402
 OLIMPIC = Path(os.environ.get("NW_DATA", ROOT / "data")) / "raw" / "olimpic"
 SCANNED = OLIMPIC / "olimpic-1.0-scanned"
 sys.path.insert(0, str(OLIMPIC / "code" / "repo"))

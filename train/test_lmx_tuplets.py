@@ -1,10 +1,10 @@
-"""Tests for lmx_tuplets: tuplets restored and cleared by the bar's arithmetic. Run from eval/: python -m unittest test_lmx_tuplets"""
+"""Tests for seq.lmx_tuplets: tuplets restored and cleared by the bar's arithmetic. Run from train/: python -m unittest test_lmx_tuplets"""
 from __future__ import annotations
 
 import unittest
 from fractions import Fraction
 
-from lmx_tuplets import dots_mended, extra_beams_dropped, imply_tuplets
+from seq.lmx_tuplets import dots_mended, extra_beams_dropped, imply_tuplets
 
 THREE_FOUR = Fraction(3)
 

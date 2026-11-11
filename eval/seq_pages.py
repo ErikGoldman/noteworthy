@@ -39,7 +39,6 @@ from note_scoring import report, score
 from olimpic_benchmark import SOURCES, song_document, song_of, song_systems, song_truth, split_samples
 from results_file import save_results
 from score_events import NoteEvent, parse_musicxml
-from lmx_tuplets import bar_fill, written_bar
 from page_musicxml import finish_score, mark_new_system
 from seq_predict import delinearize, load_model
 from synthetic_benchmark import f1_counts, held_out_scores, split_scores
@@ -47,6 +46,7 @@ from synthetic_benchmark import f1_counts, held_out_scores, split_scores
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
 from seq.data import collate, scale_to_height, to_tensor  # noqa: E402
+from seq.lmx_tuplets import bar_fill, written_bar  # noqa: E402
 from seq.ottava import sounding  # noqa: E402
 from seq.vocab import BOS, EOS, Vocab  # noqa: E402
 from train_seq import VOCABULARY  # noqa: E402
