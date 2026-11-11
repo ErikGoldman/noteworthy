@@ -1844,3 +1844,31 @@ inside the system): our crops, each system engraved alone, never drew the arc. F
 - MuseScore crops leave such systems out (it stretches a page's non-last lines to its width).
 
 Measure after seq516: the same edge count on OLiMPiC dev.
+
+## The meter as context: A/B fine-tunes (2026-11-11)
+
+Does giving the decoder the system's time signature (`meter beats:N beat-type:M` after `<bos>`,
+out of the loss, dropped on 15% of training labels) help it read rhythm? Two fine-tunes of
+seq515's final averaged weights, 15,000 steps each on seq515's data, seed 0, identical but for
+`--meter-context` (B).
+
+| | A (control) | B (meter) |
+|---|---|---|
+| OLiMPiC dev SER in training (averaged, 5k / 10k / 15k) | 6.94 / 6.79 / 6.67 | 6.72 / 6.83 / 6.67 |
+| OLiMPiC dev, seq_predict (B given each label's meter) | 7.28 | 6.95 |
+| Wrong bars of 5,340 | 956 | 889 |
+| A voice does not fill the meter | 588 | 533 |
+| Fills the meter, still wrong | 368 | 356 |
+
+The seq_predict row hands B the true meter, an upper bound. On Polish dev (56 pages, v5
+segmenter, B reading each page twice to find its meter), A - B with 95% intervals:
+
+| Gold, alignment | A - B |
+|---|---|
+| Corrected, authors | -0.02 [-0.74, +0.91] |
+| Corrected, whole page | -0.29 [-0.79, +0.17] |
+| Print, authors | +0.41 [-0.35, +1.36] |
+| Print, whole page | -0.09 [-0.57, +0.36] |
+
+No measurable difference on real pages, so seq516 trains without it. The code stays (the
+prefix is opt-in), for a larger test if rhythm errors lead again.

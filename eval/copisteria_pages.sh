@@ -15,7 +15,7 @@ out=$(realpath -m "$1")
 shift
 mkdir -p "$out"
 cp "$@" "$out"
-cd "$ROOT/data/raw/copisteria/src" || exit 1
+cd "${NW_DATA:-$ROOT/data}/raw/copisteria/src" || exit 1
 for page in "$@"; do
   [ -e "$out/$(basename "$page" .png).musicxml" ] || echo "$out/$(basename "$page")"
 done | xargs -P "$JOBS" -I{} timeout "$PAGE_TIMEOUT_S" "$ROOT/.venv-copisteria/bin/python" -m copisteria.pipeline {} --out "$out"
