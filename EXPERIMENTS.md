@@ -1872,3 +1872,59 @@ segmenter, B reading each page twice to find its meter), A - B with 95% interval
 
 No measurable difference on real pages, so seq516 trains without it. The code stays (the
 prefix is opt-in), for a larger test if rhythm errors lead again.
+
+## A label sweep, and GrandStaff-LMX's clefs, keys and meters (2026-11-11)
+
+seq515 read GrandStaff's training crops in a seeded random order; the crops it reads worst are
+the likeliest bad labels. Of the first 773, none of the 474 whose source has no spine split read
+above 0.2 SER (mean 0.003); all 23 above it split. Some of those are only hard (cross-staff
+sixteenths); the worst, Joplin's Bethena, had a treble clef on a bass staff and bass notes moved
+between measures. Following that up over all of GrandStaff-LMX against its **kern sources:
+
+- No label has a clef change; 13,459 systems' sources change clef with notes after the change
+  (25%), and their images draw it. In other sets, 13-22% of labels carry one.
+- 3,512 systems label a staff treble where its spine splits before its clef: the bass staff of
+  Bethena and of every system like it.
+- 416 systems' notes differ from the source measure by measure (grace notes aside); two looked
+  at move notes between measures.
+
+Sweeping again on clef-mended labels found the same loss for keys and meters: a staff whose spine
+splits before its signatures is labelled C major with no meter (sonata 5-1 in five flats and 3/4
+labelled `key:fifths:0`, a flat written on every note), 10% of seq516's GrandStaff crops.
+
+The cause is music21's Humdrum parser and MusicXML export in OLiMPiC's build: a change is put at
+offset 0 beside the opening signature or outside any measure, and a signature after a split is
+stored in the voices; the export writes none of them. OLiMPiC's build, rerun as it is (music21
+9.9.1, MuseScore 3.6.2), gives back the release byte for byte, so `train/rebuild_grandstaff_lmx.py`
+runs it with one change: after the parse, music21's signatures are replaced by the source's, at
+their offsets. 20,757 systems are mended (39%): 13,477 get their clef changes, 4,825 their key,
+5,674 their meter; 107,206 accidental tokens no image draws are gone. The rest come out byte for
+byte the release's, but for 499 left out as unlike their source (243 whose notes differ, two of
+which, looked at, move notes between measures). `build_grandstaff_written.py` takes the mended
+labels: 32,156 training systems (34,912 before). Left out, in the order checked: 373 unlike their
+source; 50 whose source merges the two staves into one spine with notes after it (68 in all
+splits, found by the sweep resumed on the mended labels: Verovio drew no notes after the merger,
+only empty measures, and OLiMPiC's build cut the label there on purpose, so the image has bars the
+label lacks; `sonata07-3/maj2_down_m-35-40`, one measure of notes, three empty bars, seq515 wrote
+notes into them); 2,984 with a grace note in the source (GrandStaff's images draw each as a
+stemless notehead, often under a stray dash, drawn in all 8 checked by eye, and 1,652 of the
+2,498 left after the tuplet check have none in their label; OLiMPiC synthetic, drawn by MuseScore,
+has real ones); 2 with unmatched signs (112 before, the meters now matching); 6,027 with tuplets;
+6 with a blank image (29 of GrandStaff's images, mostly distorted ones, are one grey or nearly
+black, found by the same sweep). The Polish gold, read by the same parser for OMR-NED, keeps its clef
+changes (on each dev page music21 has at least as many clefs as the source's 95 clef lines after
+notes; the extra are copies in each voice of a split), so the benchmark should not be touched;
+matching them one by one is still to do. For the dataset's other users: `errata/grandstaff-lmx/`
+(what is wrong, why, a patch, every system's status).
+
+The sweep after the mend: 11,184 of GrandStaff's mended training crops (mean 0.029 against 0.018
+on the release's labels, seq515 having learned no clef changes) and 1,000 of OLiMPiC synthetic's
+(mean 0.029, 19 above 0.3). Every crop looked at among the worst of either agrees with its image
+but the merger systems above: seq515's misreads (16ths in threes read as triplets, whole notes as
+breves, a lost staff in seven flats) and voice order (arpeggiated chords, an empty staff's
+invisible rest). No new kind of label error; OLiMPiC synthetic's labels, built by MuseScore from
+MusicXML rather than from **kern, need no further sweep.
+
+seq516 trains on `data/seq516f_data`: seq516_data's sets but GrandStaff, rebuilt as above (the
+same as a fresh `build_seq_data.sh`, the other builders being unchanged; its rebuild is
+seq516d_data's, the merger and grace-note checks needing only the source).

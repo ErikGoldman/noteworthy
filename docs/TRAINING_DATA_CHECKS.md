@@ -120,3 +120,19 @@ copyright and other text, glissando lines.
 - 2026-11-11, seq516's `unmarked` Verovio set (3,990 crops, 19,007 tuplet groups, 90% labelled
   hidden). Checked 8 random crops: each draws exactly the numbers its label shows (the kept
   first ones), none where all are hidden.
+- 2026-11-11, GrandStaff-LMX clefs, keys and meters (found by a label sweep: seq515 reading the
+  training set, its worst-read crops looked at). The release drops every clef, key and meter
+  change, and a staff whose spine splits before its signatures loses them (treble, C major, no
+  meter: every flat or sharp then written out as an accidental). All 53,882 systems rebuilt by
+  OLiMPiC's own build with the source's signatures put back (`train/rebuild_grandstaff_lmx.py`;
+  unchanged, the build gives back the release byte for byte): 20,757 mended, 499 left out (notes,
+  measures or more than signatures unlike the source). Seven mended systems rendered beside
+  their images: clefs, keys, meters and accidentals as drawn. seq516's GrandStaff labels: no
+  wrong key or missing meter left (2,878 and 3,383 before), 25% with a clef change. Write-up and
+  patch for the dataset's users: `errata/grandstaff-lmx/`. Also found: 29 blank GrandStaff images
+(one grey or nearly black, most of them distorted ones; systems using one left out; OLiMPiC
+synthetic scanned, none blank), and 68 systems whose images draw empty bars after a merger
+of the staves where OLiMPiC cut the label (left out). Grace notes: GrandStaff's images draw
+  every one, as a stemless notehead (8 of 8 by eye), but two thirds of the labels lack them;
+  all 2,984 training systems with one in the source left out. Not checked yet: reminder
+  accidentals (one label has a natural its image does not draw).

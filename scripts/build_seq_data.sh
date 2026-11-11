@@ -4,7 +4,8 @@
 # (build_musescore_crops.py; without a display, on a virtual one), handwritten crops drawn by our
 # Smashcima fork (build_smashcima_crops.py), real piano grand staves from MusiCorpus
 # (build_musicorpus_crops.py), OLiMPiC synthetic relabelled with pitches as
-# printed, and GrandStaff-LMX with time symbols and barlines as tokens.
+# printed, and GrandStaff-LMX rebuilt with its sources' clefs, keys and meters
+# (rebuild_grandstaff_lmx.py), time symbols and barlines as tokens.
 # Safe to stop and run again: the crop builders skip scores already built, and the relabelled sets
 # are rewritten whole. A changed builder needs a fresh data directory. Before training on new or
 # changed crops, check them by eye: docs/TRAINING_DATA_CHECKS.md.
@@ -28,7 +29,8 @@ build_crops marks --systems-per-score 2 --thick-beams --marks
 # Prints often number the first tuplets of a run and no more: systems with tuplets, numbers hidden.
 build_crops unmarked --systems-per-score 2 --unmarked-tuplets
 (cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-synthetic" "$data/olimpic_written")
-(cd "$ROOT/train" && "$PY" build_grandstaff_written.py "$olimpic/grandstaff-lmx" "$data/grandstaff_written")
+(cd "$ROOT/train" && with_display "$PY" rebuild_grandstaff_lmx.py "$olimpic/grandstaff-lmx" "$data/grandstaff_rebuilt")
+(cd "$ROOT/train" && "$PY" build_grandstaff_written.py "$olimpic/grandstaff-lmx" "$data/grandstaff_rebuilt" "$data/grandstaff_written")
 (cd "$ROOT/train" && with_display "$PY" build_musescore_crops.py --scores "$NW_DATA/render_scores.txt" \
   --out "$crops/musescore")
 (cd "$ROOT/train" && "$SMASHCIMA_PY" build_smashcima_crops.py --scores "$NW_DATA/render_scores.txt" \

@@ -16,3 +16,4 @@ verovio==6.4.0
 mung==1.2.1           # MUSCIMA++ graphs: handwritten benchmark ground truth
 scikit-image==0.26.0  # required by mung
 levenshtein==0.27.5  # token edit distance (SER) of the sequence model
+music21==9.9.1  # GrandStaff-LMX rebuilt from its **kern sources as OLiMPiC built it (rebuild_grandstaff_lmx.py)
