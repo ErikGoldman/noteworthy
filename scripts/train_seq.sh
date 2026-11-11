@@ -20,7 +20,7 @@ MUSICORPUS_WEIGHT=30
 # PDMX holds copies of some OLiMPiC songs: monitor on the dev songs without one.
 (cd "$ROOT/eval" && "$PY" olimpic_benchmark.py list --split dev > "$clean_dev")
 (cd "$ROOT/train" && "$PY" train_seq.py --data "$written:train:2" "$grandstaff:train" \
-  "$crops/pdmx:train" "$crops/beams:train" "$crops/round:train" "$crops/marks:train" "$crops/musescore:train" \
+  "$crops/pdmx:train" "$crops/beams:train" "$crops/round:train" "$crops/marks:train" "$crops/musescore:train" "$crops/unmarked:train" \
   "$crops/smashcima:train:$SMASHCIMA_WEIGHT" "$data/musicorpus:train:$MUSICORPUS_WEIGHT" --dev "$olimpic/olimpic-1.0-scanned:dev" --dev-samples "$clean_dev" --dev-count 615 \
   --out "$NW_RUNS/$NW_SEQ_RUN" --height 512 --batch 10 --lr 3e-4 --warmup 4800 --steps "$NW_SEQ_STEPS" \
   --workers "$NW_TRAIN_WORKERS") 2>&1 | tee -a "$NW_RUNS/$NW_SEQ_RUN.log"

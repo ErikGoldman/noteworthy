@@ -25,6 +25,8 @@ build_crops pdmx
 build_crops beams --systems-per-score 2 --thick-beams
 build_crops round --systems-per-score 2 --thick-beams --round-heads
 build_crops marks --systems-per-score 2 --thick-beams --marks
+# Prints often number the first tuplets of a run and no more: systems with tuplets, numbers hidden.
+build_crops unmarked --systems-per-score 2 --unmarked-tuplets
 (cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-synthetic" "$data/olimpic_written")
 (cd "$ROOT/train" && "$PY" build_grandstaff_written.py "$olimpic/grandstaff-lmx" "$data/grandstaff_written")
 (cd "$ROOT/train" && with_display "$PY" build_musescore_crops.py --scores "$NW_DATA/render_scores.txt" \
