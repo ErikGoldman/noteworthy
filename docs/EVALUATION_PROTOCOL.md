@@ -8,6 +8,11 @@ experiment, to be reported as one alongside the original result.
 Zero-shot transcription of real scans of engraved piano music, by OMR-NED, against systems
 with public weights. Orchestral, quartet and handwritten music are outside it.
 
+Zero-shot means that nothing of a benchmark is trained on: none of its pages, and none of its
+pieces or editions (checked by melodic overlap, see Overlap). Training data is otherwise chosen
+for what helps, real scans included. *Amended 2026-11-10, before any test run; it read "All
+synthetic. No labelled real scans." until then.*
+
 ## The system
 
 - Sequence model: `runs/seq513/last.pt` (192,000 steps, `scripts/train_seq.sh`, frozen
@@ -15,7 +20,10 @@ with public weights. Orchestral, quartet and handwritten music are outside it.
   chosen on real scans (OLiMPiC scanned dev), so it is not used. Here they differ: best.pt is
   step 160,000. seq512 (`runs/seq512/last.pt`) was the candidate before it.
 - Training data: OLiMPiC synthetic, GrandStaff, PDMX crops without held-out scores or
-  `license_conflict` scores. All synthetic. No labelled real scans.
+  `license_conflict` scores (all synthetic for seq513-515). From seq516 on, also handwritten crops
+  drawn by Smashcima and 53 real piano grand staves from MusiCorpus 1.0's OmniOMR training split
+  (39 handwritten, 14 engraved; Moravian Library), none from a benchmark. Reports list each
+  system's training data.
 - Pipeline: `eval/seq_pages.py` at the commit that adds this file's frozen tag, reading each
   system at `CROP_HEIGHT_RATIOS`, cutting between systems at the middle of their gap, restoring
   tuplets and overbeamed groups (`train/seq/lmx_tuplets.py`, in `eval/` until 2026-11-10), and finishing the page's MusicXML (`eval/page_musicxml.py`:
