@@ -54,7 +54,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_seq_dataset import (DATA, INTERLINE_PX, MARGIN_INTERLINES, MAX_TOKENS, PART_NAME_HIDDEN,  # noqa: E402
                                ROOT, break_into_systems, draw_some_meters_as_symbols,
                                hide_part_name, is_training_score, linearize, without_octave_clefs,
-                               load_musicxml, part_to_score, piano_part, split_part_to_systems)
+                               load_musicxml, open_at_an_edge, part_to_score, piano_part,
+                               split_part_to_systems)
 from omr.pieces import pdmx_license_conflicts  # noqa: E402
 from seq.barlines import REPEAT_START, barline_tokens_of  # noqa: E402
 from seq.ottava import add_octave_shifts, shifts_of  # noqa: E402
@@ -176,10 +177,15 @@ def with_label_ottavas(part: ET.Element, lmx: str) -> bool:
 
 
 def labelled_system(part: ET.Element, name: str, rng: random.Random) -> LabelledSystem | None:
-    """The system's label and its score for MuseScore, or None if its label is out of bounds."""
+    """The system's label and its score for MuseScore, or None if its label is out of bounds, or
+    if a tie or slur runs on across one of its edges: engraved alone, the system shows none of the
+    half arc a page draws there. (The Verovio crops draw it from neighbouring measures; MuseScore
+    would stretch a system that is not a page's last to the page's width.)"""
     draw_some_meters_as_symbols(part, rng)
     show_every_tuplet_number(part)
     lmx = linearize(part)
+    if open_at_an_edge(lmx):
+        return None
     if not MIN_TOKENS <= len(lmx.split()) <= MAX_TOKENS or not with_label_ottavas(part, lmx):
         return None
     score = part_to_score(part).getroot()
