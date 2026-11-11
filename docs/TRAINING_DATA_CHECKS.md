@@ -117,3 +117,6 @@ copyright and other text, glissando lines.
   barline (outgoing), no courtesy signatures, no ottava from a neighbour; labels unchanged, crop
   counts as seq514's. Outgoing arcs are still shorter than a print's where the line is not
   justified (Verovio caps the margin before the barline).
+- 2026-11-11, seq516's `unmarked` Verovio set (3,990 crops, 19,007 tuplet groups, 90% labelled
+  hidden). Checked 8 random crops: each draws exactly the numbers its label shows (the kept
+  first ones), none where all are hidden.
