@@ -37,6 +37,7 @@ DIR/hung.txt and skipped by later runs.
 from __future__ import annotations
 
 import argparse
+import copy
 import multiprocessing as mp
 import os
 import random
@@ -236,13 +237,16 @@ def linearize(part: ET.Element) -> str:
     return " ".join(linearizer.output_tokens)
 
 
-def ottavas_drawn_as_labelled(tk: verovio.toolkit, part: ET.Element) -> bool:
+def ottavas_drawn_as_labelled(tk: verovio.toolkit, part: ET.Element, neighbours: tuple[int, int] = (0, 0)) -> bool:
     """False if Verovio shifted other notes than the labels say. A sign holds for its whole
-    staff, as in MuseScore, but Verovio leaves out some voices of the same staff."""
+    staff, as in MuseScore, but Verovio leaves out some voices of the same staff. neighbours:
+    the measures drawn before and after the system (with_neighbours), which are not counted."""
     labelled = len(notes_under_ottavas(part))
     if not labelled:
         return True
-    notes = [dict(re.findall(r'(oct(?:\.ges)?)="(\d+)"', note)) for note in re.findall(r"<note [^>]*>", tk.getMEI())]
+    measures = re.split(r"<measure\b", tk.getMEI())[1:]
+    own = measures[neighbours[0]:len(measures) - neighbours[1]]
+    notes = [dict(re.findall(r'(oct(?:\.ges)?)="(\d+)"', note)) for m in own for note in re.findall(r"<note [^>]*>", m)]
     return labelled == sum(note.get("oct") != note.get("oct.ges", note.get("oct")) for note in notes)
 
 
@@ -330,6 +334,10 @@ def add_marks(part: ET.Element, rng: random.Random) -> None:
         add_plain_line(part, rng)
 
 
+EDGE_MARGINS = ("rightMarginClef", "rightMarginKeySig", "rightMarginMeterSig", "leftMarginRightBarLine")
+EDGE_MARGIN_UNITS = (1.0, 2.0)   # Verovio's default and its maximum, in half staff spaces
+
+
 def engraving_options(rng: random.Random) -> dict:
     return {
         "font": rng.choice(FONTS), "breaks": "none", "adjustPageWidth": True, "adjustPageHeight": True,
@@ -340,6 +348,10 @@ def engraving_options(rng: random.Random) -> dict:
         "stemWidth": rng.uniform(0.1, 0.35), "barLineWidth": rng.uniform(0.15, 0.5),
         "ledgerLineThickness": rng.uniform(0.15, 0.4), "beamMaxSlope": rng.randint(5, 20),
         "svgBoundingBoxes": False, "svgHtml5": False,
+        # Room at a system's edges, from Verovio's tightest to as much as it allows (prints leave more):
+        # where a tie or slur runs on from or to the next system (with_neighbours), its half arc
+        # fills it. Every system gets it, so that the room itself tells nothing.
+        **{margin: rng.uniform(*EDGE_MARGIN_UNITS) for margin in EDGE_MARGINS},
     }
 
 
@@ -525,14 +537,118 @@ def old_quarter_rests(svg: bytes, font: str) -> bytes:
     return etree.tostring(root)
 
 
-def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style: Style = Style()) -> np.ndarray | None:
-    """The system as a grayscale image cropped to its ink plus a random margin."""
+PITCH_TOKEN = re.compile(r"^[A-G]\d$")
+
+
+def open_at_an_edge(lmx: str) -> bool:
+    """A tie or slur that runs on from the system before or into the one after: a page draws it as
+    a half arc from or to the system's edge"""
+    open_ties, slurs, pitch = set(), 0, None
+    for token in lmx.split():
+        if PITCH_TOKEN.match(token):
+            pitch = token
+        elif token == "tied:start":
+            open_ties.add(pitch)
+        elif token == "tied:stop":
+            if pitch not in open_ties:
+                return True
+            open_ties.discard(pitch)
+        elif token == "slur:start":
+            slurs += 1
+        elif token == "slur:stop":
+            if slurs == 0:
+                return True
+            slurs -= 1
+    return bool(open_ties) or slurs > 0
+
+
+def notes_only(measure: ET.Element) -> ET.Element:
+    """A neighbouring measure with nothing but its notes: no clef, key or time of its own (Verovio
+    would draw a courtesy signature at the line's end) and no directions (an ottava would reach
+    into the system, against its label). Only ties and slurs then cross the break."""
+    measure = copy.deepcopy(measure)
+    for child in list(measure):
+        if child.tag == "direction":
+            measure.remove(child)
+        elif child.tag == "attributes":
+            for change in child.findall("clef") + child.findall("key") + child.findall("time"):
+                child.remove(change)
+    return measure
+
+
+def notes_only_attributes(attributes: ET.Element) -> ET.Element:
+    """The system's opening attributes for the measure set before it, without its time signature:
+    a time change that opens the system must still be drawn there"""
+    attributes = copy.deepcopy(attributes)
+    for time in attributes.findall("time"):
+        attributes.remove(time)
+    return attributes
+
+
+def with_neighbours(systems: list, i: int) -> tuple[ET.Element, tuple[int, int]]:
+    """The system's part between the last measure of the system before and the first of the one
+    after, each on a line of its own, so that Verovio splits the ties and slurs across the breaks
+    as on a page; and how many measures stand before and after it (the first is also the system's
+    line among those drawn)"""
+    part = copy.deepcopy(systems[i].part)
+    first = part.find("measure")
+    before_count = after_count = 0
+    if i > 0:
+        before = notes_only(systems[i - 1].part.findall("measure")[-1])
+        before.insert(0, notes_only_attributes(first.find("attributes")))
+        part.insert(list(part).index(first), before)
+        first.insert(0, ET.Element("print", {"new-system": "yes"}))
+        before_count = 1
+    if i + 1 < len(systems):
+        after = notes_only(systems[i + 1].part.find("measure"))
+        after.insert(0, ET.Element("print", {"new-system": "yes"}))
+        part.append(after)
+        after_count = 1
+    return part, (before_count, after_count)
+
+
+def only_line(svg: bytes, line: int) -> bytes:
+    """The page with one system left on it"""
+    root = etree.fromstring(svg)
+    for k, system in enumerate(groups_of_class(root, "system")):
+        if k != line:
+            system.getparent().remove(system)
+    return etree.tostring(root)
+
+
+# Printed systems are stretched to the page's width; ours are drawn as tight as they go. A share is
+# spread out instead, by laying the system out on a page this much wider than it needs.
+JUSTIFIED = 0.6
+JUSTIFIED_STRETCH = (1.05, 1.35)
+
+
+def justify(tk: verovio.toolkit, musicxml: str, options: dict, stretch: float) -> None:
+    """Lays the loaded score out again, its lines spread over a page `stretch` times their natural
+    width (in Verovio's units, the width of the page it drew). Verovio justifies a lone line only
+    with encoded breaks."""
+    natural = float(re.search(r'width="([\d.]+)px"', tk.renderToSVG(1)).group(1))
+    options |= {"adjustPageWidth": False, "pageWidth": round(natural * stretch), "breaks": "encoded"}
+    tk.setOptions(options)
+    tk.loadData(musicxml)
+
+
+def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style: Style = Style(),
+                  line: int | None = None) -> np.ndarray | None:
+    """The system as a grayscale image cropped to its ink plus a random margin. With line, the
+    score holds neighbouring measures on lines of their own (with_neighbours), and only that line
+    is drawn."""
     options = engraving_options(rng)
     if style.marks:
         options |= ottava_options(rng)
+    if line is not None:
+        options["breaks"] = "encoded"
     tk.setOptions(options)
     if not tk.loadData(musicxml) or tk.getPageCount() != 1:
         return None
+    if rng.random() < JUSTIFIED:
+        justify(tk, musicxml, options, rng.uniform(*JUSTIFIED_STRETCH))
+        if tk.getPageCount() != 1:
+            return None
     interline = rng.uniform(*INTERLINE_PX)
     svg = layout_svg(tk, tk.renderToSVG(1), interline / (UNITS_PER_INTERLINE_PER_UNIT * options["unit"]))
     if style.thick_beams:
@@ -545,6 +661,8 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style:
         svg = shrink_naturals(svg, rng.uniform(*NATURAL_SCALE))
     if rng.random() < OLD_QUARTER_RESTS:
         svg = old_quarter_rests(svg, options["font"])
+    if line is not None:
+        svg = only_line(svg, line)
     use_smufl_fonts()  # music symbols in text (tempo marks) need the SMuFL fonts in cairo
     png = cairosvg.svg2png(bytestring=svg, background_color="white")
     image = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_GRAYSCALE)
@@ -570,6 +688,7 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
         without_octave_clefs(part)
         break_into_systems(part, rng)
         systems = [s for page in split_part_to_systems(part) for s in page.systems]
+        in_order = list(systems)
         if unmarked_tuplets:
             systems = [s for s in systems if has_tuplets(s.part)]
     except Exception:
@@ -591,12 +710,15 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
             if unmarked_tuplets or (has_tuplets(system.part) and rng.random() < TUPLET_NUMBERS_HIDDEN):
                 hide_tuplet_numbers(system.part, rng)
             lmx = linearize(system.part)
-            score = part_to_score(system.part).getroot()
+            drawn, neighbours = (with_neighbours(in_order, in_order.index(system)) if open_at_an_edge(lmx)
+                                 else (system.part, None))
+            score = part_to_score(drawn).getroot()
             if rng.random() < PART_NAME_HIDDEN:
                 hide_part_name(score)
             musicxml = ET.tostring(score, encoding="unicode", xml_declaration=True)
-            image = render_system(tk, musicxml, rng, style) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
-            drawn_right = image is not None and ottavas_drawn_as_labelled(tk, system.part)
+            line = neighbours[0] if neighbours else None
+            image = render_system(tk, musicxml, rng, style, line) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
+            drawn_right = image is not None and ottavas_drawn_as_labelled(tk, system.part, neighbours or (0, 0))
         except Exception:
             # Nothing may escape to the pool: CairoError cannot be unpickled, which kills
             # the pool's result thread and silently stalls every later score.
