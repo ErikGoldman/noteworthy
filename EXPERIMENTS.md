@@ -1825,3 +1825,22 @@ a copy):
 No benchmark item shares a piece with them. The check, a scratch script before, is now in the
 repo, for every new training source.
 
+
+
+## Ties and slurs across system breaks, and spacing (2026-11-11)
+
+On OLiMPiC dev, seq515's ties and slurs open at a system's edge (a print draws a half arc there)
+are 5% of the gold's marks but 26% of its tie and slur count errors (error rate 137% against 22%
+inside the system): our crops, each system engraved alone, never drew the arc. From seq516:
+
+- Verovio crops of such systems are engraved between the measure before and the one after, each
+  on its own line, and only the system's line is kept: Verovio splits the arcs as on a page.
+  The neighbours bring only notes (no courtesy signatures, no ottavas reaching in).
+- Every Verovio crop gets random room after the clef, key and time signatures and before the
+  closing barline (Verovio's margins, up to their maximum), and 60% are justified over a page
+  1.05-1.35 times their natural width. Prints leave 1.5-2.5 staff spaces before the first note
+  and 2-4 before the barline (12 OLiMPiC dev examples); the arcs fill that room. Applied to every
+  crop, so room alone does not signal a tie.
+- MuseScore crops leave such systems out (it stretches a page's non-last lines to its width).
+
+Measure after seq516: the same edge count on OLiMPiC dev.

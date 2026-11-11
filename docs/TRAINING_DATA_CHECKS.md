@@ -49,7 +49,7 @@ and before a training run.
 | Ottava sign open at the system's end (runs into the next system) | Draws it; every crop's signs are compared with its label (`ottavas_drawn_as_labelled`) | **Leaves the sign out** and draws the notes where they sound | Each system's signs are redrawn from its label, closed within the system (`with_label_ottavas`) |
 | Tuplet number hidden (`show-number="none"`) | Drawn hidden | **Ignored: every number drawn** | MuseScore crops label every number shown (`show_every_tuplet_number`); hidden numbers are taught by the Verovio crops |
 | Octave clef (treble with an 8 below, 2.4% of PDMX piano parts) | **Draws the 8; notes an octave from the label** | **Same** | Clefs drawn plain, notes kept at sounding pitch (`without_octave_clefs`, both builders); our clef tokens have no octave |
-| Tie or slur open at a system edge | No half arc drawn | No half arc drawn | **Open.** The label keeps the tie/slur token; a print draws a half arc. About 3.4% of crops at each end |
+| Tie or slur open at a system edge | Half arc drawn by Verovio from neighbouring measures (`with_neighbours`, from seq516) | Systems left out (from seq516) | The label keeps the tie/slur token, as a print draws a half arc. About 10% of crops have one. Before seq516 no arc was drawn: 5% of OLiMPiC dev's tie/slur marks, 26% of seq515's tie/slur errors |
 | Mid-score final or double barline | Drawn on both staves | Drawn on the upper staff only | MuseScore systems where a barline differs between staves are skipped |
 | 8vb, 15ma, 15mb | Drawn as labelled | Drawn as labelled (after the ottava fix) | |
 | Tremolos (single and two-note), arpeggios, slashed graces | Drawn as labelled | Drawn as labelled | |
@@ -111,3 +111,9 @@ copyright and other text, glissando lines.
   voice staff above a song's piano shows in part, as when recognizing), measure-repeat signs
   (labelled as hidden measure rests: left out), Dolores slurs (drawn, never labelled: Dolores not
   trained on).
+- 2026-11-11, seq516's Verovio crops (half arcs at system breaks, random edge margins, 60%
+  justified). Checked 24 random pdmx crops with a tie or slur open at an edge (303 of 3,000
+  sampled): Verovio's split arcs drawn after the key signature (incoming) and to the closing
+  barline (outgoing), no courtesy signatures, no ottava from a neighbour; labels unchanged, crop
+  counts as seq514's. Outgoing arcs are still shorter than a print's where the line is not
+  justified (Verovio caps the margin before the barline).
