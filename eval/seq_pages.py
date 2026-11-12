@@ -49,7 +49,10 @@ sys.path.insert(0, str(ROOT / "train"))
 from seq.data import collate, scale_to_height, to_tensor  # noqa: E402
 from seq.lmx_tuplets import bar_fill, written_bar  # noqa: E402
 from seq.meter import meter_tokens, without_meter  # noqa: E402
+from seq.model import StaffSeq2Seq  # noqa: E402
 from seq.ottava import sounding  # noqa: E402
+from seq.staff_data import at_staff_scale, collate_staves, cut_staves  # noqa: E402
+from seq.staves import Staves  # noqa: E402
 from seq.vocab import BOS, EOS, Vocab  # noqa: E402
 from train_seq import VOCABULARY  # noqa: E402
 
@@ -75,6 +78,12 @@ class SystemCrop:
     scale: float               # from those to the pixels of the page image being cropped
 
 
+@dataclass(frozen=True)
+class Crop:
+    image: np.ndarray
+    staves: Staves  # the system's staff centres and interline, in the crop's rows: StaffSeq2Seq's cut
+
+
 def page_scales(layout: dict) -> dict[int, float]:
     """The layout is in input coordinates; debug pages are as the recognizer read them. Inferring
     this from staff heights drifts by up to a tenth, which moves a low system off its crop."""
@@ -90,8 +99,26 @@ def piano_staff_pairs(staves: list[list[float]], piano_page: bool) -> list[tuple
     return [(staves[-2], staves[-1])]
 
 
+def without_duplicate_staves(systems: list[dict]) -> list[dict]:
+    """The layout's systems without a staff found twice. Real staves never overlap; the layout can
+    find one tilted staff as two chains side by side, a little apart in height, which its own
+    duplicate test (one chain within the other's extent) misses (Polish 097, 106: the second copy
+    in a system of its own, or both in one). Of staves covering over half of each other's height
+    on a page, the one in the system with more staves stays; systems keep their order."""
+    kept_spans: dict[int, list[tuple[float, float]]] = {}
+    kept: dict[int, list[list[float]]] = {}
+    for i in sorted(range(len(systems)), key=lambda i: -len(systems[i]["staves"])):
+        spans = kept_spans.setdefault(systems[i]["page"], [])
+        kept[i] = []
+        for top, bottom in systems[i]["staves"]:
+            if all(min(bottom, b) - max(top, t) <= (bottom - top) / 2 for t, b in spans):
+                kept[i].append([top, bottom])
+                spans.append((top, bottom))
+    return [{**system, "staves": kept[i]} for i, system in enumerate(systems)]
+
+
 def piano_systems(layout: dict, scales: dict[int, float]) -> list[SystemCrop]:
-    systems = [s for s in layout["systems"] if len(s["staves"]) >= 2]
+    systems = [s for s in without_duplicate_staves(layout["systems"]) if len(s["staves"]) >= 2]
     piano_pages = {s["page"] for s in systems if len(s["staves"]) == 2}
     return [SystemCrop(s["page"], tuple(top), tuple(bottom), scales[s["page"]])
             for s in systems for top, bottom in piano_staff_pairs(s["staves"], s["page"] in piano_pages)]
@@ -109,9 +136,9 @@ def emptiest_row(page: np.ndarray, start: float, end: float, aim: float | None =
     return int(candidates[np.abs(candidates - aim).argmin()])
 
 
-def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float, height_ratio: float) -> np.ndarray:
+def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float, height_ratio: float) -> Crop:
     """The system's band, kept off its neighbours (`above` and `below`: their nearest staff
-    edges, in pixels of `page`), trimmed to the ink at the sides."""
+    edges, in pixels of `page`), trimmed to the ink at the sides; with its staves' positions."""
     interline = (system.bottom_staff[1] - system.bottom_staff[0]) / 4 * system.scale
     first_line, last_line = system.top_staff[0] * system.scale, system.bottom_staff[1] * system.scale
     reach = MARGIN_INTERLINES * interline
@@ -121,16 +148,20 @@ def crop_system(page: np.ndarray, system: SystemCrop, above: float, below: float
     bottom = emptiest_row(page, last_line, min(below, last_line + reach),
                           (last_line + below) / 2 if below < page.shape[0] else None)
     band = page[top:bottom]
+    centres = tuple(sum(staff) / 2 * system.scale - top for staff in (system.top_staff, system.bottom_staff))
     columns = np.nonzero((band < INK).any(axis=0))[0]
     if len(columns) == 0:
-        return band
+        return Crop(band, Staves(centres, interline))
     margin = int(SIDE_MARGIN_INTERLINES * interline)
-    return with_left_margin(padded_to_height(band[:, max(0, columns[0] - margin):columns[-1] + margin],
-                                             round(height_ratio * (last_line - first_line))))
+    trimmed = band[:, max(0, columns[0] - margin):columns[-1] + margin]
+    tall = padded_to_height(trimmed, round(height_ratio * (last_line - first_line)))
+    added_above = (tall.shape[0] - trimmed.shape[0]) // 2
+    return Crop(with_left_margin(tall), Staves(tuple(c + added_above for c in centres), interline))
 
 
 def padded_to_height(crop: np.ndarray, height: int) -> np.ndarray:
-    """White above and below rather than more of the page, which would bring in the neighbours."""
+    """White above and below (the odd row below) rather than more of the page, which would bring
+    in the neighbours."""
     missing = max(0, height - crop.shape[0])
     return cv2.copyMakeBorder(crop, missing // 2, missing - missing // 2, 0, 0, cv2.BORDER_CONSTANT, value=255)
 
@@ -139,7 +170,7 @@ def with_left_margin(crop: np.ndarray) -> np.ndarray:
     return cv2.copyMakeBorder(crop, 0, 0, round(LEFT_MARGIN_HEIGHTS * crop.shape[0]), 0, cv2.BORDER_CONSTANT, value=255)
 
 
-def page_crops(pages: list[np.ndarray], systems: list[SystemCrop], height_ratio: float) -> list[np.ndarray]:
+def page_crops(pages: list[np.ndarray], systems: list[SystemCrop], height_ratio: float) -> list[Crop]:
     crops = []
     for i, system in enumerate(systems):
         page = pages[system.page - 1]
@@ -150,16 +181,25 @@ def page_crops(pages: list[np.ndarray], systems: list[SystemCrop], height_ratio:
     return crops
 
 
-def transcribe(model, vocab: Vocab, crops: list[np.ndarray], device, batch: int,
+def model_input(model, crop: Crop) -> torch.Tensor:
+    """A crop as the model reads it: scaled to its height, or for StaffSeq2Seq cut into staves
+    as in training (seq.staff_data)."""
+    if isinstance(model, StaffSeq2Seq):
+        return torch.stack([to_tensor(s) for s in cut_staves(*at_staff_scale(crop.image, crop.staves))])
+    return to_tensor(scale_to_height(crop.image, model.height))
+
+
+def transcribe(model, vocab: Vocab, crops: list[Crop], device, batch: int,
                bars: list[Fraction | None] | None = None) -> list[str]:
     """LMX of each crop; widest together, so a batch pads little. bars: each crop's meter in force,
     for a model that reads one (seq.meter)."""
-    order = sorted(range(len(crops)), key=lambda i: crops[i].shape[1] / crops[i].shape[0])
+    batched = collate_staves if isinstance(model, StaffSeq2Seq) else collate
+    order = sorted(range(len(crops)), key=lambda i: crops[i].image.shape[1] / crops[i].image.shape[0])
     out = [""] * len(crops)
     empty = torch.tensor([BOS, EOS])
     for start in range(0, len(order), batch):
         chosen = order[start:start + batch]
-        images, widths, _ = collate([(to_tensor(scale_to_height(crops[i], model.height)), empty) for i in chosen])
+        images, widths, _ = batched([(model_input(model, crops[i]), empty) for i in chosen])
         starts = [vocab.encode(" ".join(meter_tokens(bars[i])))[1:-1] if bars and bars[i] else [] for i in chosen]
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths, starts=starts)

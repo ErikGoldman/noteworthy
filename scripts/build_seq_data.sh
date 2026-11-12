@@ -5,7 +5,8 @@
 # Smashcima fork (build_smashcima_crops.py), real piano grand staves from MusiCorpus
 # (build_musicorpus_crops.py), OLiMPiC synthetic relabelled with pitches as
 # printed, and GrandStaff-LMX rebuilt with its sources' clefs, keys and meters
-# (rebuild_grandstaff_lmx.py), time symbols and barlines as tokens.
+# (rebuild_grandstaff_lmx.py), time symbols and barlines as tokens; and every crop's staff positions
+# (find_staff_positions.py), for StaffSeq2Seq.
 # Safe to stop and run again: the crop builders skip scores already built, and the relabelled sets
 # are rewritten whole. A changed builder needs a fresh data directory. Before training on new or
 # changed crops, check them by eye: docs/TRAINING_DATA_CHECKS.md.
@@ -36,3 +37,8 @@ build_crops unmarked --systems-per-score 2 --unmarked-tuplets
 (cd "$ROOT/train" && "$SMASHCIMA_PY" build_smashcima_crops.py --scores "$NW_DATA/render_scores.txt" \
   --out "$crops/smashcima" --systems-per-score 1 --workers "$NW_SMASHCIMA_WORKERS")
 (cd "$ROOT/train" && "$PY" build_musicorpus_crops.py "$RAW/musicorpus/musicorpus_v1.0" --out "$data/musicorpus")
+# Each crop's staff positions, for StaffSeq2Seq (train_seq.py --staves), and OLiMPiC scanned dev's.
+(cd "$ROOT/train" && "$PY" find_staff_positions.py "$data/staff_positions" "$data/olimpic_written:train" \
+  "$data/grandstaff_written:train" "$crops/pdmx:train" "$crops/beams:train" "$crops/round:train" "$crops/marks:train" \
+  "$crops/musescore:train" "$crops/unmarked:train" "$crops/smashcima:train" "$data/musicorpus:train" \
+  "$olimpic/olimpic-1.0-scanned:dev")

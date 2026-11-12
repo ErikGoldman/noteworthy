@@ -11,6 +11,11 @@ symbol error rate, SER: token edit distance over gold length, as in the OLiMPiC 
 --dev-samples restricts it to listed samples: for a model trained on PDMX, the OLiMPiC
 songs without a copy there (eval/olimpic_benchmark.py list).
 Resumes from OUT/last.pt; --init starts a new run from another run's weights.
+--staves POSITIONS_DIR trains StaffSeq2Seq instead, on each system's staff crops cut at the
+positions find_staff_positions.py wrote there (one file per --data and --dev root); samples
+without positions are left out. Its staves are seq.staff_data.STAFF_HEIGHT tall (--height is
+Seq2Seq's). --staff-samples-only POSITIONS_DIR trains Seq2Seq on the samples such a run keeps, to
+compare the two on the same data.
 """
 from __future__ import annotations
 
@@ -28,8 +33,9 @@ from torch.nn import functional as F
 
 from seq.data import SystemDataset, collate, samples, split_names
 from seq.meter import METER, PREFIX_LENGTH, without_meter
-from seq.model import Seq2Seq
+from seq.model import Seq2Seq, StaffSeq2Seq
 from seq.ottava import sounding
+from seq.staff_data import StaffDataset, collate_staves, load_positions
 from seq.barlines import without_barlines
 from seq.time_symbols import without_time_symbols
 from seq.tuplet_numbers import without_hidden_numbers
@@ -55,6 +61,15 @@ def dataset_items(spec: str):
     items = samples(Path(root), split_names(Path(root), split))
     items += [s for s in items if rhythm_heavy(s)] * (RHYTHM_HEAVY_REPEAT - 1)
     return items * int(weight[0] if weight else 1)
+
+
+def with_staves(items: list, root: Path, positions: Path) -> list:
+    """(sample, its staff positions) for each sample of root that has them."""
+    found = load_positions(positions, root)
+    paired = [(s, found[str(s.image.relative_to(root).with_suffix(""))]) for s in items]
+    kept = [(s, staves) for s, staves in paired if staves is not None]
+    print(f"{root.name}: {len(kept)} of {len(items)} samples with staff positions")
+    return kept
 
 
 def targets_of(tokens: torch.Tensor, vocab: Vocab) -> torch.Tensor:
@@ -141,7 +156,13 @@ def main() -> None:
     ap.add_argument("--row-stride", type=int, default=32, choices=[8, 16, 32])
     ap.add_argument("--seed", type=int, default=0, help="decides the initial weights, batches and augmentation")
     ap.add_argument("--meter-context", action="store_true", help="labels start with the meter in force (seq.meter)")
+    ap.add_argument("--staves", type=Path, help="train StaffSeq2Seq on staff crops, positions from this directory")
+    ap.add_argument("--staff-samples-only", type=Path, help="train Seq2Seq on the samples with staff positions here")
     args = ap.parse_args()
+    if args.staves and (args.init or args.meter_context):
+        ap.error("--staves trains StaffSeq2Seq from scratch and without a meter prefix")
+    if args.staves and args.staff_samples_only:
+        ap.error("--staff-samples-only is for Seq2Seq; --staves already keeps only those samples")
     torch.manual_seed(args.seed)
 
     device = torch.device("cuda")
@@ -155,15 +176,26 @@ def main() -> None:
     dev_root, dev_split = args.dev.split(":")
     dev_names = args.dev_samples.read_text().split() if args.dev_samples else split_names(Path(dev_root), dev_split)
     dev_items = samples(Path(dev_root), dev_names[: args.dev_count])
-    train = torch.utils.data.DataLoader(SystemDataset(train_items, vocab, True, args.max_tokens, args.height, args.meter_context),
-                                        batch_size=args.batch,
-                                        shuffle=True, num_workers=args.workers, collate_fn=collate, drop_last=True,
+    if args.staves or args.staff_samples_only:
+        positions = args.staves or args.staff_samples_only
+        train_items = [pair for spec in args.data for pair in with_staves(dataset_items(spec), Path(spec.split(":")[0]), positions)]
+        dev_items = with_staves(dev_items, Path(dev_root), positions)
+    if args.staff_samples_only:
+        train_items, dev_items = [s for s, _ in train_items], [s for s, _ in dev_items]
+    if args.staves:
+        dataset = lambda items, train: StaffDataset(items, vocab, train, args.max_tokens)
+        batched = collate_staves
+        model = StaffSeq2Seq(len(vocab), max_tokens=args.max_tokens, row_stride=args.row_stride)
+    else:
+        dataset = lambda items, train: SystemDataset(items, vocab, train, args.max_tokens, args.height, args.meter_context)
+        batched = collate
+        model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
+                        meter_context=args.meter_context)
+    train = torch.utils.data.DataLoader(dataset(train_items, True), batch_size=args.batch,
+                                        shuffle=True, num_workers=args.workers, collate_fn=batched, drop_last=True,
                                         persistent_workers=True)
-    dev = torch.utils.data.DataLoader(SystemDataset(dev_items, vocab, False, args.max_tokens, args.height, args.meter_context),
-                                      batch_size=32,
-                                      num_workers=4, collate_fn=collate)
-    model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
-                    meter_context=args.meter_context).to(device)
+    dev = torch.utils.data.DataLoader(dataset(dev_items, False), batch_size=32, num_workers=4, collate_fn=batched)
+    model = model.to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
     schedule = lambda s: min(1.0, s / args.warmup) * 0.5 * (1 + math.cos(math.pi * min(1.0, s / args.steps)))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, schedule)
@@ -201,7 +233,7 @@ def main() -> None:
             sched.step()
             update_average(average, model)
             step += 1
-            seen += images.shape[0]
+            seen += tokens.shape[0]
             if step % 100 == 0:
                 print(f"step {step} loss {loss.item():.4f} lr {sched.get_last_lr()[0]:.2e} "
                       f"{seen / (time.time() - started):.0f} samples/s", flush=True)

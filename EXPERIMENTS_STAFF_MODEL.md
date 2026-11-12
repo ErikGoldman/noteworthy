@@ -160,6 +160,60 @@ grids itself. What it shows: the readings depend on both staves' pixels, and the
 without the across-staves layer. The test moves to a model that generalises: the step-6 race model,
 on crops it was not trained on, with cross-staff passages compared to the rest.
 
+## Building for the race (2026-11-12)
+
+**Where training's staff positions come from.** The plan was the renderer's positions for our own
+crops and the segmenter's for the rest. The segmenter, run through the recognizer on system
+crops, takes about 14 CPU-seconds a crop (full recognition, scale retries): some 34 hours for the
+training set on 32 cores. On 100 GrandStaff and PDMX crops it finds the system's two staves in 93,
+the line finder in 90; where both do (85), their centres agree to a median 0.05 interlines, 83
+within half of one. The two disagreements cut both ways: a camera-warped GrandStaff crop whose
+staves the segmenter broke into pieces (its lower centre between the staves), and a PDMX crop
+whose bass staff the line finder put a line high. So the line finder, about 230 times faster,
+gives the positions for every crop, once (`train/find_staff_positions.py`, now in
+`scripts/build_seq_data.sh`, 16 minutes); a crop it cannot split is left out. Inference keeps the
+layout's positions. Split, of each set's training samples:
+
+| Set | Split | | Set | Split |
+|---|---|---|---|---|
+| OLiMPiC synthetic | 14,883 of 14,907 | | MuseScore | 52,201 of 52,243 |
+| GrandStaff | 25,779 of 32,156 | | unmarked tuplets | 3,981 of 3,990 |
+| PDMX | 56,551 of 56,780 | | Smashcima | 13,867 of 14,189 |
+| beams | 29,147 of 29,267 | | MusiCorpus | 49 of 53 |
+| round | 29,134 of 29,267 | | OLiMPiC scanned dev | 1,429 of 1,438 |
+| marks | 28,937 of 29,075 | | | |
+
+GrandStaff loses a fifth, mostly its camera-distorted copies: for a fair race, `Seq2Seq` trains on
+the same samples (`train_seq.py --staff-samples-only`): 313,097 in train_seq.sh's mix.
+
+**Augmentation.** `seq.data.augment` splits into `reframe` (margins, rotation, width; it also
+returns where each row went: a row moves with the top margin and scales with the height, since
+the crop is scaled back to it) and `degrade` (stroke weight, binarizing, capture), drawing in the
+same order: 20 seeded outputs bit for bit as before, so `Seq2Seq` training is unchanged. For
+staves (`seq.staff_data`): the system scaled to a staff crop's interline, reframed, its centres
+moved, degraded (both staves share paper, blur and tilt), then each staff cut 256 px around its
+centre. A test cuts 20 augmented samples of a drawn system and finds each staff within an
+interline of its crop's middle; with the centres left unmoved it fails. By eye, augmented OLiMPiC
+staff crops: centred, the neighbour's nearest lines at the edge, lyrics kept.
+
+**Training and inference.** `train_seq.py --staves DIR` trains `StaffSeq2Seq` on staff crops,
+dev check included; samples without positions are left out and counted. A 300-step smoke run on
+the full mix trained, checked and saved (21-39 samples/s with a dev check in it; `Seq2Seq` 31).
+`seq_pages.py` cuts each system's staves at the layout's positions, mapped into its crop as
+training cuts them, and `seq_predict.load_model` builds a staff run's model; a smoke checkpoint
+read page 097 end to end. `seq_predict.py`'s own OLiMPiC crop benchmark does not read staff
+models yet and says so.
+
+**Duplicate staves.** Not fixed in the C++ layout: one tilted staff read as two chains side by
+side, a little apart in height, neither inside the other's extent (its duplicate test) and too far
+apart to link (half an interline). Mending the linking changes every page's staves and needs every
+page benchmark again. Instead `seq_pages.without_duplicate_staves`: staves overlapping by more than
+half their height cannot both be real, so the one in the system with more staves stays. On Polish
+dev it changes 097 (a stray 1-staff copy goes; harmless before) and 106 (the voice staff's two
+copies no longer form a system read as piano) and nothing else.
+
+All 128 train tests and the eval tests touched pass.
+
 ## Leakage to watch
 
 - In the overfit test: width (fixed above). Staff count (2 for all), batch statistics (blank
@@ -174,10 +228,10 @@ on crops it was not trained on, with cross-staff passages compared to the rest.
 
 ## Next
 
-1. Before the race: staff positions from renderer and segmenter; the duplicate-staff fix;
-   augmentation that moves staff positions with the image (geometry on the whole system, centres
-   moved by the margin shift and the rotation, staves cut, ink and paper degradation shared by the
-   staves); one crop per staff in `seq_pages.py`; `train_seq.py` training `StaffSeq2Seq`.
-2. Step 6: the 10,000-step race on two identical Runpod GPUs.
-3. Step 4 again, on the race model and crops it did not train on: each staff blanked, the
+1. Step 6: the 10,000-step race on two identical Runpod GPUs, StaffSeq2Seq (`--staves`) against
+   Seq2Seq (`--staff-samples-only`), same samples, seed and schedule; dev checks every 5,000, then
+   both final snapshots on Polish dev.
+2. Step 4 again, on the race model and crops it did not train on: each staff blanked, the
    attention across staves off, cross-staff passages against the rest.
+3. Later: the C++ staff linking (a tilted staff's chains across a gap); seq_predict.py for staff
+   models; three-staff training data.

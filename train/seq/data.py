@@ -6,6 +6,7 @@ padded on the right to the widest crop of the batch.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -59,16 +60,30 @@ def load_scaled(path: Path, height: int = HEIGHT) -> np.ndarray:
 def augment(rng: np.random.Generator, image: np.ndarray) -> np.ndarray:
     """What separates engraved scans from clean renders: margins and scale (crops are cut
     by hand), slight rotation, stroke weight, scan tone, blur, noise, JPEG."""
+    interline = image.shape[0] / CROP_INTERLINES
+    return degrade(rng, reframe(rng, image)[0], interline)
+
+
+def reframe(rng: np.random.Generator, image: np.ndarray) -> tuple[np.ndarray, Callable[[float], float]]:
+    """New margins (the crop then scaled back to its height), slight rotation and a new width.
+    Also where each row went: a row moves with the top margin and scales with the height; the
+    rotation, about the middle, moves rows there by under a twentieth of a pixel."""
     h, w = image.shape
-    interline = h / CROP_INTERLINES
     pad_top, pad_bottom = (int(rng.uniform(-0.08, 0.12) * h) for _ in range(2))
     image = cv2.copyMakeBorder(image[max(0, -pad_top):h - max(0, -pad_bottom)], max(0, pad_top), max(0, pad_bottom),
                                0, 0, cv2.BORDER_CONSTANT, value=255)
+    padded = image.shape[0]
     angle = rng.uniform(-1.0, 1.0)
     m = cv2.getRotationMatrix2D((image.shape[1] / 2, image.shape[0] / 2), angle, 1.0)
     image = cv2.warpAffine(image, m, (image.shape[1], image.shape[0]), borderValue=255)
     width = min(max_width(h), round(image.shape[1] * h / image.shape[0] * rng.uniform(0.85, 1.15)))
     image = cv2.resize(image, (width, h), interpolation=cv2.INTER_AREA)
+    return image, lambda row: (row + pad_top) * h / padded
+
+
+def degrade(rng: np.random.Generator, image: np.ndarray, interline: float) -> np.ndarray:
+    """Stroke weight, a binarized scan, and capture's tone, blur, noise and JPEG; sized by the
+    interline, in pixels."""
     if rng.random() < 0.5:
         image = stroke_weight(rng, image, interline * 2)
     if rng.random() < 0.3:

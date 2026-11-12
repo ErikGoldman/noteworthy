@@ -152,8 +152,8 @@ class StaffImages:
     pixels: torch.Tensor
     counts: torch.Tensor
 
-    def to(self, device) -> StaffImages:
-        return StaffImages(self.pixels.to(device), self.counts.to(device))
+    def to(self, device, non_blocking: bool = False) -> StaffImages:
+        return StaffImages(self.pixels.to(device, non_blocking=non_blocking), self.counts.to(device, non_blocking=non_blocking))
 
 
 class StaffSeq2Seq(_TokenDecoder):
@@ -162,6 +162,8 @@ class StaffSeq2Seq(_TokenDecoder):
     block attends within each staff (all its rows and columns), and across the staves at each
     column (all staves' rows there: the same moment in the music). The decoder reads every
     staff's grid. blocks=1 has as many encoder layers, and parameters, as Seq2Seq's two."""
+
+    meter_context = False  # never trained to read a seq.meter prefix
 
     def __init__(self, vocab_size: int, dim: int = 384, blocks: int = 1, decoder_layers: int = 6, heads: int = 8,
                  max_tokens: int = 1024, staff_height: int = 256, row_stride: int = 32, max_staves: int = 8,

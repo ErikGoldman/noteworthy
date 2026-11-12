@@ -30,7 +30,7 @@ sys.path.insert(0, str(OLIMPIC / "code" / "repo"))
 from app.linearization.Delinearizer import Delinearizer  # noqa: E402
 from app.symbolic.part_to_score import part_to_score  # noqa: E402
 from seq.data import SystemDataset, collate, samples, split_names  # noqa: E402
-from seq.model import Seq2Seq  # noqa: E402
+from seq.model import Seq2Seq, StaffSeq2Seq  # noqa: E402
 from seq.ottava import add_octave_shifts, shifts_of, sounding  # noqa: E402
 from seq.barlines import add_barlines, without_barlines  # noqa: E402
 from seq.time_symbols import add_time_symbols, without_time_symbols  # noqa: E402
@@ -80,12 +80,17 @@ def delinearize(lmx: str, bar: Fraction | None = None) -> str:
     return ET.tostring(part_to_score(part).getroot(), encoding="unicode", xml_declaration=True)
 
 
-def load_model(checkpoint: Path, device) -> Seq2Seq:
+def load_model(checkpoint: Path, device) -> Seq2Seq | StaffSeq2Seq:
+    """A run's model: StaffSeq2Seq if it trained on staff crops (train_seq.py --staves)."""
     state = torch.load(checkpoint, map_location=device)
     args = state["args"]
     # Tokens are only ever added at the end, so an older model's ids still hold.
-    model = Seq2Seq(len(state["model"]["out.weight"]), max_tokens=args["max_tokens"], height=args.get("height", 256),
-                    row_stride=args.get("row_stride", 32), meter_context=args.get("meter_context", False)).to(device)
+    vocab_size = len(state["model"]["out.weight"])
+    if args.get("staves"):
+        model = StaffSeq2Seq(vocab_size, max_tokens=args["max_tokens"], row_stride=args.get("row_stride", 32)).to(device)
+    else:
+        model = Seq2Seq(vocab_size, max_tokens=args["max_tokens"], height=args.get("height", 256),
+                        row_stride=args.get("row_stride", 32), meter_context=args.get("meter_context", False)).to(device)
     model.load_state_dict(state["model"])
     return model.eval()
 
@@ -100,6 +105,8 @@ def main() -> None:
     device = torch.device("cuda")
     vocab = Vocab.load(VOCABULARY)
     model = load_model(args.checkpoint, device)
+    if isinstance(model, StaffSeq2Seq):
+        sys.exit("seq_predict.py reads whole crops; a StaffSeq2Seq run is scored by train_seq.py's dev check and seq_pages.py")
     names = split_names(SCANNED, args.split)
     loader = torch.utils.data.DataLoader(SystemDataset(samples(SCANNED, names), vocab, False, model.max_tokens, model.height,
                                                        model.meter_context),
