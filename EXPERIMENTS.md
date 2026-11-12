@@ -1928,3 +1928,72 @@ MusicXML rather than from **kern, need no further sweep.
 seq516 trains on `data/seq516f_data`: seq516_data's sets but GrandStaff, rebuilt as above (the
 same as a fresh `build_seq_data.sh`, the other builders being unchanged; its rebuild is
 seq516d_data's, the merger and grace-note checks needing only the source).
+
+## seq516 against seq515, stopped on Polish dev (2026-11-12)
+
+seq516 (`runs/seq516`, `data/seq516f_data`) is seq515's recipe with four changes to its data: the
+cleaned GrandStaff set above, and three sets seq515 did not have: Smashcima's handwritten crops
+(`seq2/smashcima`, weight 2), MusiCorpus's 53 real grand staves (`musicorpus`, weight 30) and the
+unmarked-tuplet set (`seq2/unmarked`). As an experiment it was stopped once Polish dev flattened (docs/EVALUATION_PROTOCOL.md):
+each averaged snapshot from 130,000 steps scored on the 56 dev pages with the current segmenter,
+seq515's final weights scored the same way. OMR-NED, two-staff pages (49), authors' alignment:
+
+| | Print | Corrected |
+|---|---|---|
+| seq515, 192,000 | 8.69 | 12.96 |
+| seq516, 130,000 | 6.87 | 10.81 |
+| seq516, 140,000 | 6.81 | 10.93 |
+| seq516, 150,000 | 6.97 | 10.84 |
+
+seq516 at 130,000 against seq515 at 192,000, paired by page: Print -1.82 [-2.91, -0.79], better
+on 37 of 49 pages; Corrected -2.16 [-3.12, -1.25]. Three snapshots within 0.16 of each other: the
+run was stopped at 154,100 steps, with the learning rate at 2.8e-05 of 3e-4. OLiMPiC scanned dev
+(train_seq.sh's check) was flat from 100,000 too (0.063-0.065; seq515 0.065-0.075). The four data
+changes together are worth about 2 points of OMR-NED on real two-staff pages; the run does not
+tell them apart, and the analysis below suggests the new sets, not the GrandStaff cleaning, did
+most of it.
+Scored by a scratch script (each snapshot in its own folder: benchmark_pages.sh reuses pages
+already read in its output folder).
+
+### What changed from seq515 to seq516, and what is left (Print gold, 49 two-staff dev pages)
+
+seq515 at 192,000 against seq516 at 150,000. Gains on the pages that improved sum to 113 points,
+losses on the pages that got worse to 28. Edits (one-block alignment) 10,220 to 8,121: notes
+7,496 to 5,783, tuplets 232 to 101, bars 637 to 533, marks 889 to 816, accidentals 214 to 176.
+Gold notes (`eval/note_errors.py`): another wrong pitch 360 to 236 (a semitone off 169 to 110, a
+whole tone 96 to 45), an octave off 105 to 80, wrong onset 165 to 134, missing 545 to 430, extra
+426 to 349, wrong duration 150 to 128.
+
+- **Where it gained:** 096 (-12.1, the unmarked-triplet page), 091 (-12.1, 31 grace notes), 064,
+  093 (-11.2, a manuscript), 055, 065. Each known cause from the seq514 note analysis shrank:
+  handwriting (093, 051), unmarked triplets (096), octaves. Not clefs: both runs get every clef
+  change of 18 of the 22 pages with clef changes, and pages with clef changes gained no more than
+  pages without (-1.65 against -1.78 on average); nor pages in keys of three or more accidentals
+  (-1.80 against -1.65). So the gain fits the new sets (handwriting, unmarked tuplets, real
+  staves) better than the GrandStaff cleaning, which this run cannot separate out.
+- **Where it got worse:** 042 (+5.9) and 017 (+4.2) only under the authors' alignment (bars pinned
+  to the wrong copy; whole-page +0.2 and -0.3). Real: 047 (+4.3: a doubled note and an inner voice
+  dropped in two bars, eighths read as triplets in one), 083 (+2.8: a quarter-note chord and an
+  eighth rest read three times as a half-note chord, every later onset of the bar a beat late),
+  069, 005, 103, 076 (+1.6 to +1.9). Reading slips, no common cause found.
+- **What is left:** notes are 71% of the cost (5,783 of 8,121 edits), then marks (816) and bars
+  (533). Ten pages hold 53%: 096 (950 edits, 12%: 72 notes missing, 62 extra; its bars not yet looked at again), 110 (833, 10%: 449 bar
+  edits, the ottava page), 056, 065, 076, 051 (manuscript), 093 (manuscript, 38 octave errors),
+  087 (ottava). Handwriting, unmarked triplets and ottavas remain the leading causes.
+
+To value the GrandStaff cleaning alone: seq516's data with the release's GrandStaff labels
+(`data/seq516_data`), stopped at the same step.
+
+### Does reading need context from earlier systems? (seq516, Polish dev)
+
+Before building attention across systems: the 6-8 bars with the most note errors on six of the
+ten costliest printed pages (096, 110, 056, 087, 076, 065), each checked on the page image for
+whether what it needs lies outside its own system. None does. These engravings restate at each
+system's start what is in force: clef, key, and an ottava crossing the break (087 prints its 8
+again); triplet numbers sit in the same system as the unmarked groups that follow them (096's
+last bar); a trill line running on (076) is a mark, not notes. What the bad bars hold instead:
+dense tied chords (096 bars 11-13), printed triplets among rests (110 bars 4-5 and 22, 087 bar 5),
+hand crossing with notes beamed across the staves (056 bar 18), an ottava's extent and a
+"loco" run with grace notes (087, 076 bar 20), a faint, noisy scan (087), a first and second
+ending (065 bar 9). The manuscripts 051 and 093 were not checked: handwriting is in the crop
+too. Context from earlier systems would not fix these bars; reading within the system would.

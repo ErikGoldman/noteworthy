@@ -19,6 +19,12 @@ synthetic. No labelled real scans." until then.*
   2026-11-08), the final step of its fixed schedule, with no checkpoint selection: `best.pt` is
   chosen on real scans (OLiMPiC scanned dev), so it is not used. Here they differ: best.pt is
   step 160,000. seq512 (`runs/seq512/last.pt`) was the candidate before it.
+- Experiment runs (an A/B of data or model, not the published model) may stop early on Polish
+  dev, to leave more time for iterating: once a run is reasonably trained, its averaged weights
+  are scored on the Polish dev pages at each 10,000-step snapshot, and the run stops when the
+  score has flattened (no gain beyond page noise over a few snapshots). Runs being compared are
+  compared at the same step. The published model is never stopped, chosen or tuned on Polish;
+  it trains its fixed schedule, and the sealed half is scored once, for the claim.
 - Training data: OLiMPiC synthetic, GrandStaff, PDMX crops without held-out scores or
   `license_conflict` scores (all synthetic for seq513-515). From seq516 on, also handwritten crops
   drawn by Smashcima and 53 real piano grand staves from MusiCorpus 1.0's OmniOMR training split
