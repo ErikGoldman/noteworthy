@@ -2005,3 +2005,8 @@ hand crossing with notes beamed across the staves (056 bar 18), an ottava's exte
 "loco" run with grace notes (087, 076 bar 20), a faint, noisy scan (087), a first and second
 ending (065 bar 9). The manuscripts 051 and 093 were not checked: handwriting is in the crop
 too. Context from earlier systems would not fix these bars; reading within the system would.
+
+## StaffSeq2Seq: its own log
+
+The staff-by-staff reader (each staff its own image, attention across staves; branch
+`staff-encoder`) has its own log: `EXPERIMENTS_STAFF_MODEL.md`.
