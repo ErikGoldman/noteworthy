@@ -1761,6 +1761,14 @@ they store millimetres), the builder converts with Smashcima's own units, and th
 constants are the old layout in true millimetres. The stem model was trained in true
 millimetres, so its stems were 4% long before; now as measured.
 
+Crops that depended on the worker (found 2026-11-10, rebuilding a sample from a fresh setup:
+21 of 106 images differed, labels all equal). Smashcima's service container kept its types in a
+set, which orders them by memory address, and the Styler picks each style domain (writer,
+paper) from the shared rng in that order: the same seed drew a different writer and paper with
+another worker count, or even another run. Fixed in the fork (67e6563, registration order);
+now 60 scores build byte-identical at 1, 3 and 6 workers and under any PYTHONHASHSEED. Crops
+built before are not reproducible (none was used in training).
+
 Curves. A few slurs were drawn as thick blocks: a tiny sample (17 x 5 px) enlarged 6 times, its
 stroke with it. Now the sample is picked by size as well as shape, enlarging interpolates, and a
 stroke grown thick is thinned back to the sample's pen width. What is left out, on 5,867 systems of 600 scores: 13% held an undrawn token
