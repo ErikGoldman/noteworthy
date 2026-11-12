@@ -137,6 +137,29 @@ wrong token derails a system). The blank control, with inputs asserted bitwise i
 write one sequence for all 64 however long it trains: after 1,000 steps, 0 of 64 exact and 1
 distinct reading. Nothing but the image reaches the model.
 
+## Step 4: blanking a staff, and the attention across staves (inconclusive on an overfit model)
+
+The overfit staff model (rerun to save its weights: 64 of 64 again at 7,000 steps) read the 64
+again four ways (`staff_ablations.py`); per staff, the share of gold notes read back (measure,
+pitch and duration equal; the parser checked on all 64 labels):
+
+| Reading | Exact | Staff 1 (upper) | Staff 2 (lower) |
+|---|---|---|---|
+| Intact | 64 | 100% of 1,674 | 100% of 1,458 |
+| Upper staff blanked | 10 | 20.4% | 26.5% |
+| Lower staff blanked | 46 | 83.2% | 74.3% |
+| No attention across staves (each staff's rows attend to their own) | 64 | 100% | 100% |
+
+The prediction (a blanked staff loses its notes, the other keeps its own) holds for a model that
+reads, not for one that has memorised 64 labels: any part of the image that tells the systems
+apart lets it write a whole label. With the lower staff blanked it still writes 46 systems
+exactly, notes it cannot see included; with the upper staff blanked both collapse, the lower staff
+it can see too (each bar's upper-staff tokens come first, and greedy decoding derails after
+them). Memorising does not need the attention across staves either: the decoder reads both staves'
+grids itself. What it shows: the readings depend on both staves' pixels, and the decoder works
+without the across-staves layer. The test moves to a model that generalises: the step-6 race model,
+on crops it was not trained on, with cross-staff passages compared to the rest.
+
 ## Leakage to watch
 
 - In the overfit test: width (fixed above). Staff count (2 for all), batch statistics (blank
@@ -151,11 +174,10 @@ distinct reading. Nothing but the image reaches the model.
 
 ## Next
 
-1. Step 4, on a rerun of the staff arm that saves its weights: blank each staff and read again (that
-   staff's notes must break, the other's survive); turn off attention across staves (cross-staff
-   passages must break).
-2. Before the race: staff positions from renderer and segmenter; the duplicate-staff fix;
+1. Before the race: staff positions from renderer and segmenter; the duplicate-staff fix;
    augmentation that moves staff positions with the image (geometry on the whole system, centres
    moved by the margin shift and the rotation, staves cut, ink and paper degradation shared by the
    staves); one crop per staff in `seq_pages.py`; `train_seq.py` training `StaffSeq2Seq`.
-3. Step 6: the 10,000-step race on two identical Runpod GPUs.
+2. Step 6: the 10,000-step race on two identical Runpod GPUs.
+3. Step 4 again, on the race model and crops it did not train on: each staff blanked, the
+   attention across staves off, cross-staff passages against the rest.
