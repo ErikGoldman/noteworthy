@@ -20,7 +20,7 @@ Each system is drawn on its own page, sized to it, in one MUSCIMA++ writer's han
 paper texture, and resized to a random interline. Glyphs come only from MUSCIMA++ pages outside
 its two test sets, which are our handwritten dev and test pages (the fork leaves them out).
 
-Output: DIR/samples/<index>/s<k>.png + .lmx and DIR/samples.train.txt, read by train_seq.py as
+Output: DIR/samples/<index>/s<k>.png + .lmx + .staves.json (the staves as drawn) and DIR/samples.train.txt, read by train_seq.py as
 --data DIR:train; DIR/manifest.json, the code and options that drew them; DIR/outcomes.json,
 what became of the systems tried, summed from each score's outcome.json. A score's directory
 appears only once complete, so the run may be killed at any time and restarted, with the same
@@ -51,12 +51,15 @@ from build_seq_dataset import (DATA, INTERLINE_PX, MARGIN_INTERLINES, MAX_TOKENS
                                PART_NAME_HIDDEN,
                                break_into_systems, draw_some_meters_as_symbols, hide_part_name,
                                is_training_score, linearize, load_musicxml, part_to_score,
-                               piano_part, split_part_to_systems, without_octave_clefs)
+                               piano_part, row_resized, split_part_to_systems, without_octave_clefs,
+                               write_sample)
 from build_musescore_crops import (without_octave_shifts, write_atomically,  # noqa: E402
                                    write_sample_list)
 from omr.pieces import pdmx_license_conflicts  # noqa: E402
+from seq.staff_positions import Staves  # noqa: E402
 
 MIN_TOKENS = 10
+STAFF_SAMPLES = 9  # points along a staff whose middle line's height is averaged (Drawer.staff_rows_px)
 NICENESS = 10
 
 # Tokens of a label that Smashcima cannot draw: a system holding one is left out.
@@ -233,9 +236,23 @@ class Drawer:
         ys = [self.mm_to_px(p.y - origin.y, dpi) for p in points]
         return int(min(xs)), int(min(ys)), int(np.ceil(max(xs))), int(np.ceil(max(ys)))
 
-    def draw(self, system: LabelledSystem, rng: random.Random) -> np.ndarray:
+    def staff_rows_px(self, page, dpi: float) -> list[float]:
+        """Each staff's middle line as a row of the rendered page, top to bottom: its height
+        averaged along it, since a hand's lines slope and waver. Pixel k covers k to k + 1, so a
+        line at y px is centred on row y - 0.5. Units as in ink_box_px."""
+        origin = page.view_box.rectangle
+        rows = []
+        for staff in page.staves:
+            to_page = page.space.transform_from(staff.space)
+            along = np.linspace(0, staff.width, STAFF_SAMPLES)
+            heights = [to_page.apply_to(staff.staff_coordinate_system.get_transform(0, t).apply_to(self.Vector2(0, 0))).y
+                       for t in along]
+            rows.append(self.mm_to_px(float(np.mean(heights)) - origin.y, dpi) - 0.5)
+        return sorted(rows)
+
+    def draw(self, system: LabelledSystem, rng: random.Random) -> tuple[np.ndarray, Staves]:
         """The system as a grayscale crop at a random interline, with random margins of its
-        paper"""
+        paper; and its staves there"""
         self.model.rng.seed(rng.random())
         self.model.page_synthesizer.page_setup = self.page_for(system, rng)
         scene = self.model(data=system.musicxml, format=".musicxml")
@@ -252,8 +269,11 @@ class Drawer:
             raise ValueError("system and its margins reach past the page")
         crop = gray[top:bottom, left:right]
         scale = rng.uniform(*INTERLINE_PX) / interline_px
-        return cv2.resize(crop, (round(crop.shape[1] * scale), round(crop.shape[0] * scale)),
-                          interpolation=cv2.INTER_AREA)
+        height = round(crop.shape[0] * scale)
+        factor = height / crop.shape[0]
+        staves = Staves(tuple(row_resized(r - top, factor) for r in self.staff_rows_px(page, scene.dpi)),
+                        interline_px * factor)
+        return cv2.resize(crop, (round(crop.shape[1] * scale), height), interpolation=cv2.INTER_AREA), staves
 
 
 DRAWER: Drawer | None = None
@@ -292,12 +312,11 @@ def build_score(job: tuple[int, str, Path, int]) -> int:
     written = 0
     for system in systems:
         try:
-            image = DRAWER.draw(system, rng)
+            image, staves = DRAWER.draw(system, rng)
         except Exception as e:
             outcomes[f"undrawn: {failure(e)}"] += 1
             continue
-        cv2.imwrite(str(partial / f"s{written}.png"), image)
-        (partial / f"s{written}.lmx").write_text(system.lmx + "\n")
+        write_sample(partial / f"s{written}", image, staves, system.lmx)
         written += 1
     outcomes["drawn"] += written
     (partial / "outcome.json").write_text(json.dumps(outcomes) + "\n")

@@ -45,6 +45,21 @@ class SystemStaves(unittest.TestCase):
         staves = system_staves(drawn([25, 200, 320], height=520), 2)
         np.testing.assert_allclose(staves.centres, [200, 320], atol=1)
 
+    def test_a_faint_staff_beside_a_strong_one(self):
+        """A system's second staff matching at a third of the first (blur, or beams over its lines)."""
+        image = drawn([120, 240])
+        image[240 - 2 * INTERLINE:240 + 2 * INTERLINE + 1:INTERLINE] = 170
+        np.testing.assert_allclose(system_staves(image, 2).centres, [120, 240], atol=1)
+
+    def test_ledger_lines_are_not_a_staff(self):
+        """Chords high above the staves, each with five short ledger lines an interline apart: in
+        rows, half as dark as a staff's lines, and taken for a staff, the pair of it and the
+        upper staff is nearer the crop's middle than the system is; but none runs across."""
+        image = drawn([230, 350], height=440)
+        for x in range(20, 600, 40):
+            image[90:131:INTERLINE, x:x + 22] = 0
+        np.testing.assert_allclose(system_staves(image, 2).centres, [230, 350], atol=1)
+
     def test_too_few_staves(self):
         self.assertIsNone(system_staves(drawn([200]), 2))
 
@@ -58,6 +73,13 @@ class StaffCrops(unittest.TestCase):
         middle = crops[0][half - 2 * INTERLINE:half + 2 * INTERLINE + 1:INTERLINE]
         self.assertTrue((middle[:, :] == 0).all())                    # its five lines, centred
         self.assertTrue((crops[0][:half - 60 - 1] == 255).all())       # white above the image's top
+
+    def test_a_staff_centred_beyond_the_image_still_full_height(self):
+        """Augmentation's margins may crop a tall system through its lower staff."""
+        image = drawn([60, 200], height=250)
+        crops = staff_crops(image, Staves((60.0, 280.0), INTERLINE))
+        self.assertEqual([c.shape[0] for c in crops], [2 * round(STAFF_INTERLINES * INTERLINE / 2)] * 2)
+        self.assertTrue((crops[1][-30:] == 255).all())
 
 
 if __name__ == "__main__":

@@ -214,6 +214,168 @@ copies no longer form a system read as piano) and nothing else.
 
 All 128 train tests and the eval tests touched pass.
 
+## The crops the line finder could not split (2026-11-12)
+
+**Were the left-out crops the hard ones?** 7,407 training crops (2.8%) had no staff positions,
+6,377 of them GrandStaff. By eye (sheets of each set) mostly not: in 7,370 the finder found one
+staff of two, the other plain to see: clean Scarlatti, crisp Smashcima, ordinary PDMX and scanned
+OLiMPiC. Blurred GrandStaff copies were the hardest, and still readable. The cause: a staff was
+kept only if its comb matched at half the strongest staff's, and a staff whose lines beams and
+chords cover, or blur fades, matched at a median 0.27 (GrandStaff), 0.44 (PDMX), 0.46 (Smashcima)
+of the other. The interline range was not the problem.
+
+**The fix, in three parts, scored against the segmenter.** The reference: the segmenter's staves
+on 300 crops, 100 the old finder missed, 100 whose positions moved by more than an interline when
+the cutoff was lowered, 100 others (GrandStaff, Smashcima, PDMX, beams, round, marks). Right means
+each of the system's staves within half an interline of the segmenter's. Right / wrong / none:
+
+| Finder | Old misses | Moved | Others |
+|---|---|---|---|
+| Old | 0 / 0 / 100 | 34 / 66 / 0 | 93 / 7 / 0 |
+| Cutoff of the system's weakest staff (half the count-th strongest, not the strongest) | 57 / 41 / 2 | 44 / 56 / 0 | 93 / 7 / 0 |
+| + rows scored by long ink only (runs a third of the strip wide) | 75 / 23 / 2 | 83 / 17 / 0 | 96 / 4 / 0 |
+| + ink no thicker than a staff line (thickness from vertical runs) | 74 / 24 / 2 | 89 / 11 / 0 | 97 / 3 / 0 |
+| + the comb penalised for a line a line beyond the staff (tried; within noise, not kept) | 74 / 24 / 2 | 90 / 10 / 0 | 97 / 3 / 0 |
+
+Lowering the cutoff alone brought back the staves and, as many, stacks of ledger lines and chord
+clumps taken for staves: averaged darkness cannot tell a row of short thick ink from a long thin
+line. Audiveris keeps only thin, long ink for its staff lines; the third and fourth rows borrow that.
+The finder kept is the fourth row's.
+
+The segmenter is not always right. Of the 37 disagreements left (with the penalty; 38 without), 17 have the two interlines about
+twofold apart; by eye the finder is right in 15 (the segmenter split a warped GrandStaff staff in
+two), so the true counts are about 88 / 91 / 97. Of the rest, about a dozen are warped staves a
+little over half an interline apart, and about a dozen real errors (a staff a line or two off
+beside chords and beams; a 40-line column of tempo marks over two empty bars, PDMX 016467/s2).
+
+The old positions were also about 7% wrong on the crops the old finder split (the "others").
+
+**Found on the way: augmentation erases staff lines.** `degrade`'s stroke thinning (seq.data,
+since the first Seq2Seq) dilates the white by `interline * 2 * 0.06` px each way: a 5x5 ellipse at
+staff scale, wider than a 2 px staff line. Where its random field leans thin, lines, stems and
+ledger lines go. On 60 PDMX crops x 10 seeds, the thinning keeps under 30% of the staff lines'
+contrast in 18.5% of crops (applied to half: about 9% of training crops); blur and the rest of
+capture's degradation, 1.2%. test_staff_data's augmented-crop test now fails on seed 5 for this
+reason (a crop with no staff left, for which the finder rightly finds none). Not yet changed.
+
+## A small end-to-end test on PDMX, staff positions as drawn (2026-11-12)
+
+**Why.** The question is whether reading staff by staff beats reading the system, not how good a
+line finder can be. On our own renders the staff positions need not be found: the renderer drew
+them. So a first, small test on rendered PDMX only, before any race.
+
+**Positions as drawn.** `build_seq_dataset.py` now rasterizes each system's staff lines alone (the
+staff groups' own paths, with the SVG's style and defs) and writes `<sample>.staves.json`
+(`[centre, ..., interline]`, in the crop's rows); `find_staff_positions.py` uses that file where it
+exists. On 40 scores 155 of 156 crops came out byte-identical to the old build.
+
+**A bug found on the way: crops of several systems.** The one crop dropped, PDMX 000001/s0, was a
+system Verovio broke over several lines: a 6870 x 4742 crop of many staves, labelled as one
+two-staff system. The builder now drops a crop whose drawn staves outnumber its label's. In
+every earlier PDMX set such crops went to training (for Seq2Seq too) with a label for only part of
+the image; not yet counted how many.
+
+**The data.** `data/staff_exact/pdmx`, rebuilt from scratch (11 minutes): 56,727 crops, all with
+drawn positions, all two-staff. Dev: 1,135 crops of 293 scores (the first 2% of scores after
+shuffling with seed 0); race: the other 55,592; 59,596 training samples a pass, with
+rhythm-heavy crops repeated.
+
+**How much a staff crop misses.** Each staff crop is 15 interlines tall, about 5.5 interlines of
+room beyond the staff's outer lines. On 3,000 crops, with drawn positions, ink lies beyond the
+outer staff crops in 18.9% (beyond 1 interline 12.7%, 2: 7.5%, 4: 2.4%), and in the gap between
+staves no crop covers in 2.2%. By eye, mostly not music the label holds (tempo-mark columns, chord
+symbols, lyrics, fingering); 2 of 16 flagged crops had notes cut, so about 1-2% of crops lose
+notes. A handicap for StaffSeq2Seq, small; taller staff crops would remove it.
+
+**A bug found on the way: augmentation's margins.** `reframe` draws margins down to -8% of the
+height: it may crop into the system, cutting notes the label keeps (Seq2Seq too, since the
+first). For StaffSeq2Seq it can put a staff's centre beyond the crop, and `staff_crops` then cut a
+short crop (235 rows): the first run crashed at step ~1,000. `staff_crops` now pads white enough
+for any centre; a test with a centre beyond the image fails on the old code. Cutting notes is
+not yet changed (nor the stroke thinning above): both arms see it alike.
+
+**The runs.** Both on the local GPU, one after the other, same samples, seed and schedule: batch
+10, lr 3e-4, warmup 800, 8,000 steps (about 1.3 passes), dev SER on 500 dev crops every 2,000
+(averaged weights). `StaffSeq2Seq` with `--staves`, `Seq2Seq` with `--staff-samples-only` at
+height 512 (`runs/staff_e2e2_staff`, `runs/staff_e2e2_system`).
+
+| Step | StaffSeq2Seq loss | dev SER | Seq2Seq loss | dev SER |
+|---|---|---|---|---|
+| 2,000 | 2.71 | 1.000 | 2.70 | 4.578 |
+| 4,000 | 2.29 | 3.521 | 2.31 | 4.514 |
+| 6,000 | 2.19 | 1.967 | 2.24 | 2.975 |
+| 8,000 | 1.82 | 1.186 | 1.93 | 1.698 |
+
+Neither reads yet: an SER above 1 is output longer than the label, mostly runaway repetition. So
+did Seq2Seq trained from scratch before (seq512-516: 3.65-3.93 at 5,000 steps, 0.6-1.8 at 10,000,
+0.3-0.4 at 15,000, with other data and batches): 8,000 steps ends before it ever read well. The
+averaged weights also lag (EMA decay 0.9995, about 2,000 steps; at 2,000 they still hold a third of
+the initial weights). Training losses alike throughout; StaffSeq2Seq's dev SER lower at every check.
+Not scored on Polish dev: models this far from reading would say nothing there.
+
+**Is the staff model broken?** Its 8,000-step predictions on 64 dev crops (SER 1.39 there), by eye
+beside their labels: the header right (clefs, mostly the key; the meter often wrong), the
+two-staff structure and voices right, some right notes and chords, then a measure repeated
+until the token limit (12 of 64 ran to 1,023 tokens) or rests where notes are: what an untrained
+Seq2Seq does. The staff crops as the model receives them, dev and augmented train: centred on
+their staves, at the right scale, the staves in order, the neighbour staff's nearer half
+visible as intended. Nothing points to a fault in the staff path; one dev crop (000129/s0) loses
+chords high above its upper staff (the margin above). So: train longer, below.
+
+Throughput: the samples/s printed is the average since the start, dev checks included, and a
+check of a model that repeats itself decodes 500 crops to the token limit (about 10 minutes):
+the apparent halving after the first check is that, not a slowdown.
+
+**Longer: 25,000 steps an arm.** As above but `--steps 25000 --eval-every 5000`
+(`runs/staff_e2e3_staff`, `runs/staff_e2e3_system`); the schedule's cosine is stretched to the
+new length, so the 8,000-step runs are not a prefix of these.
+
+| Step | StaffSeq2Seq loss | dev SER | Seq2Seq loss | dev SER |
+|---|---|---|---|---|
+| 5,000 | 1.81 | 2.260 | 1.94 | 3.225 |
+| 10,000 | 1.06 | 0.391 | 1.25 | 0.845 |
+| 15,000 | 1.00 | 0.137 | 1.10 | 0.263 |
+| 20,000 | 1.01 | 0.094 | 1.03 | 0.132 |
+| 25,000 | 0.93 | 0.080 | 0.97 | 0.118 |
+
+**On Polish dev.** Both 25,000-step snapshots (averaged weights), read through the segmenter
+as `benchmark_pages.sh` does (`seq_pages.py`; StaffSeq2Seq cuts staves at the layout's positions,
+not drawn ones). OMR-NED, lower is better, the 49 two-staff pages:
+
+| Gold, alignment | StaffSeq2Seq | Seq2Seq | seq516 (full mix, 150k steps) |
+|---|---|---|---|
+| corrected, authors' | **31.71** | 45.16 | 10.84 |
+| corrected, whole page | **30.73** | 43.76 | |
+| print, authors' | **28.84** | 42.95 | 6.97 |
+| print, whole page | **27.92** | 41.86 | |
+| published, authors' | **53.91** | 63.32 | |
+
+The staff model's lead holds on real prints, and grows: 30-33% lower than Seq2Seq's, against
+32% fewer errors on PDMX dev. Trained on drawn positions, it reads at the segmenter's. Three-staff
+pages: 90.9 against 91.2 (neither has seen three staves; seq516 90.3). Both are far from seq516,
+which trained on the whole mix for six times as long: this says which reader learns faster from
+the same PDMX renders, not what either would reach. One seed each.
+
+**The line finder against drawn positions.** On all 56,727 PDMX crops of
+`data/staff_exact/pdmx`, the finder (`seq.staves.system_staves`) beside the positions drawn:
+56,688 right (99.93%: each staff within half an interline), 14 wrong (11 by more than an
+interline, 5 by more than five), 25 not found. Against the segmenter it had looked 97% right
+on ordinary crops: most of that gap was the segmenter's. PDMX is the easiest set (clean
+renders); GrandStaff's camera-warped copies and the scans are where it is still unmeasured.
+
+**Drawn positions from MuseScore and Smashcima too.** `build_musescore_crops.py` takes each
+staff's middle line from the SVG's StaffLines (whose units are the PNG's pixels) and
+`build_smashcima_crops.py` from each StaffVisual's coordinate system, its height averaged along
+the staff (a hand's lines slope); both follow the crop through its cut, resize and margins
+(`build_seq_dataset.row_resized`: cv2.resize scales pixel centres) and write
+`<sample>.staves.json` as the Verovio builder does (`write_sample`). `Staves` and `staff_count`
+moved to `seq.staff_positions`, free of torch, which Smashcima's environment lacks. On 40
+scores each (136 MuseScore crops, 35 Smashcima): every crop byte-identical to
+`data/seq516f_data/seq2`'s, and the finder within 0.06 interlines of every drawn staff
+(mean offset under 0.01 interlines, interlines within 4%). A test puts 2-px staff lines on a
+page and finds each recorded centre on its middle line after the crop (atol 0.6 px); dropping
+the half-pixel of `row_resized`, or a 3-row shift, fails it.
+
 ## Leakage to watch
 
 - In the overfit test: width (fixed above). Staff count (2 for all), batch statistics (blank

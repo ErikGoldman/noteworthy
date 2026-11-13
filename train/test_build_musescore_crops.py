@@ -13,9 +13,11 @@ from build_seq_dataset import without_octave_clefs
 from build_musescore_crops import (STYLE_VARIANTS, ExpectedDrawing, SystemOnPage, barlines_drawn, batches,
                                    closes_with_own_barline, engraving_style, ink_crop, staff_lines, staves, style_variant,
                                    show_every_tuplet_number, system_on_page, with_label_ottavas, with_spare_measure)
+from seq.staff_positions import Staves
 
 INTERLINE = 25.0
 UPPER_TOP, LOWER_TOP = 600.0, 860.0
+UPPER_CENTRE_ROW, LOWER_CENTRE_ROW = UPPER_TOP + 2 * INTERLINE - 0.5, LOWER_TOP + 2 * INTERLINE - 0.5
 
 
 def staff_svg(top: float, left: float = 300.0, right: float = 2800.0) -> str:
@@ -43,7 +45,7 @@ def system_svg(*barlines: str) -> bytes:
     return page_svg(staff_svg(UPPER_TOP), staff_svg(LOWER_TOP), *barlines)
 
 
-class Staves(unittest.TestCase):
+class StaffLinesIntoStaves(unittest.TestCase):
     def test_two_staves_of_five_lines(self):
         found = staves(staff_lines(system_svg()))
         self.assertEqual([s.top for s in found], [UPPER_TOP, LOWER_TOP])
@@ -65,7 +67,7 @@ TWO_MEASURES_THEN_SPARE = ExpectedDrawing(barlines=3, spare_measure=True)
 class SystemOnMuseScorePage(unittest.TestCase):
     def test_crop_ends_at_the_barline_before_the_spare_measure(self):
         svg = system_svg(barline_svg(300), barline_svg(1200), barline_svg(2000), barline_svg(2780, final=True))
-        self.assertEqual(system_on_page(svg, TWO_MEASURES_THEN_SPARE), SystemOnPage(INTERLINE, 2002.25))
+        self.assertEqual(system_on_page(svg, TWO_MEASURES_THEN_SPARE), SystemOnPage(Staves((UPPER_CENTRE_ROW, LOWER_CENTRE_ROW), INTERLINE), 2002.25))
 
     def test_crop_ends_at_the_systems_own_final_bar(self):
         svg = system_svg(barline_svg(300), barline_svg(1200), barline_svg(2000, final=True))
@@ -104,7 +106,7 @@ class InkCrop(unittest.TestCase):
         return rgba
 
     def test_ink_right_of_the_closing_barline_is_cut_off(self):
-        crop = ink_crop(self.page(slice(100, 200), slice(50, 350)), SystemOnPage(10.0, 149.0), random.Random(0))
+        crop, _ = ink_crop(self.page(slice(100, 200), slice(50, 350)), SystemOnPage(Staves((150.0,), 10.0), 149.0), random.Random(0))
         self.assertEqual(crop.min(), 0)
         self.assertEqual(crop.max(), 255)
         inked_columns = np.nonzero((crop < 128).any(axis=0))[0]
@@ -112,11 +114,27 @@ class InkCrop(unittest.TestCase):
 
     def test_ink_touching_the_page_edge_is_refused(self):
         with self.assertRaisesRegex(ValueError, "page edge"):
-            ink_crop(self.page(slice(0, 200), slice(50, 350)), SystemOnPage(10.0, 349.0), random.Random(0))
+            ink_crop(self.page(slice(0, 200), slice(50, 350)), SystemOnPage(Staves((150.0,), 10.0), 349.0), random.Random(0))
+
+    def test_staves_follow_the_crop_onto_their_lines(self):
+        """Two staves of 2-px lines on the page; in the crop (cut, resized, margins added) each
+        staff's middle line is centred on its recorded row, and the interline scaled with it."""
+        rgba = np.zeros((300, 400, 4), np.uint8)
+        centres = (100.5, 200.5)  # rows 100-101 and 200-201
+        for centre in centres:
+            for k in range(-2, 3):
+                row = int(centre - 0.5) + 10 * k
+                rgba[row:row + 2, 50:350, 3] = 255
+        for seed in range(5):
+            crop, staves = ink_crop(rgba, SystemOnPage(Staves(centres, 10.0), 349.0), random.Random(seed))
+            ink_rows = np.nonzero((crop < 128).any(axis=1))[0]
+            lines = [run.mean() for run in np.split(ink_rows, np.nonzero(np.diff(ink_rows) > 1)[0] + 1)]
+            np.testing.assert_allclose(staves.centres, [lines[2], lines[7]], atol=0.6)
+            self.assertAlmostEqual(staves.interline, (lines[4] - lines[0]) / 4, delta=0.3)
 
     def test_blank_page_is_refused(self):
         with self.assertRaisesRegex(ValueError, "no ink"):
-            ink_crop(self.page(slice(0, 0), slice(0, 0)), SystemOnPage(10.0, 349.0), random.Random(0))
+            ink_crop(self.page(slice(0, 0), slice(0, 0)), SystemOnPage(Staves((150.0,), 10.0), 349.0), random.Random(0))
 
 
 class SpareMeasure(unittest.TestCase):

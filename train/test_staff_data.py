@@ -11,7 +11,8 @@ import numpy as np
 import torch
 
 from seq.data import Sample
-from seq.staff_data import STAFF_HEIGHT, StaffDataset, collate_staves, staff_count
+from seq.staff_data import STAFF_HEIGHT, StaffDataset, collate_staves
+from seq.staff_positions import staff_count
 from seq.staves import find_staves
 from seq.vocab import Vocab
 from test_staves import drawn

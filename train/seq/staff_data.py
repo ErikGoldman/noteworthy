@@ -11,7 +11,6 @@ share its paper, blur and tilt, as on a page.
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 import cv2
@@ -24,11 +23,6 @@ from .staves import STAFF_INTERLINES, Staves, staff_crops
 from .vocab import PAD, Vocab
 
 STAFF_HEIGHT = 256
-
-
-def staff_count(lmx: str) -> int:
-    """The staves an LMX system writes on: its highest staff:N."""
-    return max(int(n) for n in re.findall(r"\bstaff:(\d+)", lmx))
 
 
 def load_positions(directory: Path, root: Path) -> dict[str, Staves | None]:

@@ -21,7 +21,7 @@ Each score is engraved in one of STYLE_VARIANTS MuseScore styles (music font, li
 spacing), drawn from the score's index, so a score's crops do not depend on which batch it was
 rendered in, and a run stopped and restarted writes what an uninterrupted one would.
 
-Output: DIR/samples/<index>/s<k>.png + .lmx, an outcome.json per score saying what became of
+Output: DIR/samples/<index>/s<k>.png + .lmx + .staves.json (the staves as drawn), an outcome.json per score saying what became of
 each candidate system (or why the score was left out whole), and DIR/samples.train.txt; train_seq.py reads it as --data DIR:train. A score's
 directory appears only once complete, so the run may be killed at any time and restarted.
 """
@@ -55,7 +55,8 @@ from build_seq_dataset import (DATA, INTERLINE_PX, MARGIN_INTERLINES, MAX_TOKENS
                                ROOT, break_into_systems, draw_some_meters_as_symbols,
                                hide_part_name, is_training_score, linearize, without_octave_clefs,
                                load_musicxml, open_at_an_edge, part_to_score, piano_part,
-                               split_part_to_systems)
+                               row_resized, split_part_to_systems, write_sample)
+from seq.staff_positions import Staves  # noqa: E402
 from omr.pieces import pdmx_license_conflicts  # noqa: E402
 from seq.barlines import REPEAT_START, barline_tokens_of  # noqa: E402
 from seq.ottava import add_octave_shifts, shifts_of  # noqa: E402
@@ -104,6 +105,12 @@ class Staff:
     top: float
     bottom: float
     interline: float
+
+    @property
+    def centre_row(self) -> float:
+        """Its middle line's row in the page's PNG, whose pixels are the SVG's units: pixel k
+        covers k to k + 1, so a line drawn at y is centred on row y - 0.5."""
+        return (self.top + self.bottom) / 2 - 0.5
 
 
 @dataclass(frozen=True)
@@ -387,7 +394,7 @@ def closing_barline_right(strokes: list[Stroke], upper: Staff, lower: Staff, exp
 
 @dataclass(frozen=True)
 class SystemOnPage:
-    interline: float
+    staves: Staves  # in the page's rows
     right: float  # where the crop ends: the system's closing barline
 
 
@@ -401,12 +408,13 @@ def system_on_page(svg: bytes, expected: ExpectedDrawing) -> SystemOnPage:
     if len(found) != STAVES_PER_SYSTEM:
         raise ValueError(f"{len(found)} staves")
     upper, lower = found
-    return SystemOnPage(upper.interline, closing_barline_right(strokes, upper, lower, expected))
+    return SystemOnPage(Staves((upper.centre_row, lower.centre_row), upper.interline),
+                        closing_barline_right(strokes, upper, lower, expected))
 
 
-def ink_crop(rgba: np.ndarray, system: SystemOnPage, rng: random.Random) -> np.ndarray:
+def ink_crop(rgba: np.ndarray, system: SystemOnPage, rng: random.Random) -> tuple[np.ndarray, Staves]:
     """The system's ink (the page's alpha up to its closing barline) black on white, at a
-    random interline, with random margins."""
+    random interline, with random margins; and its staves there."""
     ink = rgba[:, :math.ceil(system.right) + 1, 3]
     ys, xs = np.nonzero(ink)
     if len(ys) == 0:
@@ -415,16 +423,19 @@ def ink_crop(rgba: np.ndarray, system: SystemOnPage, rng: random.Random) -> np.n
         raise ValueError("cut by the page edge")
     crop = 255 - ink[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
     target = rng.uniform(*INTERLINE_PX)
-    scale = target / system.interline
-    crop = cv2.resize(crop, (max(1, round(crop.shape[1] * scale)), max(1, round(crop.shape[0] * scale))),
-                      interpolation=cv2.INTER_AREA)
+    scale = target / system.staves.interline
+    height = max(1, round(crop.shape[0] * scale))
+    resized = cv2.resize(crop, (max(1, round(crop.shape[1] * scale)), height), interpolation=cv2.INTER_AREA)
     m = [int(rng.uniform(*MARGIN_INTERLINES) * target) for _ in range(4)]
-    return cv2.copyMakeBorder(crop, m[0], m[1], m[2], m[3], cv2.BORDER_CONSTANT, value=255)
+    factor = height / crop.shape[0]
+    staves = Staves(tuple(row_resized(c - ys.min(), factor) + m[0] for c in system.staves.centres),
+                    system.staves.interline * factor)
+    return cv2.copyMakeBorder(resized, m[0], m[1], m[2], m[3], cv2.BORDER_CONSTANT, value=255), staves
 
 
-def engraved_system(musicxml: Path, expected: ExpectedDrawing, rng: random.Random) -> np.ndarray:
-    """The crop MuseScore made of the system. Raises ValueError if it did not engrave it as
-    one system on one page."""
+def engraved_system(musicxml: Path, expected: ExpectedDrawing, rng: random.Random) -> tuple[np.ndarray, Staves]:
+    """The crop MuseScore made of the system, and its staves there. Raises ValueError if it
+    did not engrave it as one system on one page."""
     png, svg = page_files(musicxml, 1)
     if not png.exists() or not svg.exists() or png.stat().st_size == 0:
         raise ValueError("not engraved")
@@ -492,12 +503,11 @@ def write_score(job: ScoreJob, work: Path, failed: set[Path], out: Path) -> None
             job.outcome[system.name] = "musescore crashed or hung"
             continue
         try:
-            image = engraved_system(musicxml, system.expected, job.crop_rng(system))
+            image, staves = engraved_system(musicxml, system.expected, job.crop_rng(system))
         except ValueError as e:
             job.outcome[system.name] = str(e)
             continue
-        cv2.imwrite(str(partial / f"s{written}.png"), image)
-        (partial / f"s{written}.lmx").write_text(system.lmx + "\n")
+        write_sample(partial / f"s{written}", image, staves, system.lmx)
         job.outcome[system.name] = WRITTEN
         written += 1
     (partial / "outcome.json").write_text(json.dumps({"source": job.source, **job.outcome}) + "\n")

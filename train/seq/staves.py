@@ -1,11 +1,14 @@
 """A system crop's staves, found from their lines, and one crop per staff for StaffSeq2Seq.
 
-Staff lines are the rows darker than the rows around them (each row's mean darkness, less its
-neighbourhood's): a five-line comb slid down that profile peaks on each staff's middle line. A
-match is as strong as the comb's two weakest teeth together, so all five must sit on lines: a
-comb two or two and a half times too wide, whose teeth reach the other staff's lines, leaves some
-in the gaps, and one shifted a line up or down has a tooth off the staff; a faint or broken line
-(Smashcima draws some so) only weakens the match.
+Staff lines are long, thin, horizontal ink: of the ink running on across much of the crop, the
+part no thicker than a staff line (_staff_line_ink), so that ledger lines, noteheads, chord
+clumps and beams fall away. Each row's darkness in that ink, less its neighbourhood's, is the
+profile a five-line comb slides down, peaking on each staff's middle line. A match is as strong
+as the comb's two weakest teeth together, so all five must sit on lines: a comb two or two and a
+half times too wide, whose teeth reach the other staff's lines, leaves some in the gaps, and one
+shifted a line up or down has a tooth off the staff; a
+faint or broken line (Smashcima draws some so) only weakens the match. Checked against the
+segmenter on 300 crops (EXPERIMENTS_STAFF_MODEL.md): it splits where darkness alone could not.
 The comb's spacing is the interline: the one whose best match is strongest. Blurred lines, as on
 GrandStaff's small JPEGs, still darken their rows. Staves are looked for in vertical strips, so
 that a page's slight tilt, a camera's warp or a hand's wavering moves a line only a little within
@@ -24,35 +27,32 @@ and voices crossing between the hands sit, so those are seen from both staves.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
 
 import cv2
 import numpy as np
 
 from .data import CROP_INTERLINES
+from .staff_positions import Staves
 
 STAFF_INTERLINES = CROP_INTERLINES / 2
 STRIPS = 8
 # Interlines tried, as shares of the crop's height: a system crop is about CROP_INTERLINES tall,
 # more with wide margins or a third staff, less when cut tight.
 MIN_INTERLINE_SHARE, MAX_INTERLINE_SHARE = 1 / 80, 1 / 12
-STAFF_RESPONSE = 0.5  # a staff's comb response is at least this share of its strip's strongest
+# A staff's comb response is at least this share of the system's weakest staff's: of a strip's
+# strongest, but in a system of two, of the second strongest, since a staff whose lines beams and
+# chords cover, or blur fades, may match at a third of the other's (GrandStaff, PDMX, Smashcima).
+STAFF_RESPONSE = 0.5
 
 
-@dataclass(frozen=True)
-class Staves:
-    centres: tuple[float, ...]  # rows, top to bottom
-    interline: float
-
-
-def find_staves(image: np.ndarray) -> Staves | None:
-    """The staves of a grayscale system crop (dark ink on light), or None when the strips that
-    find staves do not agree on how many there are."""
-    found = []
+def find_staves(image: np.ndarray, count: int = 1) -> Staves | None:
+    """The staves of a grayscale system crop (dark ink on light) of at least `count` staves, or
+    None when the strips that find staves do not agree on how many there are."""
+    found, thickness = [], _line_thickness(image)
     for strip in np.array_split(image, STRIPS, axis=1):
-        profile = _line_profile(strip)
+        profile = _line_profile(strip, thickness)
         interline = _interline(profile)
-        if centres := _staff_centres(_comb(profile, interline), interline):
+        if centres := _staff_centres(_comb(profile, interline), interline, count):
             found.append((centres, interline))
     if not found:
         return None
@@ -67,7 +67,7 @@ def find_staves(image: np.ndarray) -> Staves | None:
 def system_staves(image: np.ndarray, count: int) -> Staves | None:
     """The crop's system of `count` staves: of the staves found, the adjacent run of that many
     whose middle is nearest the crop's. None when fewer are found."""
-    staves = find_staves(image)
+    staves = find_staves(image, count)
     if staves is None or len(staves.centres) < count:
         return None
     runs = [staves.centres[i:i + count] for i in range(len(staves.centres) - count + 1)]
@@ -75,12 +75,37 @@ def system_staves(image: np.ndarray, count: int) -> Staves | None:
     return Staves(min(runs, key=lambda run: abs((run[0] + run[-1]) / 2 - middle)), staves.interline)
 
 
-def _line_profile(image: np.ndarray) -> np.ndarray:
-    """Each row's darkness, less the mean of the rows around it (a line's neighbourhood is two
-    interlines at the most interline tried): staff lines stand out, filled regions do not."""
-    darkness = 1 - image.astype(np.float32).mean(axis=1) / 255
+def _line_profile(image: np.ndarray, thickness: int) -> np.ndarray:
+    """Each row's darkness in staff-line ink (_staff_line_ink), less the mean of the rows around
+    it (a line's neighbourhood: two interlines at the most interline tried): staff lines stand
+    out, filled regions do not."""
+    darkness = _staff_line_ink(image, thickness).mean(axis=1) / 255
     window = max(3, round(2 * MAX_INTERLINE_SHARE * len(darkness)) | 1)
     return np.maximum(darkness - np.convolve(darkness, np.ones(window) / window, mode="same"), 0)
+
+
+def _staff_line_ink(image: np.ndarray, thickness: int) -> np.ndarray:
+    """The strip's darkness (0 white, 255 black) in ink that runs on horizontally for a third of
+    its width, a row up or down allowed for tilt, and is no thicker than a staff line: staff
+    lines run across the strip, but a ledger line is a notehead or two wide, noteheads, stems and
+    chord clumps no wider, and a beam, as long as it may be, is three or four lines thick. By
+    darkness alone a stack of ledger lines, or of beams, an interline apart, was a staff, as
+    strong as a real staff whose lines beams and chords cover or blur fades (Audiveris keeps only
+    such thin, long ink for its staff lines, too)."""
+    within_a_row = cv2.dilate(255 - image, np.ones((3, 1), np.uint8))
+    long = cv2.morphologyEx(within_a_row, cv2.MORPH_OPEN, np.ones((1, max(1, image.shape[1] // 3)), np.uint8))
+    thicker_than_a_line = cv2.morphologyEx(long, cv2.MORPH_OPEN, np.ones((2 * thickness + 3, 1), np.uint8))
+    return (long - thicker_than_a_line).astype(np.float32)
+
+
+def _line_thickness(image: np.ndarray) -> int:
+    """A staff line's thickness in pixels: the commonest vertical run of ink (Otsu's threshold),
+    since staff lines cross every column and other ink only some."""
+    _, ink = cv2.threshold(image, 0, 1, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    columns = np.pad(ink.T.astype(np.int8), ((0, 0), (1, 1)))
+    edges = np.diff(columns, axis=1)
+    runs = np.nonzero(edges == -1)[1] - np.nonzero(edges == 1)[1]
+    return int(np.bincount(runs).argmax()) if len(runs) else 1
 
 
 def _comb(profile: np.ndarray, interline: float) -> np.ndarray:
@@ -98,20 +123,32 @@ def _interline(profile: np.ndarray) -> float:
     return float(tried[np.argmax([_comb(profile, d).max() for d in tried])])
 
 
-def _staff_centres(response: np.ndarray, interline: float) -> list[float]:
-    """Rows where the comb response peaks, strongest first, at least a staff's height (four
-    interlines) and a line apart; returned top to bottom."""
-    threshold, taken = STAFF_RESPONSE * response.max(), []
+def _staff_centres(response: np.ndarray, interline: float, count: int) -> list[float]:
+    """Rows where the comb response peaks, at least a staff's height (four interlines) and a line
+    apart, and at least STAFF_RESPONSE of the count-th strongest such peak; top to bottom."""
+    peaks = _separated_peaks(response, interline)
+    if len(peaks) < count:
+        return []
+    threshold = STAFF_RESPONSE * response[peaks[count - 1]]
+    return sorted(float(p) for p in peaks if response[p] >= threshold)
+
+
+def _separated_peaks(response: np.ndarray, interline: float) -> list[int]:
+    """Rows of positive response, strongest first, each more than five interlines from any stronger."""
+    taken: list[int] = []
     for row in np.argsort(response)[::-1]:
-        if response[row] < threshold:
+        if response[row] <= 0:
             break
         if all(abs(row - t) > 5 * interline for t in taken):
-            taken.append(row)
-    return sorted(float(t) for t in taken) if response.max() > 0 else []
+            taken.append(int(row))
+    return taken
 
 
 def staff_crops(image: np.ndarray, staves: Staves) -> list[np.ndarray]:
-    """One crop per staff, STAFF_INTERLINES tall and centred on it, white beyond the image's edges."""
+    """One crop per staff, STAFF_INTERLINES tall and centred on it, white beyond the image's edges,
+    even for a staff whose centre lies beyond them (augmentation's margins cut into the crop)."""
     half = round(STAFF_INTERLINES * staves.interline / 2)
-    padded = cv2.copyMakeBorder(image, half, half, 0, 0, cv2.BORDER_CONSTANT, value=255)
-    return [padded[round(c):round(c) + 2 * half] for c in staves.centres]
+    centres = [round(c) for c in staves.centres]
+    pad = half + max(0, -min(centres), max(centres) - image.shape[0])
+    padded = cv2.copyMakeBorder(image, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=255)
+    return [padded[c + pad - half:c + pad + half] for c in centres]

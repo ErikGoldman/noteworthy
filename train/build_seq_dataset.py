@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 import multiprocessing as mp
 import os
 import random
@@ -59,6 +60,7 @@ from omr.fonts import use_smufl_fonts
 from omr.held_out import is_held_out
 from omr.pieces import pdmx_license_conflicts
 from omr.render import FONTS, SVG_NS, UNITS_PER_INTERLINE_PER_UNIT, layout_svg
+from seq.staff_positions import Staves, staff_count
 from seq.ottava import TOKEN_ATTRIBUTE, move_octaves, notes_under_ottavas, written_part
 from seq.barlines import barline_tokens_of, with_barline_tokens
 from seq.time_symbols import TOKEN_OF_SYMBOL, token_of, with_time_symbol
@@ -632,11 +634,41 @@ def justify(tk: verovio.toolkit, musicxml: str, options: dict, stretch: float) -
     tk.loadData(musicxml)
 
 
+def staff_lines_only(svg: bytes) -> bytes:
+    """The page with nothing drawn but its staves' lines (each staff group's own paths), and the
+    styles and definitions they are drawn with."""
+    root = etree.fromstring(svg)
+    lines = [p for staff in groups_of_class(root, "staff") for p in staff if p.tag == f"{{{SVG_NS}}}path"]
+    styling = [e for e in root.iter(f"{{{SVG_NS}}}style", f"{{{SVG_NS}}}defs")]
+    keep = set(lines) | set(styling) | {a for e in lines + styling for a in e.iterancestors()}
+    for element in [e for e in root.iter() if e not in keep and e.getparent() in keep]:
+        element.getparent().remove(element)
+    return etree.tostring(root)
+
+
+def drawn_staves(lines: np.ndarray) -> Staves | None:
+    """Staff centres and interline in an image of staff lines alone: its rows of ink, five to a
+    staff. None unless the lines come in fives."""
+    rows = np.nonzero((lines < 250).any(axis=1))[0]
+    if len(rows) == 0:
+        return None
+    centres = [run.mean() for run in np.split(rows, np.nonzero(np.diff(rows) > 1)[0] + 1)]
+    if len(centres) % 5:
+        return None
+    staves = [centres[i:i + 5] for i in range(0, len(centres), 5)]
+    return Staves(tuple(float(s[2]) for s in staves), float(np.mean([np.diff(s).mean() for s in staves])))
+
+
+def rasterized(svg: bytes) -> np.ndarray:
+    return cv2.imdecode(np.frombuffer(cairosvg.svg2png(bytestring=svg, background_color="white"), np.uint8),
+                        cv2.IMREAD_GRAYSCALE)
+
+
 def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style: Style = Style(),
-                  line: int | None = None) -> np.ndarray | None:
-    """The system as a grayscale image cropped to its ink plus a random margin. With line, the
-    score holds neighbouring measures on lines of their own (with_neighbours), and only that line
-    is drawn."""
+                  line: int | None = None) -> tuple[np.ndarray, Staves | None] | None:
+    """The system as a grayscale image cropped to its ink plus a random margin, and its staves
+    there, from the drawing (None if its lines do not come in fives). With line, the score holds
+    neighbouring measures on lines of their own (with_neighbours), and only that line is drawn."""
     options = engraving_options(rng)
     if style.marks:
         options |= ottava_options(rng)
@@ -664,14 +696,28 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style:
     if line is not None:
         svg = only_line(svg, line)
     use_smufl_fonts()  # music symbols in text (tempo marks) need the SMuFL fonts in cairo
-    png = cairosvg.svg2png(bytestring=svg, background_color="white")
-    image = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_GRAYSCALE)
+    image = rasterized(svg)
     ys, xs = np.nonzero(image < 128)
     if len(ys) == 0:
         return None
     m = [int(rng.uniform(*MARGIN_INTERLINES) * interline) for _ in range(4)]
     crop = image[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-    return cv2.copyMakeBorder(crop, m[0], m[1], m[2], m[3], cv2.BORDER_CONSTANT, value=255)
+    staves = drawn_staves(rasterized(staff_lines_only(svg)))
+    in_crop = staves and Staves(tuple(c - ys.min() + m[0] for c in staves.centres), staves.interline)
+    return cv2.copyMakeBorder(crop, m[0], m[1], m[2], m[3], cv2.BORDER_CONSTANT, value=255), in_crop
+
+
+def write_sample(stem: Path, image: np.ndarray, staves: Staves, lmx: str) -> None:
+    """A crop, its label, and its staves as drawn (find_staff_positions.py reads them)."""
+    cv2.imwrite(str(stem.with_suffix(".png")), image)
+    stem.with_suffix(".lmx").write_text(lmx + "\n")
+    stem.with_suffix(".staves.json").write_text(json.dumps([*staves.centres, staves.interline]))
+
+
+def row_resized(row: float, factor: float) -> float:
+    """Where a row lands when its image is resized by factor: cv2.resize scales pixel centres,
+    not edges, so row 0 of an image halved lies between rows 0 and 1 of the original."""
+    return (row + 0.5) * factor - 0.5
 
 
 def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
@@ -717,16 +763,18 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
                 hide_part_name(score)
             musicxml = ET.tostring(score, encoding="unicode", xml_declaration=True)
             line = neighbours[0] if neighbours else None
-            image = render_system(tk, musicxml, rng, style, line) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
-            drawn_right = image is not None and ottavas_drawn_as_labelled(tk, system.part, neighbours or (0, 0))
+            rendered = render_system(tk, musicxml, rng, style, line) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
+            # A system Verovio broke over several lines draws more staves than the label has.
+            drawn_right = (rendered is not None and rendered[1] is not None
+                           and len(rendered[1].centres) == staff_count(lmx)
+                           and ottavas_drawn_as_labelled(tk, system.part, neighbours or (0, 0)))
         except Exception:
             # Nothing may escape to the pool: CairoError cannot be unpickled, which kills
             # the pool's result thread and silently stalls every later score.
             continue
         if not drawn_right:
             continue
-        cv2.imwrite(str(partial / f"s{written}.png"), image)
-        (partial / f"s{written}.lmx").write_text(lmx + "\n")
+        write_sample(partial / f"s{written}", *rendered, lmx)
         written += 1
     partial.rename(target)
     return written
