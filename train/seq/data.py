@@ -66,10 +66,14 @@ def augment(rng: np.random.Generator, image: np.ndarray) -> np.ndarray:
 
 def reframe(rng: np.random.Generator, image: np.ndarray) -> tuple[np.ndarray, Callable[[float], float]]:
     """New margins (the crop then scaled back to its height), slight rotation and a new width.
-    Also where each row went: a row moves with the top margin and scales with the height; the
-    rotation, about the middle, moves rows there by under a twentieth of a pixel."""
+    A margin narrows only into blank rows: cutting ink would cut notes the label keeps (on
+    OLiMPiC's tight crops, 36% of draws did). Also where each row went: a row moves with the top
+    margin and scales with the height; the rotation, about the middle, moves rows there by under
+    a twentieth of a pixel."""
     h, w = image.shape
-    pad_top, pad_bottom = (int(rng.uniform(-0.08, 0.12) * h) for _ in range(2))
+    blank_above, blank_below = blank_margins(image)
+    pad_top, pad_bottom = (max(int(rng.uniform(-0.08, 0.12) * h), -blank)
+                           for blank in (blank_above, blank_below))
     image = cv2.copyMakeBorder(image[max(0, -pad_top):h - max(0, -pad_bottom)], max(0, pad_top), max(0, pad_bottom),
                                0, 0, cv2.BORDER_CONSTANT, value=255)
     padded = image.shape[0]
@@ -81,11 +85,21 @@ def reframe(rng: np.random.Generator, image: np.ndarray) -> tuple[np.ndarray, Ca
     return image, lambda row: (row + pad_top) * h / padded
 
 
+def blank_margins(image: np.ndarray) -> tuple[int, int]:
+    """Rows above the first and below the last with ink (darker than mid-grey)."""
+    inked = np.flatnonzero((image < 128).any(axis=1))
+    if len(inked) == 0:
+        return image.shape[0], image.shape[0]
+    return int(inked[0]), int(image.shape[0] - 1 - inked[-1])
+
+
 def degrade(rng: np.random.Generator, image: np.ndarray, interline: float) -> np.ndarray:
     """Stroke weight, a binarized scan, and capture's tone, blur, noise and JPEG; sized by the
     interline, in pixels."""
     if rng.random() < 0.5:
-        image = stroke_weight(rng, image, interline * 2)
+        # Never thinned: a crop's staff lines are 1-3 px, which thinning erases, the label keeping
+        # the notes on them (EXPERIMENTS_STAFF_MODEL.md).
+        image = stroke_weight(rng, image, interline * 2, thin=False)
     if rng.random() < 0.3:
         image = np.where(image < rng.uniform(100, 200), 0, 255).astype(np.uint8)  # binarized scan
     if rng.random() < 0.9:

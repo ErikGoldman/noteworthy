@@ -54,14 +54,15 @@ def perspective(rng: np.random.Generator, image: np.ndarray, masks: np.ndarray, 
     return _remap(image, masks, map_x, map_y)
 
 
-def stroke_weight(rng: np.random.Generator, image: np.ndarray, interline: float) -> np.ndarray:
-    """Thicken or thin ink, optionally varying smoothly across the crop (like pen pressure)."""
+def stroke_weight(rng: np.random.Generator, image: np.ndarray, interline: float, thin: bool = True) -> np.ndarray:
+    """Thicken or (when `thin`) thin ink, optionally varying smoothly across the crop (like pen
+    pressure). Thinning erases strokes no thicker than twice the kernel's radius outright."""
     radius = max(1, int(round(interline * 0.06)))
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * radius + 1, 2 * radius + 1))
     heavier = cv2.erode(image, kernel)
     lighter = cv2.dilate(image, kernel)
     t = _smooth_field(rng, image.shape, interline * 6, 1.0)
-    t = np.clip(t + rng.uniform(-0.8, 0.8), -1, 1)
+    t = np.clip(t + rng.uniform(-0.8, 0.8), -1 if thin else 0, 1)
     out = np.where(t > 0, image * (1 - t) + heavier * t, image * (1 + t) - lighter * t)
     return out.astype(np.uint8)
 

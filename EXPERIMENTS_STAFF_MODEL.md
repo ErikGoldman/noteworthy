@@ -376,6 +376,34 @@ scores each (136 MuseScore crops, 35 Smashcima): every crop byte-identical to
 page and finds each recorded centre on its middle line after the crop (atol 0.6 px); dropping
 the half-pixel of `row_resized`, or a 3-row shift, fails it.
 
+## Augmentation fixed: it no longer erases staff lines or cuts notes (2026-11-13)
+
+Both bugs found above, in `seq.data` and so in both arms and in every Seq2Seq since the first.
+Every measurement here is on crops at staff scale (an interline of 17 px, as Seq2Seq at 512).
+
+**Stroke thinning.** At this scale PDMX's staff lines are 1-3 px (of 60 crops, 11 at 1 px, 43
+at 2, 6 at 3), and the thinning kernel's radius is 2 px: it can only erase them. On 60 PDMX
+crops x 10 seeds, `stroke_weight` alone left under 30% of the lines' contrast in 18.5% of
+crops. Capping the thinning at half strength fixed that (0%), but through all of `degrade` it
+still left gray lines for the binarization to whiten (test_staff_data's seed 5: every line
+gone). A kernel limited to the crop's line thickness thins almost nothing, measuring the same
+as no thinning at all. So seq crops are now thickened, never thinned (`stroke_weight(thin=False)`;
+the segmenter's augmentation is unchanged). Through all of `degrade`, crops left with under 30%
+of their line contrast: 12.3% before, 7.7% now. The rest is capture's ink tone, paper and blur,
+which fade a 1-px line on its own as a soft scan does (blur alone: 1.2% of crops under 15%),
+not erasure.
+
+**Margins.** `reframe` draws each margin from -8% to +12% of the height; a negative one now cuts
+only blank rows (`blank_margins`: rows with nothing darker than mid-grey). Draws that cut ink
+before, over 300 training crops x 10 draws a set: PDMX 6.2% (by over an interline 0.9%),
+MuseScore 5.4% (0.8%), Smashcima 6.0% (1.1%), GrandStaff 5.8% (1.1%), and OLiMPiC 36.3% (11.9%),
+whose crops are cut tight to the ink. Random draws are unchanged; only the depth of a cut is
+limited.
+
+Tests (`test_seq_data.py`): a crop cut tight to its outer staff lines keeps them through 200
+draws, and unthinned stroke weight never lightens a pixel; both fail on the old code.
+test_staff_data's seed 5 passes again.
+
 ## Leakage to watch
 
 - In the overfit test: width (fixed above). Staff count (2 for all), batch statistics (blank
