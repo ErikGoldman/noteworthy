@@ -9,6 +9,8 @@ import numpy as np
 from seq.staves import STAFF_INTERLINES, Staves, find_staves, staff_crops, system_staves
 
 INTERLINE = 10
+# Crops taller than FINDING_HEIGHT are looked at shrunk, their centres found to a row of that.
+CENTRE_TOLERANCE = INTERLINE / 4
 
 
 def drawn(centres: list[int], height: int = 400, width: int = 600, faint_line: int | None = None) -> np.ndarray:
@@ -29,11 +31,11 @@ class FindStaves(unittest.TestCase):
     def test_two_staves(self):
         staves = find_staves(drawn([120, 240]))
         self.assertEqual(len(staves.centres), 2)
-        np.testing.assert_allclose(staves.centres, [120, 240], atol=1)
+        np.testing.assert_allclose(staves.centres, [120, 240], atol=CENTRE_TOLERANCE)
         self.assertAlmostEqual(staves.interline, INTERLINE, delta=0.5)
 
     def test_a_faint_line(self):
-        np.testing.assert_allclose(find_staves(drawn([120, 240], faint_line=1)).centres, [120, 240], atol=1)
+        np.testing.assert_allclose(find_staves(drawn([120, 240], faint_line=1)).centres, [120, 240], atol=CENTRE_TOLERANCE)
 
     def test_no_staves(self):
         self.assertIsNone(find_staves(np.full((300, 400), 255, np.uint8)))
@@ -43,13 +45,13 @@ class SystemStaves(unittest.TestCase):
     def test_a_voice_staff_above_is_set_aside(self):
         """A song's crop: the voice staff's lower half at the top, the piano pair in the middle."""
         staves = system_staves(drawn([25, 200, 320], height=520), 2)
-        np.testing.assert_allclose(staves.centres, [200, 320], atol=1)
+        np.testing.assert_allclose(staves.centres, [200, 320], atol=CENTRE_TOLERANCE)
 
     def test_a_faint_staff_beside_a_strong_one(self):
         """A system's second staff matching at a third of the first (blur, or beams over its lines)."""
         image = drawn([120, 240])
         image[240 - 2 * INTERLINE:240 + 2 * INTERLINE + 1:INTERLINE] = 170
-        np.testing.assert_allclose(system_staves(image, 2).centres, [120, 240], atol=1)
+        np.testing.assert_allclose(system_staves(image, 2).centres, [120, 240], atol=CENTRE_TOLERANCE)
 
     def test_ledger_lines_are_not_a_staff(self):
         """Chords high above the staves, each with five short ledger lines an interline apart: in
@@ -58,7 +60,7 @@ class SystemStaves(unittest.TestCase):
         image = drawn([230, 350], height=440)
         for x in range(20, 600, 40):
             image[90:131:INTERLINE, x:x + 22] = 0
-        np.testing.assert_allclose(system_staves(image, 2).centres, [230, 350], atol=1)
+        np.testing.assert_allclose(system_staves(image, 2).centres, [230, 350], atol=CENTRE_TOLERANCE)
 
     def test_too_few_staves(self):
         self.assertIsNone(system_staves(drawn([200]), 2))

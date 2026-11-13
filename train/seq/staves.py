@@ -7,9 +7,10 @@ profile a five-line comb slides down, peaking on each staff's middle line. A mat
 as the comb's two weakest teeth together, so all five must sit on lines: a comb two or two and a
 half times too wide, whose teeth reach the other staff's lines, leaves some in the gaps, and one
 shifted a line up or down has a tooth off the staff; a
-faint or broken line (Smashcima draws some so) only weakens the match. Checked against the
+faint line only weakens the match, and a line broken within a strip (Smashcima draws some so)
+leaves that strip to the others. Checked against the
 segmenter on 300 crops (EXPERIMENTS_STAFF_MODEL.md): it splits where darkness alone could not.
-The comb's spacing is the interline: the one whose best match is strongest. Blurred lines, as on
+The comb's spacing is the interline: about the one whose best match is strongest (_interline). Blurred lines, as on
 GrandStaff's small JPEGs, still darken their rows. Staves are looked for in vertical strips, so
 that a page's slight tilt, a camera's warp or a hand's wavering moves a line only a little within
 a strip; each strip finds its own interline, and strips that agree on the staff count give each
@@ -36,6 +37,13 @@ from .staff_positions import Staves
 
 STAFF_INTERLINES = CROP_INTERLINES / 2
 STRIPS = 8
+# Staff-line ink must run across a whole strip, a row up or down allowed (_staff_line_ink): on a
+# scan thousands of pixels wide a strip is hundreds wide, and a slight skew moves its lines more
+# than that, so taller crops are looked at shrunk to this height, at which a strip is about 160
+# px wide. GrandStaff's crops are about 260 px tall; at 256, five of 3,000 PDMX crops' thin lines
+# faded too far to be found (EXPERIMENTS_STAFF_MODEL.md).
+FINDING_HEIGHT = 320
+INTERLINE_PLATEAU = 0.03
 # Interlines tried, as shares of the crop's height: a system crop is about CROP_INTERLINES tall,
 # more with wide margins or a third staff, less when cut tight.
 MIN_INTERLINE_SHARE, MAX_INTERLINE_SHARE = 1 / 80, 1 / 12
@@ -47,7 +55,15 @@ STAFF_RESPONSE = 0.5
 
 def find_staves(image: np.ndarray, count: int = 1) -> Staves | None:
     """The staves of a grayscale system crop (dark ink on light) of at least `count` staves, or
-    None when the strips that find staves do not agree on how many there are."""
+    None when the strips that find staves do not agree on how many there are. A crop taller than
+    FINDING_HEIGHT is looked at shrunk to it."""
+    scale = min(1.0, FINDING_HEIGHT / image.shape[0])
+    size = (max(1, round(image.shape[1] * scale)), round(image.shape[0] * scale))
+    found = _find_staves_at_scale(cv2.resize(image, size, interpolation=cv2.INTER_AREA), count)
+    return None if found is None else Staves(tuple(c / scale for c in found.centres), found.interline / scale)
+
+
+def _find_staves_at_scale(image: np.ndarray, count: int) -> Staves | None:
     found, thickness = [], _line_thickness(image)
     for strip in np.array_split(image, STRIPS, axis=1):
         profile = _line_profile(strip, thickness)
@@ -85,15 +101,17 @@ def _line_profile(image: np.ndarray, thickness: int) -> np.ndarray:
 
 
 def _staff_line_ink(image: np.ndarray, thickness: int) -> np.ndarray:
-    """The strip's darkness (0 white, 255 black) in ink that runs on horizontally for a third of
-    its width, a row up or down allowed for tilt, and is no thicker than a staff line: staff
-    lines run across the strip, but a ledger line is a notehead or two wide, noteheads, stems and
-    chord clumps no wider, and a beam, as long as it may be, is three or four lines thick. By
-    darkness alone a stack of ledger lines, or of beams, an interline apart, was a staff, as
-    strong as a real staff whose lines beams and chords cover or blur fades (Audiveris keeps only
-    such thin, long ink for its staff lines, too)."""
+    """The strip's darkness (0 white, 255 black) in ink that runs across the whole strip, a row up
+    or down allowed for tilt, and is no thicker than a staff line: staff lines run across the
+    strip, but a ledger line is a notehead or two wide, noteheads, stems and chord clumps no
+    wider, and a beam, as long as it may be, is three or four lines thick. By darkness alone a
+    stack of ledger lines, or of beams, an interline apart, was a staff, as strong as a real staff
+    whose lines beams and chords cover or blur fades (Audiveris keeps only such thin, long ink for
+    its staff lines, too). Ink running a third of the strip was not enough: on GrandStaff's
+    blurred, warped copies a beamed group's ledger lines merge into runs that long, and a staff
+    found a line up or down on them (EXPERIMENTS_STAFF_MODEL.md)."""
     within_a_row = cv2.dilate(255 - image, np.ones((3, 1), np.uint8))
-    long = cv2.morphologyEx(within_a_row, cv2.MORPH_OPEN, np.ones((1, max(1, image.shape[1] // 3)), np.uint8))
+    long = cv2.morphologyEx(within_a_row, cv2.MORPH_OPEN, np.ones((1, image.shape[1]), np.uint8))
     thicker_than_a_line = cv2.morphologyEx(long, cv2.MORPH_OPEN, np.ones((2 * thickness + 3, 1), np.uint8))
     return (long - thicker_than_a_line).astype(np.float32)
 
@@ -118,9 +136,21 @@ def _comb(profile: np.ndarray, interline: float) -> np.ndarray:
 
 
 def _interline(profile: np.ndarray) -> float:
+    """The middle of the run of spacings around the best whose matches are within
+    INTERLINE_PLATEAU of its: a line is a few rows thick (more with the tilt _staff_line_ink
+    allows), so combs somewhat narrower or wider than the staff still put every tooth on a line,
+    and the best alone was the narrowest of them, 2.4% short on PDMX's drawn staves (0.6% so)."""
     n = len(profile)
     tried = np.arange(max(2.0, MIN_INTERLINE_SHARE * n), MAX_INTERLINE_SHARE * n, 0.25)
-    return float(tried[np.argmax([_comb(profile, d).max() for d in tried])])
+    response = np.array([_comb(profile, d).max() for d in tried])
+    best = int(np.argmax(response))
+    near = response >= (1 - INTERLINE_PLATEAU) * response[best]
+    first, last = best, best
+    while first > 0 and near[first - 1]:
+        first -= 1
+    while last < len(tried) - 1 and near[last + 1]:
+        last += 1
+    return float((tried[first] + tried[last]) / 2)
 
 
 def _staff_centres(response: np.ndarray, interline: float, count: int) -> list[float]:

@@ -404,6 +404,71 @@ Tests (`test_seq_data.py`): a crop cut tight to its outer staff lines keeps them
 draws, and unthinned stroke weight never lightens a pixel; both fail on the old code.
 test_staff_data's seed 5 passes again.
 
+## Staff positions where none are drawn: GrandStaff and MusiCorpus (2026-11-13)
+
+**A check that needs no truth.** In each of 8 vertical strips, the comb (seq.staves) at each
+staff's centre, best within half an interline, against the best a line up or down; a staff is
+off where the shifted comb wins in most strips. On 400 PDMX crops it flags none of the drawn
+positions and all 400 of the same shifted by an interline. But it shares the finder's notion of a
+line: on GrandStaff it passed a finder staff placed on a stack of ledger lines. Used to sample
+by, not as truth; the verdicts below are by eye.
+
+**MusiCorpus (53 training crops, handwritten scans).** 1 flagged, by eye a bass staff a line low;
+the other 52 sit on their lines. Its staff boxes (`subdivisions.image.json`) include the notes
+around a staff, so they give no exact positions either. Finder kept.
+
+**GrandStaff (32,156 training crops: 16,130 clean renders, 16,026 distorted).** A first pass
+said the finder was wrong on about 5% of clean crops and 20% of distorted, but it read
+`seq516f_data/staff_positions_v2`, written on 2026-11-12 by an earlier finder. Today's finder
+(4e1f73e) put every strip of the examples looked at on the right lines; rerun on the whole set,
+the check flags 0.25% of clean crops and 11.6% of distorted. The segmenter (`runs/finetune`, the
+recognizer's layout) ran on 600 crops, 150 each of clean/distorted x flagged/not by the stale
+positions; on the 516 where it found exactly two staves, the finder agreed on 435 (a staff within half an
+interline, interlines within 10%); on the clean crops the old positions had flagged, 116 of 141,
+from 2.
+
+**What the finder still got wrong: merged ledger lines.** By eye on flagged distorted crops, a
+staff a line high, its top tooth on the ledger lines of a beamed group. Blur merges neighbouring
+notes' ledger lines into runs over a third of a strip, long enough to pass as staff-line ink, and
+where the staff's own bottom line is faint (blur, beams over it) the comb shifted up matches
+better. Two other suspects measured and found minor: the profile's neighbourhood mean (beams and
+chords inside a staff raise it, so its lines nearby fade; without it, 446 agreeing, no change in
+flags) and the line thickness estimate on blurred copies (7-9 px; capped at 3, no better).
+
+**Three changes to seq.staves**, each measured on 1,500 clean and 1,500 distorted GrandStaff
+crops, the segmenter's 516, and 3,171 crops with drawn positions (3,000 PDMX, the Smashcima and
+MuseScore test builds), then on every set the finder serves:
+
+1. Staff-line ink must run across the whole strip, not a third: segmenter agreement 435 -> 459;
+   90% of the strip did as well (457), 60% less so (453). Drawn crops all right throughout.
+2. But on OLiMPiC's scans, thousands of pixels wide, a strip is 340-640 px and a slight skew
+   moves its lines more than the row of tilt allowed: 24 of 1,438 dev scans no longer found.
+   Allowing tilt in proportion to the strip's width broke drawn PDMX crops (9 of 3,171 not
+   found); looking at crops taller than 320 px shrunk to 320 lost none of the scans, and kept
+   every drawn crop (at 256, 5 thin-lined PDMX crops were not found).
+3. Shrinking doubled the interline's error on drawn PDMX (median 1.8% -> 2.4%, p99 4.1% -> 6.3%),
+   which showed a bias there all along: lines a few rows thick make the comb's best match flat
+   over a range of spacings (9.5-10.5 for a true 10), and argmax took the narrowest. Now the
+   middle of the spacings matching within 3% of the best: median 0.6%, p99 2.7%; agreement 463.
+   Centres, found to a row of the shrunk crop, are 0.05 interlines off at the median (p99 0.14),
+   from 0.02: nothing at a staff crop 15 interlines tall.
+
+By eye, where old and new disagree: 8 of 8 GrandStaff crops right with the new (5 of them, both
+clean ones among them, the old on a ledger stack); OLiMPiC written, the 2 crops the new finds no
+staves in had wrong old positions, the moved ones look right; the scans that moved mostly sit
+better. Against the same finder with third-of-strip ink: GrandStaff 1,207 crops moved, OLiMPiC written 1, scans 9,
+MusiCorpus 0, none lost. The check still flags 6.9% of distorted GrandStaff crops (103 of 1,500,
+with the new finder's own profile; each finder's check favours it, so flags only compared like
+for like): by eye mostly tilted or curved copies, which one straight centre per staff cannot fit
+in every strip, the positions right in the middle; a staff crop of 15 interlines holds them.
+Positions for the rebuilt sets: `seq516g_data/staff_positions_v2` (the build's own
+`staff_positions` ran during these edits, with change 1 alone: 24 scans missing).
+
+The segmenter's slowness here (600 crops in about 20 minutes beside the rebuild) is the shipped
+CPU pipeline: a full-resolution network pass per crop (1.2-1.4 s on 2 threads), up to 8 more at
+other scales when fewer than two staves are found at the first, and parallel workers limited by
+memory bandwidth.
+
 ## Leakage to watch
 
 - In the overfit test: width (fixed above). Staff count (2 for all), batch statistics (blank
