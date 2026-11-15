@@ -69,17 +69,18 @@ class Voice:
 
 
 def length_at(tokens: list[str], at: int) -> tuple[Fraction, int | None]:
-    """A duration token's length with its dots and tuplet ratio, and where the ratio is."""
+    """A duration token's length with its dots and tuplet ratio, and where the ratio is. The
+    linearizer writes the ratio before the dots (`half 2in1 dot`); either order is read."""
     base = Fraction(LENGTHS[tokens[at]])
-    length, dot = base, Fraction(1, 2)
+    length, dot, scale, ratio_at = base, Fraction(1, 2), Fraction(1), None
     for i, token in enumerate(tokens[at + 1:], at + 1):
-        ratio = TUPLET.match(token)
-        if ratio:
-            return length * int(ratio[2]) / int(ratio[1]), i
-        if token != "dot":
+        if (ratio := TUPLET.match(token)) and ratio_at is None:
+            scale, ratio_at = Fraction(int(ratio[2]), int(ratio[1])), i
+        elif token == "dot":
+            length, dot = length + base * dot, dot / 2
+        else:
             break
-        length, dot = length + base * dot, dot / 2
-    return length, None
+    return length * scale, ratio_at
 
 
 def parse_measure(tokens: list[str], start: int, end: int) -> list[Voice]:

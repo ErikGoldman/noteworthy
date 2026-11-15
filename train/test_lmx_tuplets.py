@@ -4,7 +4,7 @@ from __future__ import annotations
 import unittest
 from fractions import Fraction
 
-from seq.lmx_tuplets import dots_mended, extra_beams_dropped, imply_tuplets
+from seq.lmx_tuplets import dots_mended, extra_beams_dropped, imply_tuplets, length_at
 
 THREE_FOUR = Fraction(3)
 
@@ -19,6 +19,17 @@ def beamed(pitches: list[str], length: str, tuplet: str | None = None) -> str:
     notes[0] += " beam:begin"
     notes[-1] += " beam:end"
     return " ".join(notes)
+
+
+class Lengths(unittest.TestCase):
+    def test_dotted_tuplet_note_keeps_its_dot_after_the_ratio(self):
+        self.assertEqual(length_at("A4 half 2in1 dot".split(), 1), (Fraction(3, 2), 2))
+
+    def test_dots_before_a_ratio_count_too(self):
+        self.assertEqual(length_at("A4 eighth dot 3in2".split(), 1), (Fraction(1, 2), 3))
+
+    def test_plain_dotted_note(self):
+        self.assertEqual(length_at("A4 quarter dot dot".split(), 1), (Fraction(7, 4), None))
 
 
 class UnmarkedTuplets(unittest.TestCase):
