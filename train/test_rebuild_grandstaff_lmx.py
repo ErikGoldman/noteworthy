@@ -92,6 +92,25 @@ class Kern(unittest.TestCase):
         merged = SPLIT_FIRST.replace("=\t=\n*-\t*-", "=\t=\n*v\t*v\n*-")
         self.assertFalse(kern.read(merged).cut_at_merger)
 
+    def test_ties_closed_within_the_system(self):
+        tied = SPLIT_FIRST.replace("4D\t4DD\t4d\n", "4D\t4DD\t4d[\n").replace("4g\t4f\n", "4g\t4d]\n")
+        self.assertEqual(kern.read(tied).ties_at_edges, 0)
+
+    def test_a_tie_into_the_next_system(self):
+        self.assertEqual(kern.read(SPLIT_FIRST.replace("4g\t4f\n", "4g\t4f[\n")).ties_at_edges, 1)
+
+    def test_a_tie_from_the_system_before(self):
+        self.assertEqual(kern.read(SPLIT_FIRST.replace("4C\t4CC\t4c\n", "4C\t4CC\t4c]\n")).ties_at_edges, 1)
+
+    def test_a_tie_middle_open_at_both_ends(self):
+        """'_' ends one tie and starts the next: alone, it runs in from before and on past the end."""
+        self.assertEqual(kern.read(SPLIT_FIRST.replace("4C\t4CC\t4c\n", "4C\t4CC\t4c_\n")).ties_at_edges, 2)
+
+    def test_a_tie_in_a_chord_on_the_other_staff_is_not_paired(self):
+        """Ties pair within a staff: a C starting on the lower staff is not ended by one on the upper."""
+        crossed = SPLIT_FIRST.replace("4D\t4DD\t4d\n", "4D[\t4DD\t4d\n").replace("4E-\t4e-\n", "4E-\t4e- 4d]\n")
+        self.assertEqual(kern.read(crossed).ties_at_edges, 2)
+
     def test_durations(self):
         self.assertEqual(kern.duration("8.cc"), Fraction(3, 4))
         self.assertEqual(kern.duration("12a"), Fraction(1, 3))

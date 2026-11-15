@@ -23,6 +23,9 @@ with notes after it: Verovio drew GrandStaff's image with no notes after the mer
 measures, and OLiMPiC's build cut the label at it, so the label lacks measures the image draws. And every system with a grace note in its source: GrandStaff's
 images draw each one as a stemless notehead, often under a stray dash, like no printed grace note,
 and two thirds of their labels have none (checked by eye, 2026-11-11: drawn in all 8 sampled).
+And every system with a tie from the system before or into the one after: its image draws the
+half arc, but its label has no tie (OLiMPiC's build lost them: MuseScore drops a tie with no note
+to end on), and the other sets label such arcs (EXPERIMENTS_STAFF_MODEL.md, 2026-11-13).
 """
 from __future__ import annotations
 
@@ -50,7 +53,7 @@ def is_blank(image: Path) -> bool:
 def main() -> None:
     root, rebuilt, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
     status = dict(line.split("\t")[::2] for line in (rebuilt / "systems.tsv").read_text().splitlines())
-    kept, unmatched, with_tuplets, unlike_source, cut, graced, blank = [], 0, 0, 0, 0, 0, 0
+    kept, unmatched, with_tuplets, unlike_source, cut, graced, open_ties, blank = [], 0, 0, 0, 0, 0, 0, 0
     for name in (root / "samples.train.txt").read_text().split():
         if status[name] not in (CORRECT, MENDED):
             unlike_source += 1
@@ -63,6 +66,9 @@ def main() -> None:
             continue
         if source.grace_notes:
             graced += 1
+            continue
+        if source.ties_at_edges:
+            open_ties += 1
             continue
         lmx = with_kern_time_symbols((labelled / f"{name}.lmx").read_text().strip(), kern)
         lmx = lmx and with_kern_barline_tokens(lmx, kern)
@@ -85,7 +91,7 @@ def main() -> None:
     (out / "samples.train.txt").write_text("\n".join(kept) + "\n")
     print(f"{len(kept)} systems kept; left out: {unlike_source} unlike their source, {unmatched} with signs "
           f"that cannot be matched up, {with_tuplets} with tuplets, {cut} with notes only before a merger of "
-          f"the staves, {graced} with grace notes, {blank} with a blank image")
+          f"the staves, {graced} with grace notes, {open_ties} with a tie across an edge, {blank} with a blank image")
 
 
 if __name__ == "__main__":

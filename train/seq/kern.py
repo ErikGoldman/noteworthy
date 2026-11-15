@@ -45,6 +45,10 @@ class Kern:
     end: Fraction = Fraction(0)
     pitches: Counter = field(default_factory=Counter)  # (measure, staff, step, alter, octave), grace notes left out
     grace_notes: int = 0
+    # Ties from the system before ([ or _ unseen) or into the one after (no ] or _ to come).
+    # GrandStaff's images draw their half arcs; OLiMPiC's build lost them (MuseScore drops a tie
+    # with no note to end on), so its labels do not have them.
+    ties_at_edges: int = 0
     cut_at_merger: bool = False
     after_notes: set[tuple[str, int]] = field(default_factory=set)  # (kind, staff) first given after notes
 
@@ -109,6 +113,7 @@ def read(text: str) -> Kern:
         else:
             reader.data(tokens)
     reader.kern.end = max([reader.time] + [spine.ends for spine in reader.spines])
+    reader.finish()
     return reader.kern
 
 
@@ -119,6 +124,7 @@ class _Reader:
         self.in_force: dict[tuple[str, int], str | int] = {}
         self.time = Fraction(0)
         self.seen_notes = False
+        self.open_ties: Counter = Counter()  # (staff, step, octave): ties started and not yet ended
         self.notes_after = [False] * (len(lines) + 1)
         for i in range(len(lines) - 1, -1, -1):
             self.notes_after[i] = self.notes_after[i + 1] or _is_data(lines[i])
@@ -154,6 +160,7 @@ class _Reader:
             started.append(duration(token.split(" ")[0]))
             spine.ends = self.time + started[-1]
             notes = [p for note in token.split(" ") if (p := pitch(note)) is not None]
+            self.ties(spine.staff, token)
             if started[-1]:
                 for p in notes:
                     self.kern.pitches[(measure, spine.staff, *p)] += 1
@@ -161,6 +168,25 @@ class _Reader:
                 self.kern.grace_notes += len(notes)
         if any(started):  # a line of grace notes only takes no time
             self.time = min(spine.ends for spine in self.spines if spine.ends > self.time)
+
+    def ties(self, staff: int, token: str) -> None:
+        """Counts a tie's end ("]", or "_" that ends one and starts the next) with no start as
+        arriving from the last system (finish counts the starts left open as running into the
+        next); ties paired by pitch within a staff, voices alike."""
+        for note in token.split(" "):
+            if (p := pitch(note)) is None or not any(mark in note for mark in "[_]"):
+                continue
+            key = (staff, p[0], p[2])
+            if "]" in note or "_" in note:
+                if self.open_ties[key]:
+                    self.open_ties[key] -= 1
+                else:
+                    self.kern.ties_at_edges += 1
+            if "[" in note or "_" in note:
+                self.open_ties[key] += 1
+
+    def finish(self) -> None:
+        self.kern.ties_at_edges += sum(self.open_ties.values())
 
 
 def _value(kind: str, text: str) -> str | int:
