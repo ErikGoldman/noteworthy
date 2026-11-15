@@ -113,8 +113,11 @@ class _TokenDecoder(nn.Module):
         return out
 
     def _beam_from(self, memory, padding, max_tokens, start: list[int], width: int) -> list[int]:
-        """The reading with the best mean log-probability per token among `width` kept at each
-        step; a reading that ends stops there, and the search when `width` have ended."""
+        return self.beam_readings(memory, padding, max_tokens, start, width)[0]
+
+    def beam_readings(self, memory, padding, max_tokens, start: list[int], width: int) -> list[list[int]]:
+        """Readings of one crop, the best mean log-probability per token first, among `width` kept
+        at each step; a reading that ends stops there, and the search when `width` have ended."""
         prefix = [BOS] + start
         live, ended = [(prefix, 0.0)], []
         while live and len(live[0][0]) < (max_tokens or self.max_tokens) and len(ended) < width:
@@ -128,8 +131,8 @@ class _TokenDecoder(nn.Module):
                 which, token = divmod(index, scores.shape[1])
                 seq = tokens[which].tolist() + [token]
                 (ended if token == EOS else live).append((seq, score))
-        best, _ = max(ended or live, key=lambda kept: kept[1] / (len(kept[0]) - len(prefix)))
-        return best[1:]
+        ranked = sorted(ended or live, key=lambda kept: -kept[1] / (len(kept[0]) - len(prefix)))
+        return [seq[1:] for seq, _ in ranked]
 
     def _generate_from(self, memory, padding, max_tokens, starts) -> list[list[int]]:
         b, device = memory.shape[0], memory.device
