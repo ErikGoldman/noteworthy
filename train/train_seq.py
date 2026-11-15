@@ -81,6 +81,26 @@ def targets_of(tokens: torch.Tensor, vocab: Vocab) -> torch.Tensor:
     return targets
 
 
+def with_own_readings(model, memory, padding, tokens: torch.Tensor, vocab: Vocab, share: float) -> torch.Tensor:
+    """The decoder's input (tokens[:, :-1]) with `share` of its label tokens replaced by tokens
+    sampled from the model's own reading of the batch, labels fed: training on its own mistakes, so
+    one wrong token does not lead it astray (scheduled sampling, two passes). <bos> and a meter
+    prefix, which the model is given, are kept, and so is padding."""
+    inputs = tokens[:, :-1]
+    with torch.no_grad():
+        logits = model.decode(inputs, memory, padding)
+        sampled = torch.distributions.Categorical(logits=logits.float()).sample()
+    swap = torch.rand(inputs.shape, device=inputs.device) < share
+    swap[tokens[:, 1] == vocab.index[METER], 1:PREFIX_LENGTH + 1] = False
+    swap &= inputs != PAD
+    # Input position t holds label token t, which the model predicts at position t - 1.
+    return torch.cat([inputs[:, :1], torch.where(swap[:, 1:], sampled[:, :-1], inputs[:, 1:])], 1)
+
+
+def own_readings_share(step: int, steps: int, share: float) -> float:
+    return share * min(1.0, step / (steps / 2))
+
+
 def plain(options: dict) -> dict:
     """Paths as strings: torch.load's default weights_only mode rejects other classes."""
     return {k: str(v) if isinstance(v, Path) else v for k, v in options.items()}
@@ -164,7 +184,12 @@ def main() -> None:
     ap.add_argument("--height", type=int, default=256, help="crop height at the model's input")
     ap.add_argument("--row-stride", type=int, default=32, choices=[8, 16, 32])
     ap.add_argument("--seed", type=int, default=0, help="decides the initial weights, batches and augmentation")
-    ap.add_argument("--meter-context", action="store_true", help="labels start with the meter in force (seq.meter)")
+    # Every model reads the meter in force (seq.meter) since 2026-11-15; recorded in each checkpoint,
+    # where seq_predict reads an older one's absence as without.
+    ap.set_defaults(meter_context=True)
+    ap.add_argument("--own-readings", type=float, default=0.0,
+                    help="share of the decoder's input tokens replaced by ones sampled from its own reading "
+                         "of the batch (scheduled sampling), rising from 0 over the first half of training")
     ap.add_argument("--staves", type=Path, help="train StaffSeq2Seq on staff crops, positions from this directory")
     ap.add_argument("--staff-samples-only", type=Path, help="train Seq2Seq on the samples with staff positions here")
     ap.add_argument("--relative-rows", action="store_true",
@@ -287,7 +312,11 @@ def main() -> None:
         for images, widths, tokens in train:
             images, tokens = images.to(device, non_blocking=True), tokens.to(device, non_blocking=True)
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                logits = model(images, widths, tokens)
+                memory, padding = model.encode(images, widths)
+                inputs = (with_own_readings(model, memory, padding, tokens, vocab,
+                                            own_readings_share(step, args.steps, args.own_readings))
+                          if args.own_readings else tokens[:, :-1])
+                logits = model.decode(inputs, memory, padding)
             loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), targets_of(tokens, vocab).reshape(-1),
                                    ignore_index=PAD, label_smoothing=0.1)
             opt.zero_grad(set_to_none=True)
