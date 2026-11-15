@@ -78,6 +78,10 @@ attention is to be explored so that systems of more than two staves can be read.
 - Vast.ai lists RTX 5090s at about $0.20-0.45 an hour against Runpod Community's $0.69; worth
   setting up for the next batch (needs its CLI and an API key; the pod scripts are plain SSH).
 
+- **Pods run torch 2.8, the local GPU 2.11** (2026-11-15): a training change that passes locally
+  can still break on a pod. `--own-readings` did (autocast's cast cache under no_grad). Run a new
+  training path's tests on a pod's torch before a long run, or pin the local torch to the pods'.
+
 ## Experiments to run
 
 Each is a short run against one shared baseline, judged on a metric aimed at what it changes;

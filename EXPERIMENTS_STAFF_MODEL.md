@@ -1600,6 +1600,333 @@ Across every score in PDMX: 3:2 13%, 6:4 41%, 5:4 5%, 9:8 4%, 7:8 and 4:3 none o
   at a system's first tuplet and for lone tuplets more often, 5s and 7s shown more often.
 - MuseScore users, mostly amateurs in PDMX; ASAP is curated. Real printed editions may differ.
 
+## How much of the rhythm error is compounding? (2026-11-15)
+
+`runs/overnight_2026-11-14/compounding.py` (output `compounding.log`): `l_system_100k` at
+100,000 steps on OLiMPiC scanned dev (615 crops), each label bar read twice. Fed the labels, a bar
+is right if the model makes no rhythm decision differently in it (a duration, dot or ratio; a
+rest, chord, backup or forward where the label has another of those or a barline; the order of
+slur and tie marks, where our labels and OLiMPiC's differ, is not counted). On its own (greedy, as
+the dev check and pages read), a bar is right if its rhythm matches the bar it aligns to
+(tuplet_bars.py), after imply_tuplets. For a wrong bar paired with one reading bar: whether its
+voices still add up (seq.lmx_tuplets: grace notes and a chord's later notes take no time, forwards
+do, a whole-bar rest fills it), against the reading's own bar (its time signature, else the length
+most of its bars have) and against the label's.
+
+| | Bars | Right fed | Right on its own | Wrong bars right fed (the history's doing) | Wrong bars that do not add up, by its own bar / the label's |
+|---|---|---|---|---|---|
+| Plain bars | 2,006 | 91.7% | 80.1% | 252 of 399 (63%) | 52% / 53% |
+| Bars with tuplets | 308 | 70.8% | 53.9% | 65 of 142 (46%) | 52% / 59% |
+
+- **Most rhythm errors are compounding.** Fed the right history, 92% of plain bars are read right;
+  on its own, 80%. Nearly two thirds of the bars it gets wrong it would have got right given the
+  right tokens before them. For tuplet bars, about half.
+- Tuplets are also hard on their own: 29% of tuplet bars go wrong even fed (8% of plain bars).
+- **About half the wrong bars do not add up**, by the reading's own bar length, so a check that
+  needs no gold could find them; the other half are wrong and still add up (a quarter read as two
+  eighths, a dot moved). This is the most a bar check could fix, if a better reading is on offer.
+- What follows: worth trying both a decoding-side fix (beam search, reranked by bar fill, and a
+  reverse model) and the training-side one ((n), scheduled sampling, on a pod now).
+
+**Beam search** (`generate(beam=K)`, the readings ranked by mean log-probability per token; 39e6ac6),
+the same 615 crops, beam 4 (37 minutes against greedy's 29):
+
+| Bars read right | Greedy | Beam 4's best | Beam 4, the one filling most bars | Any of beam 4 (oracle) | Fed |
+|---|---|---|---|---|---|
+| Plain bars (2,006) | 80.1% | 80.1% | 80.9% | 84.4% | 91.7% |
+| Bars with tuplets (308) | 53.9% | 55.5% | 56.8% | 59.4% | 70.8% |
+
+- **Beam 4 alone does nothing for plain bars** and adds 1.6 points on tuplet bars.
+- **Reranking its readings by bar fill adds a little** (0.8 and 1.3 points), a fifth to a quarter of
+  what a perfect pick among them would (the oracle: 4.3 and 5.5 points).
+- **What the alternatives change** (beam 4's 2,036 alternatives against its best, over the 615
+  crops; a crop can have more than four when several readings end at one step): durations 19% of
+  the differing tokens, tuplet tokens 19%, pitches 13%, voices and chords 12%, slurs, articulations
+  and ties 18%. 38% differ by one token and 75% in one bar; 43% change some bar's rhythm; 54 are
+  the same once our own tokens are dropped. So they are the best reading with one uncertain
+  decision changed: they can mend a single wrong decision, not a run of them, which is what
+  compounding leaves. Of the bars the best reading gets wrong, another reading has right about a
+  quarter of the plain ones and a tenth to a fifth of the tuplet ones (beam 4 / 8).
+- **The ceiling is low because the readings are alike**: even the best of four is 84%, far from the
+  92% the model reads fed the right history. A reverse model reranking the same readings is bound
+  by the same oracle. So with this beam, most of the compounding is out of a reranker's reach; it
+  has to be fixed in training ((n)), or the beam made wider or more varied (beam 8 checked next).
+- **Beam 8 against beam 4** (the first 300 crops, so higher rates; 17 minutes each):
+
+  | Bars read right | Beam 4's best | Beam 8's best | Filling most bars, 4 / 8 | Any, 4 / 8 | Fed |
+  |---|---|---|---|---|---|
+  | Plain bars (944) | 85.1% | 84.9% | 84.7% / 84.4% | 88.1% / 89.3% | 93.9% |
+  | Bars with tuplets (154) | 62.3% | 63.0% | 62.3% / 64.3% | 66.2% / 69.5% | 77.9% |
+
+  A wider beam raises the ceiling slowly (1.2 and 3.3 points) and its best reading not at all; bar
+  fill picks no better than the beam's own order on plain bars (about half of wrong bars still add
+  up, and an alternative that fills is often wrong too). A better judge of the same readings, a
+  reverse model, has 4-6 points of room at beam 8; worth training only if (n) leaves a gap.
+- **Longer training, greedy**: `l_system_150k` at 120,000 steps (Polish 6.73, the best so far)
+  against `l_system_100k` at 100,000 (7.44): plain bars right fed 92.6% / 91.7%, on its own
+  83.3% / 80.1%; tuplet bars fed 78.6% / 70.8%, on its own 58.4% / 53.9%. Of its wrong bars 60%
+  (plain) and 52% (tuplets) are still the history's doing. Training longer lifts both readings
+  about alike; the compounding share stays.
+- On Polish dev (two-staff pages, authors' alignment), beam 4 against greedy: print gold 7.41
+  against 7.44, corrected 11.55 against 11.89. Within page noise on print; a third of a point on
+  corrected. Not worth its cost on its own.
+
+## What goes wrong in a wrong bar (2026-11-15)
+
+Beam 4's best readings of the 615 crops (`compounding_beam4_readings.jsonl`; as greedy, 80.1% of
+plain bars and 55.5% of tuplet bars right), each wrong bar against the label bar it pairs with, by
+its timed events (notes and rests, a chord's later notes not counted):
+
+| Wrong bars | Plain (388) | Tuplets (135) |
+|---|---|---|
+| Timed notes or rests missing | 56% | 36% |
+| Timed notes or rests added | 9% | 7% |
+| The same events; a chord note missing or added | 6% | 6% |
+| The same events; lengths, order or voices wrong | 29% | 51% |
+| ... of which the same notes, staves and order, only lengths wrong | 11% | 27% |
+
+- **The commonest error is a missing event, not a wrong length.** Of 552 events missing in those
+  bars, 243 are notes, 77 rests, and 232 rests the print does not show (`print-object:no`: the
+  labels have 290, the readings 80). Counting a hidden rest as a forward, and a voice's trailing
+  forwards as nothing, lifts bars right only from 80.1% to 81.4% (plain) and 55.5% to 58.8%
+  (tuplets): mostly the reading writes no forward either, so the voice's next note starts early.
+  A real timing error, though the missing event is invisible; the charge for hidden rests as such
+  is 1-3 points.
+- **It is polyphony.** By the number of voices in the label bar (staves count as voices):
+
+  | Voices in the bar | Bars | Right | Events missing | A whole voice gone |
+  |---|---|---|---|---|
+  | 2 (one per staff) | 1,029 | 87.3% | 4.2% | 1 of 43 |
+  | 3 | 984 | 73.3% | 14.3% | 27 of 141 |
+  | 4 | 71 | 42.3% | 31.0% | 12 of 22 |
+  | 5 or more | 230 | 56.1% | 26.1% | 34 of 60 |
+
+  With one voice per staff the model reads 87% of bars right; a second voice on a staff costs
+  14 points, and the missing events come with it: an inner voice's entry after a rest it leaves
+  out, or the voice left out whole.
+- **For a duration predictor solved per bar** (lengths chosen jointly so each voice fills the
+  bar): its ceiling is the bars with the right events and only lengths wrong, 11% of the wrong
+  plain bars and 27% of the wrong tuplet bars. Worth it for tuplets at most; the larger target is
+  voices: the events a second voice on a staff holds, and when it enters.
+
+## What the best model gets wrong, by root cause (2026-11-15)
+
+`l_system_150k` at 120,000 steps (Polish dev 6.73, the best), greedy, on OLiMPiC scanned dev (615
+crops, 2,314 bars). `runs/overnight_2026-11-14/bar_causes.py` (output `bar_causes_best_120k.txt`)
+sorts each bar that differs from its label into the first cause that fits, voice by voice; a
+hidden rest counts as the forward it is, and a bar with the label's tokens in another order
+(chord marks) as right. 973 bars differ (38% of plain bars, 71% of bars with tuplets, marks
+counted). Examples checked by eye (`bar_image.py` cuts a bar out of its crop).
+
+| Root cause | Bars | Share of wrong bars | What it looks like |
+|---|---|---|---|
+| **Arcs: a tie read as a slur, or back** | 129 | 13% | the arc is found, its kind is wrong; often a tie between chords or between voices |
+| **Arcs: a slur's ends, or an arc missing or added** | 177 | 18% | a long slur split in two, or ended a note early |
+| **Second voices on a staff** | 225 | 23% | an inner voice's entry placed an eighth early (it must line up under the other voice's notes); a voice left out (dev crop 27); notes moved from one voice to another |
+| ... the same notes at the same times, voices split otherwise | 50 | 5% | not visible on the page: a cross-staff arpeggio's voice, or an invisible whole-bar rest put on the other staff (dev 88, 97) |
+| **Articulations** | 104 | 11% | marks tight against the notehead missed (tenuto dashes on chords, dev 17), accents added |
+| **Pitch** | 101 | 10% | a step off (ledger lines; a note beamed across from the other staff, dev 91), an accidental missed or added, an octave |
+| **Notes or rests added or missing, one voice** | 101 | 10% | an extra rest in a sparse bar of rests (dev 87: four rests read as five); fast runs cut short |
+| **Tuplets** | 30 | 3% | ratio missing or wrong (8 more only spell the same lengths otherwise: 3in2 groups as 6in4, numbers unprinted, dev 94) |
+| **Other lengths** | 46 | 5% | a dot missing or added, a value off; a cadenza's small notes (dev 84) |
+| **Chord notes, grace notes** | 41 | 4% | a chord note missing or added |
+| Other marks, bar count | 70 | 7% | |
+
+On Polish dev (49 two-staff pages, print gold, `note_errors.py`, `note_errors_best_120k.txt`), of
+about 16,000 gold notes: missing 421, extra 335, pitch (not an octave) 252, onset 149, duration
+139, octave 57.
+
+- **Most errors are real**: what the page cannot decide (voices split otherwise, tuplets spelled
+  otherwise, hidden rests) is about 6% of the wrong bars.
+- **Three large causes**: arcs (31%, of which a third are ties read as slurs or back), second
+  voices on a staff (23%), and small marks (articulations, 11%). Pitch and lengths are 10% and 8%.
+- **Checkable by arithmetic or geometry**: a tie joins two notes of the same pitch (a slur rarely
+  does); a voice fills its bar, and an inner voice's entry lines up with the other voice's
+  onsets; a bar of rests adds up. Durations alone are a smaller target (Lengths and tuplets 8%).
+- Not yet ranked by what OMR-NED charges each cause (Polish's own breakdown is by note kind).
+
+## What OMR-NED charges the best model for, by root cause (2026-11-15)
+
+`l_system_150k` at 120,000 steps on Polish dev's 49 two-staff pages, against print gold, as
+`polish_at.sh` scores them (authors' alignment, the ambiguous marks' refund; the ottava folding
+left out, which moves a few pages). `runs/overnight_2026-11-14/ned_costs.py` records every edit
+musicdiff makes, its cost and where it falls (`ned_costs_best_120k.jsonl`; its total, 8,939, is
+the pages' distance exactly); `ned_causes.py` sorts them. musicdiff edits the reading into the
+gold: a `noteins` is a gold note the reading lacks, a `notedel` a note it added. In each staff's
+bar, a deletion and an insertion are read as one note misread: the same note at another onset or
+in another voice, the pitch wrong, the length wrong. Of the gold's 2,156 staff-bars, 28% hold two
+or more voices, with 38% of the notes.
+
+| Root cause | Share of OMR-NED's cost | Of which in staff-bars with 2+ voices |
+|---|---|---|
+| **Notes missing** | 21.7% | 15.3% |
+| **The right note at the wrong time** | 18.1% | 6.6% |
+| **Bars read so badly musicdiff replaces them whole** (58, on few pages: 110, 042, 093 hold 57%) | 16.4% | - |
+| **Extra notes** | 11.9% | 7.8% |
+| **Pitch wrong** (with or without the length) | 11.6% | 5.6% |
+| Slurs and other spanning marks (musicdiff's extras) | 6.6% | |
+| Beams | 4.2% | |
+| Lengths: notehead, dots, tuplets | 3.1% | |
+| Accidentals | 2.1% | |
+| Articulations and expressions | 2.0% | |
+| Ties, grace notes | 1.7% | |
+
+- **What moves notes in time is mostly a note before them left out**: in the staff-bars where
+  notes are charged for the wrong onset, the same bar also lacks a note (26% of that cost) or a
+  rest (24%), has a length or dot wrong (20%), or nothing else wrong on that staff (25%: the shift
+  comes from elsewhere).
+- **So leaving notes out is the largest cause**, about 30% of the cost with the shifts it brings,
+  and most of it on staves with two voices: there notes go missing at four times the rate of
+  single-voice staves (15.3% of the cost on 38% of the notes, against 6.4% on 62%). Per note,
+  two-voice staff-bars cost about twice as much in all.
+- Pitch is 12%; lengths as such, with the shifts they bring, about 7%; arcs, beams and marks
+  together 16%.
+- **Whole bars replaced** are bars read far from the gold (bar counts match the gold on each of
+  those pages); not yet looked into page by page.
+- On OLiMPiC dev the same model's wrong bars were mostly arcs and marks (above), but OMR-NED charges
+  a missing note by all its parts, a slur by one: by cost, notes left out come first.
+
+## Two voices on a staff: what goes wrong (2026-11-15)
+
+The best model (`l_system_150k` at 120,000) on Polish dev's two-staff pages (print gold; musicdiff
+skips what is marked invisible, and pairs voices in whichever order costs least, so voice order
+and hidden rests are not charged) and OLiMPiC scanned dev; music21 for the Polish bars.
+
+**Findings**
+- **Voices are mostly counted right.** OLiMPiC dev: a staff-bar with two voices is read with two
+  95% of the time (one: 3.9%); with three, the count is right 44%. The voices dropped are short
+  (one or two notes; 24 of 59 open after a silence). On Polish, three voices are rare (0.7% of
+  staff-bars; two voices 27%).
+- **What goes missing is mostly the second voice's notes and rests, after the bar's start.** Of
+  the notes and rests left out on two-voice staves (after pairing misreads): 61% in the second
+  voice, 46% rests, 70% after the first beat. Extra notes there are 93% notes, 86% after the first
+  beat; not doublings (28 of 452 repeat a note the gold has once), and the notes two voices share
+  (one head, two stems: 320 in the gold) are read twice as they should be (285).
+- **A second voice's printed rests are left out.** Of the gold's visible rests in two-voice
+  staff-bars, the reading has a visible rest at the same onset for 65% (single-voice staves 89%);
+  for 27% it has only the other voice's note there, the rest not written; 7% an invisible rest.
+- **And its entries are misplaced.** Page 096 bar 4: the gold's lower voice is a half rest, then
+  D-flat 4 on beat 3; the reading writes a hidden rest of one beat, so D-flat 4 comes on beat 2.
+  Every later note of that voice is then charged as at the wrong onset.
+- **Unprinted triplets in one voice read as plain values** (page 096 bars 4 and 14, 056 bar 6:
+  triplet eighths or 16ths written as eighths or 16ths), moving every later onset.
+- **Training sources disagree on how a second voice's gaps are drawn.** In the later voices of
+  two-voice staff-bars (3,000 systems a source), gaps are visible rests in 79-85% of cases in the
+  Verovio renders (pdmx, musescore, beams, marks, smashcima) and GrandStaff, 64% in `unmarked`, but
+  43% in OLiMPiC (MuseScore users hide them; the images agree), which is weighted 2 in the mix and
+  has the most polyphony (25% of staff-bars against 14-16% elsewhere).
+
+**Hypotheses, with a test each**
+1. *The second voice is written far from where it was seen.* LMX writes one voice through the bar,
+   then backs up for the next, so the decoder must return to the bar's start and re-find what it
+   skipped. Test: cross-attention while writing a second voice: does it go back to the bar's
+   start, and is it weaker on bars where the voice is dropped or misplaced? (No training.)
+2. *Placing a second voice's entry needs the other voice's time grid.* A forward's length is read
+   from where the entry lines up under the first voice; the counting head counts only the current
+   voice. Test: error rate of forward lengths against whether the entry lines up with a first-voice
+   onset; probe whether the decoder state at a forward knows the first voice's onsets.
+3. *A second voice's rests are optional to the model* because OLiMPiC, its largest polyphonic
+   source, mostly hides them. Test: the same rest check on OLiMPiC synthetic dev against a PDMX
+   (Verovio) dev set: if rests are kept on Verovio renders and dropped elsewhere, it is learned
+   per source and leans on OLiMPiC's convention.
+4. *Real engraving lays two voices out differently from Verovio* (rests displaced up or down,
+   stems crossing, voices sharing heads), and most of the polyphony in training is Verovio's.
+   Test: two-voice bar accuracy on OLiMPiC scanned (MuseScore engraving) against its synthetic
+   twin (same music, MuseScore render) and against Verovio renders of the same scores.
+5. *Unprinted triplets in polyphony* are the tuplet problem in another place: the beat is defined
+   by the other voice. Test: hidden-tuplet accuracy in two-voice against one-voice bars.
+6. *More polyphony on Polish than in training* (27% of staff-bars against 14-25%). Cheapest lever
+   whatever the cause: weight two-voice systems up in the mix; test against (m) at 100,000.
+
+**Hypotheses 1, 3 and 5 tested** (the best model; scripts in `runs/overnight_2026-11-14/`:
+`voice_events.py` gives each event its staff, voice on that staff, onset and kind):
+
+- **1, the second voice written far from where it was seen: not supported.** `voice_attention.py`
+  (`voice_attention_120k.txt`), OLiMPiC scanned dev, labels fed. Averaged over layers the
+  cross-attention is close to even, but layer 2's peak follows the notes: for first-voice events
+  on two-voice staves it lands within 0.15 of the bar of the event's onset 92% of the time
+  (correlation 0.91). At a later voice's first event it goes back just as well: 91% in bars the
+  greedy reading gets right, 92% in bars it gets wrong (layer 3: 91% / 80%). Fed the backup, the
+  decoder looks back to where the voice begins. What this does not test: whether it decides to
+  write the backup at all.
+- **3, the model treats a second voice's rests as optional: not supported.** `rest_keep.py`: of a
+  later voice's printed rests, the reading keeps a rest on that staff at that onset for 94% on
+  Verovio renders (300 polyphonic pdmx training systems), 99% on MuseScore renders (300
+  olimpic_written training systems), 93% on OLiMPiC scanned dev; single-voice staves 91%, 97%, 93%.
+  The rests drop only on Polish (65% against 89%). Everywhere it also draws a rest in about a fifth
+  of the gaps a later voice leaves unprinted (19-23%).
+- **5, unprinted tuplets harder in polyphony: not supported on OLiMPiC dev.** `tuplet_voices.py`:
+  tuplet bars read right, numbers printed 56% (one voice, 64 bars) / 48% (two or more, 69); a
+  number hidden 72% (88) / 78% (27). Too few hidden-and-polyphonic bars to rule it out, and Polish's
+  gold does not say which numbers are printed.
+- **What the Polish drop is, by eye** (`polish_bar.py` cuts a bar of a page; the page reader's
+  layout gives the systems): both kinds. Some gold rests are not printed at all, though the gold
+  calls them visible (kern marks an unprinted rest `yy`): page 096 bar 4's lower-voice half rest,
+  page 095 bar 1's bass second voice. Others are printed, but where real engraving puts a lower
+  voice's rests, displaced below the staff (page 055 bar 1, the bass); Verovio and MuseScore
+  renders draw them otherwise. The reading's timing errors stand either way (096 bar 4: the lower
+  voice's D-flat on beat 2 for beat 3).
+
+So the multi-voice loss on Polish is not a decoder that fails to look back or a convention learned
+from OLiMPiC; it is in part the gold (unprinted rests marked visible, charged by musicdiff), in part
+real engraving's layout of two voices (hypothesis 4), and in part second-voice entries timed wrong.
+Next: count the gold's unprinted-but-visible rests on two-voice staves (a correction for
+polish_overrides, from the image); then test 4 against real-engraving training data.
+
+**The gold's rests on split staves, checked against the print (2026-11-15).** `rest_audit.py` lists
+every rest Polish dev gold draws (no `yy`) on a staff split into two or more voices, from the gold
+alone (no reading chooses which are looked at): 439 rests on 34 pages, lines already rewritten by
+an override left out. Five agents each checked a batch against the page images (`audit_view.py`
+boxes the bar on its system; the barline finder is sometimes a bar off, and the agents placed
+those bars by the gold's notes). Verdicts (`rest_audit_verdicts_*.jsonl`): 242 printed, 181 not
+printed, 16 unsure; of the unsure, 11 are two silent voices under one drawn rest (one of the two
+gold rests is not printed) and 5 cross-staff passages on page 056 (left as they are). Three of the
+"not printed" checked again by eye (037 bar 18, 055 bar 4, 060 bar 8): all three right.
+- 192 `hide_rest` overrides (a new override: the rest of one field, at a line and column, becomes
+  a rest not drawn; `hide_rests` hides a whole range) on 28 pages, print standard. Page 108 pads the
+  most (21 of its 31). Where earlier overrides insert spine changes (030, 056, 064, 069, 077), the
+  list's staff labels can be wrong and a few rests on split staves may have been missed; the
+  overrides point at line and column and are not affected.
+- Best model (`l_system_150k` at 120,000), print gold, authors' alignment, two-staff pages: **6.73
+  to 6.47** (whole-page 5.85). OMR-NED's cost 8,939 to 8,593: missing notes on two-voice staves
+  1,368 to 969, extra notes there 698 to 741 (the reading draws a rest in some unprinted gaps,
+  which the gold no longer matches). Two-voice missing notes are still 11.3% of the cost.
+- Every run we compare, rescored on the corrected gold (`rescore_polish.sh gold_rests`: the same
+  readings, print gold, authors' alignment, two-staff pages; T7's pages read again, its readings
+  not kept): Seq2Seq 150k schedule at 100k / 120k / 150k 6.82 / 6.73 / 7.29 to 6.56 / **6.47** /
+  7.03; staff 150k schedule 7.39 / 7.17 / 7.35 to 7.21 / 6.99 / 7.11; `l_system_100k` at 100k 7.44
+  to 7.18; T7 at 100k 7.16 to 6.91. Seq2Seq gains a little more (0.26 against 0.18-0.25); the
+  order and the decision stand. Scores from here on are against this gold.
+- Not looked at: rests on staves with one voice, and the 7 three-staff pages.
+- Also noticed (not fixed): page 097 bar 3, the gold's `8BBJ` may be printed an octave higher.
+
+
+## (m) and (n): the meter, and training on its own readings (2026-11-15, running)
+
+Against (l)'s `l_system_100k` (Seq2Seq, T7's data and 100,000-step schedule, no meter: dev 0.0717,
+Polish 7.44), seed 0, Community RTX 5090s, `rhythm` branch at cd6a297, where every model reads
+the meter in force (seq.meter; `--meter-context` retired):
+- (m) `m_system_meter_100k`: (l) with the meter. Against (l): what the meter does for Seq2Seq
+  (on the staff model, T8: tuplet tokens -5.4 per 100, durations -0.6, nothing else moved).
+- (n) `n_system_meter_own_100k`: (m) with `--own-readings 0.25`: a share of the decoder's input
+  tokens, rising to a quarter by mid-schedule, replaced by tokens sampled from its own reading of
+  the batch (scheduled sampling, two passes). Against (m): whether training on its own mistakes
+  cuts the compounding the counting probe points to.
+
+Read by dev SER, tuplet bars, errors by kind of token (`category_errors.py`) and Polish dev at
+60k, 80k and 100k.
+
+**(n)'s first start was broken** (12:23 PM to 1:50 PM, about 11,000 steps). Its training loss ran
+1.4-1.9 above (m)'s and (l)'s from the first thousand steps, when under 1% of its inputs were
+replaced. Cause: before torch 2.11, autocast keeps each weight's bf16 cast for the rest of the
+step, and a cast first made under no_grad carries no gradient. The pods run torch 2.8 (the local
+GPU 2.11, where the same code trained normally), so the second pass reused the sampling pass's
+casts and the decoder's weights got no gradient. Fixed at 9acd037 (the sampling pass under its
+own uncached autocast; a test that fails on torch 2.8 before the fix and passes after), and (n)
+restarted from scratch on the same pod at about 2:00 PM; the broken run is kept as
+`runs/n_broken_autocast`. (m) is unaffected: it has no pass under no_grad. Expected end about
+11:30 PM.
+
 ## Leakage to watch
 
 - In the overfit test: width (fixed above). Staff count (2 for all), batch statistics (blank
