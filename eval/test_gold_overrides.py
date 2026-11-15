@@ -32,6 +32,15 @@ class LineLocalOps(unittest.TestCase):
         text = corrected(PAGE.replace("4E\t8ccL", "16qqEE\t8qqcc 8qqee"), [override(6, slash_grace={"column": 1})])
         self.assertEqual(line(text, 6), "16qqEE\t8qcc 8qee")
 
+    def test_hide_rest_hides_that_column_only(self):
+        page = PAGE.replace("4E\t8ccL", "4r\t8r")
+        text = corrected(page, [override(6, hide_rest={"column": 1})])
+        self.assertEqual(line(text, 6), "4r\t8ryy")
+
+    def test_hide_rest_leaves_a_hidden_rest_alone(self):
+        page = PAGE.replace("4E\t8ccL", "4ryy\t8r")
+        self.assertEqual(line(corrected(page, [override(6, hide_rest={"column": 0})]), 6), "4ryy\t8r")
+
     def test_ambiguous_articulation_is_flagged_and_declared(self):
         text = corrected(PAGE, [override(4, articulate={"column": 0, "mark": "'", "ambiguous": True})])
         self.assertEqual(line(text, 4), "4C'i\t16qqccL")

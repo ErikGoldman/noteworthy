@@ -31,6 +31,8 @@ and one of:
                shows an accidental the key or bar already gives, as the print does (kern's `X`)
   hide_rests   {"last_line": n}: from `line` to `last_line`, rests become rests not drawn: gold
                pads its voices with rests the print does not have
+  hide_rest    {"column": c}: the rest of the field at `line`, column c, is not drawn: one voice's
+               padding where the staff's other voice, or this one elsewhere, has its rests printed
   articulate   {"column": n, "mark": "'" or "^" or "`"}: adds a staccato, accent or wedge to the
                note at `line` in that column, counted from 0; with "ambiguous": true it is a mark
                the print leaves between dot and wedge, stored as a staccato and flagged for
@@ -86,10 +88,14 @@ def hidden_rest_like(field: str) -> str:
     return RHYTHM.search(field)[0] + "ryy"
 
 
+def rest_hidden(field: str) -> str:
+    return re.sub(r"^(\d+(?:%\d+)?\.*r)(?!yy)", r"\1yy", field)
+
+
 def with_rests_hidden(line: str) -> str:
     if line.startswith(("=", "*", "!")):
         return line
-    return "\t".join(re.sub(r"^(\d+(?:%\d+)?\.*r)(?!yy)", r"\1yy", field) for field in line.split("\t"))
+    return "\t".join(map(rest_hidden, line.split("\t")))
 
 
 def divided(field: str, moves: set[int], keep_beams: bool) -> tuple[str, str]:
@@ -372,6 +378,10 @@ def corrected(text: str, overrides: list[dict]) -> str:
             lines[first] = with_marks(lines[first], override["slur"]["column"], override["slur"]["marks"])
         elif "slash_grace" in override:
             lines[first] = with_graces_slashed(lines[first], override["slash_grace"]["column"])
+        elif "hide_rest" in override:
+            fields = lines[first].split("\t")
+            fields[override["hide_rest"]["column"]] = rest_hidden(fields[override["hide_rest"]["column"]])
+            lines[first] = "\t".join(fields)
         elif "show_accidental" in override:
             shown = override["show_accidental"]
             fields = lines[first].split("\t")
