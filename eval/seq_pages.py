@@ -51,7 +51,7 @@ from seq.lmx_tuplets import bar_fill, written_bar  # noqa: E402
 from seq.meter import meter_tokens, without_meter  # noqa: E402
 from seq.model import StaffSeq2Seq  # noqa: E402
 from seq.ottava import sounding  # noqa: E402
-from seq.staff_data import at_staff_scale, collate_staves, cut_staves  # noqa: E402
+from seq.staff_data import at_interline, at_staff_scale, collate_staves, collate_systems, cut_staves  # noqa: E402
 from seq.staves import Staves  # noqa: E402
 from seq.vocab import BOS, EOS, Vocab  # noqa: E402
 from train_seq import VOCABULARY  # noqa: E402
@@ -181,11 +181,16 @@ def page_crops(pages: list[np.ndarray], systems: list[SystemCrop], height_ratio:
     return crops
 
 
-def model_input(model, crop: Crop) -> torch.Tensor:
-    """A crop as the model reads it: scaled to its height, or for StaffSeq2Seq cut into staves
-    as in training (seq.staff_data)."""
+def model_input(model, crop: Crop):
+    """A crop as the model reads it: scaled to its height, at staff scale with its staves, or for
+    StaffSeq2Seq cut into staves, as in training (seq.staff_data)."""
     if isinstance(model, StaffSeq2Seq):
-        return torch.stack([to_tensor(s) for s in cut_staves(*at_staff_scale(crop.image, crop.staves))])
+        staves = cut_staves(*at_staff_scale(crop.image, crop.staves), outward=model.staff_outward,
+                            cut_between=model.staff_cut_between)
+        return torch.stack([to_tensor(s) for s in staves])
+    if model.interline_scaled:
+        image, staves = at_interline(crop.image, crop.staves)
+        return to_tensor(image), staves
     return to_tensor(scale_to_height(crop.image, model.height))
 
 
@@ -193,7 +198,8 @@ def transcribe(model, vocab: Vocab, crops: list[Crop], device, batch: int,
                bars: list[Fraction | None] | None = None) -> list[str]:
     """LMX of each crop; widest together, so a batch pads little. bars: each crop's meter in force,
     for a model that reads one (seq.meter)."""
-    batched = collate_staves if isinstance(model, StaffSeq2Seq) else collate
+    batched = (collate_staves if isinstance(model, StaffSeq2Seq) else collate_systems if model.interline_scaled
+               else collate)
     order = sorted(range(len(crops)), key=lambda i: crops[i].image.shape[1] / crops[i].image.shape[0])
     out = [""] * len(crops)
     empty = torch.tensor([BOS, EOS])

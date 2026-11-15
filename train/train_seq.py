@@ -35,7 +35,8 @@ from seq.data import SystemDataset, collate, samples, split_names
 from seq.meter import METER, PREFIX_LENGTH, without_meter
 from seq.model import Seq2Seq, StaffSeq2Seq
 from seq.ottava import sounding
-from seq.staff_data import StaffDataset, collate_staves, load_positions
+from seq.staff_data import (MAX_SYSTEM_HEIGHT, InterlineSystemDataset, StaffDataset, collate_staves,
+                             collate_systems, load_positions)
 from seq.barlines import without_barlines
 from seq.time_symbols import without_time_symbols
 from seq.tuplet_numbers import without_hidden_numbers
@@ -111,6 +112,14 @@ def update_average(average: torch.nn.Module, model: torch.nn.Module) -> None:
             kept.copy_(current)
 
 
+def save_whole(state: dict, path: Path) -> None:
+    """Saved under another name and renamed into place: anything copying the run directory while
+    training (rsync, a push to R2) finds the old checkpoint or the new one, never half of one."""
+    partial = path.with_name(path.name + ".partial")
+    torch.save(state, partial)
+    partial.replace(path)
+
+
 def comparable(lmx: str) -> str:
     """LMX in OLiMPiC's form, as its dev labels are: ottavas applied, none of our tokens for
     barlines, time symbols or hidden tuplet numbers."""
@@ -158,9 +167,52 @@ def main() -> None:
     ap.add_argument("--meter-context", action="store_true", help="labels start with the meter in force (seq.meter)")
     ap.add_argument("--staves", type=Path, help="train StaffSeq2Seq on staff crops, positions from this directory")
     ap.add_argument("--staff-samples-only", type=Path, help="train Seq2Seq on the samples with staff positions here")
+    ap.add_argument("--relative-rows", action="store_true",
+                    help="Seq2Seq: attention biased by vertical distance in place of each row's own embedding")
+    ap.add_argument("--row-windows", type=int, default=0,
+                    help="Seq2Seq, with --relative-rows: encoder attention in bands of this many feature rows")
+    ap.add_argument("--interline-scale", action="store_true",
+                    help="Seq2Seq: each system at staff scale, its height following its staves "
+                         "(needs --staff-samples-only for the positions; --height is then the tallest crop)")
+    ap.add_argument("--staff-anchored", action="store_true",
+                    help="Seq2Seq, with --interline-scale: rows embedded by their nearest staff and offset from it")
+    ap.add_argument("--staff-bands", action="store_true",
+                    help="Seq2Seq, with --staff-anchored: attention within each staff's rows, then down columns")
+    ap.add_argument("--staff-windows", action="store_true",
+                    help="Seq2Seq, with --staff-anchored: attention within each staff's overlapping window "
+                         "(a staff crop's rows), then down columns")
+    ap.add_argument("--staff-jitter", type=float, default=0.0,
+                    help="StaffSeq2Seq: in training, each staff crop centred up to this many interlines off its staff")
+    ap.add_argument("--staff-cut-between", action="store_true",
+                    help="StaffSeq2Seq: each staff crop white past the midpoints to its neighbours")
+    ap.add_argument("--blocks", type=int, default=1, help="StaffSeq2Seq: encoder blocks (within, then across staves)")
+    ap.add_argument("--across-columns", type=int, default=1,
+                    help="StaffSeq2Seq: columns the attention across staves takes together; 0: none")
+    ap.add_argument("--staff-outward", type=float, default=0.0,
+                    help="StaffSeq2Seq: interlines the top and bottom staves' crops slide away from the system")
     args = ap.parse_args()
-    if args.staves and (args.init or args.meter_context):
-        ap.error("--staves trains StaffSeq2Seq from scratch and without a meter prefix")
+    if args.staves and args.init:
+        ap.error("--staves trains StaffSeq2Seq from scratch")
+    if not args.staves and (args.blocks != 1 or args.across_columns != 1 or args.staff_outward or args.staff_jitter
+                            or args.staff_cut_between):
+        ap.error("--blocks, --across-columns, --staff-outward, --staff-jitter and --staff-cut-between "
+                 "are StaffSeq2Seq's (--staves)")
+    if args.staff_anchored and not args.interline_scale:
+        ap.error("--staff-anchored needs --interline-scale")
+    if args.staff_anchored and args.relative_rows:
+        ap.error("--staff-anchored replaces --relative-rows")
+    if (args.staff_bands or args.staff_windows) and not args.staff_anchored:
+        ap.error("--staff-bands and --staff-windows need --staff-anchored")
+    if args.staff_bands and args.staff_windows:
+        ap.error("--staff-windows replaces --staff-bands")
+    if args.row_windows and not args.relative_rows:
+        ap.error("--row-windows needs --relative-rows")
+    if args.interline_scale:
+        args.height = MAX_SYSTEM_HEIGHT  # the row embedding's reach (and what the checkpoint records)
+    if args.interline_scale and not args.staff_samples_only:
+        ap.error("--interline-scale needs staff positions: --staff-samples-only DIR")
+    if args.staves and args.relative_rows:
+        ap.error("--relative-rows is Seq2Seq's: a staff crop's rows already stand at fixed heights")
     if args.staves and args.staff_samples_only:
         ap.error("--staff-samples-only is for Seq2Seq; --staves already keeps only those samples")
     torch.manual_seed(args.seed)
@@ -180,17 +232,29 @@ def main() -> None:
         positions = args.staves or args.staff_samples_only
         train_items = [pair for spec in args.data for pair in with_staves(dataset_items(spec), Path(spec.split(":")[0]), positions)]
         dev_items = with_staves(dev_items, Path(dev_root), positions)
-    if args.staff_samples_only:
+    if args.staff_samples_only and not args.interline_scale:
         train_items, dev_items = [s for s, _ in train_items], [s for s, _ in dev_items]
     if args.staves:
-        dataset = lambda items, train: StaffDataset(items, vocab, train, args.max_tokens)
+        dataset = lambda items, train: StaffDataset(items, vocab, train, args.max_tokens, outward=args.staff_outward,
+                                                    meter_context=args.meter_context, jitter=args.staff_jitter,
+                                                    cut_between=args.staff_cut_between)
         batched = collate_staves
-        model = StaffSeq2Seq(len(vocab), max_tokens=args.max_tokens, row_stride=args.row_stride)
+        model = StaffSeq2Seq(len(vocab), max_tokens=args.max_tokens, row_stride=args.row_stride, blocks=args.blocks,
+                             across_columns=args.across_columns, staff_outward=args.staff_outward,
+                             meter_context=args.meter_context, staff_cut_between=args.staff_cut_between)
+    elif args.interline_scale:
+        dataset = lambda items, train: InterlineSystemDataset(items, vocab, train, args.max_tokens,
+                                                              meter_context=args.meter_context)
+        batched = collate_systems
+        model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
+                        meter_context=args.meter_context, relative_rows=args.relative_rows,
+                        row_windows=args.row_windows, interline_scaled=True, staff_anchored=args.staff_anchored,
+                        staff_bands=args.staff_bands, staff_windows=args.staff_windows)
     else:
         dataset = lambda items, train: SystemDataset(items, vocab, train, args.max_tokens, args.height, args.meter_context)
         batched = collate
         model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
-                        meter_context=args.meter_context)
+                        meter_context=args.meter_context, relative_rows=args.relative_rows, row_windows=args.row_windows)
     train = torch.utils.data.DataLoader(dataset(train_items, True), batch_size=args.batch,
                                         shuffle=True, num_workers=args.workers, collate_fn=batched, drop_last=True,
                                         persistent_workers=True)
@@ -244,14 +308,14 @@ def main() -> None:
                 log.flush()
                 state = {"model": model.state_dict(), "average": average.state_dict(), "opt": opt.state_dict(),
                          "sched": sched.state_dict(), "step": step, "best": min(best, dev_ser), "args": plain(vars(args))}
-                torch.save(state, args.out / "last.pt")
+                save_whole(state, args.out / "last.pt")
                 # best.pt and the snapshots hold the averaged weights as "model": what is scored.
                 scored = {"model": average.state_dict(), "step": step, "dev_ser": dev_ser, "args": plain(vars(args))}
                 if dev_ser < best:
                     best = dev_ser
-                    torch.save(scored, args.out / "best.pt")
+                    save_whole(scored, args.out / "best.pt")
                 if step % SNAPSHOT_EVERY == 0 or step == args.steps:
-                    torch.save(scored, args.out / f"average_{step:06d}.pt")
+                    save_whole(scored, args.out / f"average_{step:06d}.pt")
             if step >= args.steps:
                 break
 

@@ -23,10 +23,14 @@ middle is nearest the crop's, as crops are cut centred on their system.
 Each staff's crop is STAFF_INTERLINES tall, centred on it: as tall as half a two-staff system
 crop (seq.data.CROP_INTERLINES), so a staff scaled to 256 px keeps the resolution a system has at
 512. Neighbouring staves' crops overlap in the gap between them, where ledger-line notes, beams
-and voices crossing between the hands sit, so those are seen from both staves.
+and voices crossing between the hands sit, so those are seen from both staves. Optionally the
+top and bottom staves' crops slide away from the system (outward): beyond the system nothing
+else sees what lies there (ottava signs, the highest and lowest notes), while the gap between
+staves is seen from both sides.
 """
 from __future__ import annotations
 
+import math
 from collections import Counter
 
 import cv2
@@ -174,11 +178,38 @@ def _separated_peaks(response: np.ndarray, interline: float) -> list[int]:
     return taken
 
 
-def staff_crops(image: np.ndarray, staves: Staves) -> list[np.ndarray]:
+def staff_crops(image: np.ndarray, staves: Staves, outward: float = 0.0, cut_between: bool = False) -> list[np.ndarray]:
     """One crop per staff, STAFF_INTERLINES tall and centred on it, white beyond the image's edges,
-    even for a staff whose centre lies beyond them (augmentation's margins cut into the crop)."""
+    even for a staff whose centre lies beyond them (augmentation's margins cut into the crop).
+    With several staves, the top one's crop is centred `outward` interlines above it and the
+    bottom one's as far below; middle staves stay centred. cut_between: each crop white past the
+    midpoints to its neighbours, so neighbouring crops share no ink (the gap between two staves
+    is split between them, as a whole-system model's nearest-staff bands split it)."""
     half = round(STAFF_INTERLINES * staves.interline / 2)
-    centres = [round(c) for c in staves.centres]
+    centres = [round(c + staves.interline * outward * slide) for c, slide in zip(staves.centres, slides(len(staves.centres)))]
     pad = half + max(0, -min(centres), max(centres) - image.shape[0])
     padded = cv2.copyMakeBorder(image, pad, pad, 0, 0, cv2.BORDER_CONSTANT, value=255)
-    return [padded[c + pad - half:c + pad + half] for c in centres]
+    crops = [padded[c + pad - half:c + pad + half].copy() for c in centres]
+    if cut_between:
+        for crop, c, (above, below) in zip(crops, centres, midpoints(staves.centres)):
+            top = c - half
+            crop[:rows_before(above - top, len(crop))] = 255
+            crop[rows_before(below - top, len(crop)):] = 255
+    return crops
+
+
+def rows_before(y: float, height: int) -> int:
+    """How many of a crop's rows lie above y (in its rows, possibly infinite)."""
+    return int(min(max(y, 0), height) + 0.5)
+
+
+def midpoints(centres: tuple[float, ...]) -> list[tuple[float, float]]:
+    """Each staff's bounds halfway to its neighbours, unbounded (infinite) where it has none."""
+    between = [(a + b) / 2 for a, b in zip(centres, centres[1:])]
+    return list(zip([-math.inf] + between, between + [math.inf]))
+
+
+def slides(count: int) -> list[int]:
+    """Which way each of `count` staves' crops slides outward: -1 up for the top, +1 down for the
+    bottom, 0 for the middle ones and for a staff alone."""
+    return [0] * count if count < 2 else [-1] + [0] * (count - 2) + [1]

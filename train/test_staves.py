@@ -76,12 +76,49 @@ class StaffCrops(unittest.TestCase):
         self.assertTrue((middle[:, :] == 0).all())                    # its five lines, centred
         self.assertTrue((crops[0][:half - 60 - 1] == 255).all())       # white above the image's top
 
+    def test_outer_staves_slide_outward(self):
+        """Slid one interline: the top staff's crop sits a line lower in its window (more room
+        above), the bottom staff's a line higher; a middle staff stays centred."""
+        image = drawn([100, 220, 340], height=460)
+        half = round(STAFF_INTERLINES * INTERLINE / 2)
+        crops = staff_crops(image, Staves((100.0, 220.0, 340.0), INTERLINE), outward=1.0)
+        lines = [[r for r in range(len(c)) if (c[r, :] == 0).mean() > 0.9] for c in crops]
+        self.assertEqual(lines[0][2], half + INTERLINE)    # top staff's middle line, a line lower
+        self.assertEqual(lines[1][2], half)                # middle staff, centred
+        self.assertEqual(lines[2][2], half - INTERLINE)    # bottom staff's, a line higher
+
+    def test_a_staff_alone_stays_centred(self):
+        crops = staff_crops(drawn([200]), Staves((200.0,), INTERLINE), outward=1.0)
+        lines = [r for r in range(len(crops[0])) if (crops[0][r, :] == 0).mean() > 0.9]
+        self.assertEqual(lines[2], round(STAFF_INTERLINES * INTERLINE / 2))
+
     def test_a_staff_centred_beyond_the_image_still_full_height(self):
         """Augmentation's margins may crop a tall system through its lower staff."""
         image = drawn([60, 200], height=250)
         crops = staff_crops(image, Staves((60.0, 280.0), INTERLINE))
         self.assertEqual([c.shape[0] for c in crops], [2 * round(STAFF_INTERLINES * INTERLINE / 2)] * 2)
         self.assertTrue((crops[1][-30:] == 255).all())
+
+    def test_cut_between_shares_no_ink_with_a_neighbour(self):
+        """Staves 120 apart overlap in their crops (each 2 * half = 150 tall); cut between, each
+        crop is white past the midpoint (row 120 of the image), its own side untouched."""
+        image = drawn([60, 180], height=300)
+        image[110:131, :] = 0                         # ink astride the midpoint
+        half = round(STAFF_INTERLINES * INTERLINE / 2)
+        whole = staff_crops(image, Staves((60.0, 180.0), INTERLINE))
+        top, bottom = staff_crops(image, Staves((60.0, 180.0), INTERLINE), cut_between=True)
+        in_top, in_bottom = 120 - (60 - half), 120 - (180 - half)    # the midpoint in each crop's rows
+        self.assertTrue(0 < in_top < 2 * half and 0 < in_bottom < 2 * half)
+        self.assertTrue((top[in_top:] == 255).all())
+        self.assertTrue((top[:in_top] == whole[0][:in_top]).all())
+        self.assertTrue((bottom[:in_bottom] == 255).all())
+        self.assertTrue((bottom[in_bottom:] == whole[1][in_bottom:]).all())
+        self.assertTrue((whole[0][in_top - 5:in_top] == 0).all())    # there was ink to cut
+
+    def test_cut_between_leaves_a_staff_alone_whole(self):
+        image = drawn([200])
+        self.assertTrue((staff_crops(image, Staves((200.0,), INTERLINE), cut_between=True)[0]
+                         == staff_crops(image, Staves((200.0,), INTERLINE))[0]).all())
 
 
 if __name__ == "__main__":

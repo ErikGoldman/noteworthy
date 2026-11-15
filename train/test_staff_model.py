@@ -92,6 +92,57 @@ class StavesSeeEachOther(unittest.TestCase):
         self.assertFalse(torch.allclose(memory[0, per_staff:], changed[0, per_staff:]))
 
 
+class HowFarTheStavesSee(unittest.TestCase):
+    """The attention across staves alone, on a feature grid of two staves: what the lower staff
+    takes from one column of the upper staff, by setting. (Through the whole encoder a change
+    anywhere spreads: the CNN sees neighbouring columns, and attention within a staff runs first.)"""
+
+    COLS = 8
+
+    def lower_columns_changed(self, across_columns: int, width_columns: int = COLS) -> list[int]:
+        model = small_model(across_columns=across_columns)
+        g = torch.Generator().manual_seed(3)
+        grid = torch.randn(1, 2, HEIGHT // 32, self.COLS, DIM, generator=g)
+        changed = grid.clone()
+        changed[0, 0, :, 3] += torch.randn(HEIGHT // 32, DIM, generator=g)  # not uniform: LayerNorm removes that
+        blank = torch.tensor([[False, False]])
+        past = torch.arange(self.COLS)[None, :] >= width_columns
+        layer = model.across_staves[0]
+        before = model.attend_across(layer, grid, blank, past)[0, 1]
+        after = model.attend_across(layer, changed, blank, past)[0, 1]
+        self.assertTrue(torch.isfinite(after).all())
+        return [c for c in range(self.COLS) if not torch.allclose(before[:, c], after[:, c], atol=1e-6)]
+
+    def test_one_column(self):
+        self.assertEqual(self.lower_columns_changed(1), [3])
+
+    def test_groups_of_columns(self):
+        """Groups of three: columns 3, 4 and 5 attend across the staves together."""
+        self.assertEqual(self.lower_columns_changed(3), [3, 4, 5])
+
+    def test_none(self):
+        self.assertEqual(len(small_model(across_columns=0).across_staves), 0)
+
+    def test_meter_context_is_the_models_own(self):
+        self.assertTrue(small_model(meter_context=True).meter_context)
+        self.assertFalse(small_model().meter_context)
+
+    def test_two_blocks_two_layers_across(self):
+        self.assertEqual(len(small_model(blocks=2).across_staves), 2)
+
+    def test_a_group_running_past_the_width(self):
+        """Width 5 columns, groups of three: column 3's group (3, 4, 5) holds a padding column,
+        which is masked; nothing becomes NaN, and the change still reaches 3 and 4."""
+        self.assertEqual(self.lower_columns_changed(3, width_columns=5)[:2], [3, 4])
+
+    def test_a_group_wholly_past_the_width_stays_finite(self):
+        model = small_model(across_columns=3)
+        grid = torch.randn(1, 2, HEIGHT // 32, self.COLS, DIM)
+        out = model.attend_across(model.across_staves[0], grid, torch.tensor([[False, False]]),
+                                  torch.arange(self.COLS)[None, :] >= 2)
+        self.assertTrue(torch.isfinite(out).all())
+
+
 class Decoder(unittest.TestCase):
     def test_a_later_token_does_not_change_earlier_logits(self):
         model, systems, width = small_model(), staves([2]), torch.tensor([8 * COL_STRIDE])

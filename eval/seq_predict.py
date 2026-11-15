@@ -87,12 +87,33 @@ def load_model(checkpoint: Path, device) -> Seq2Seq | StaffSeq2Seq:
     # Tokens are only ever added at the end, so an older model's ids still hold.
     vocab_size = len(state["model"]["out.weight"])
     if args.get("staves"):
-        model = StaffSeq2Seq(vocab_size, max_tokens=args["max_tokens"], row_stride=args.get("row_stride", 32)).to(device)
+        model = StaffSeq2Seq(vocab_size, max_tokens=args["max_tokens"], row_stride=args.get("row_stride", 32),
+                             blocks=args.get("blocks", 1), across_columns=args.get("across_columns", 1),
+                             staff_outward=args.get("staff_outward", 0.0),
+                             meter_context=args.get("meter_context", False),
+                             staff_cut_between=args.get("staff_cut_between", False)).to(device)
     else:
         model = Seq2Seq(vocab_size, max_tokens=args["max_tokens"], height=args.get("height", 256),
-                        row_stride=args.get("row_stride", 32), meter_context=args.get("meter_context", False)).to(device)
+                        row_stride=args.get("row_stride", 32), meter_context=args.get("meter_context", False),
+                        relative_rows=args.get("relative_rows", False),
+                        row_windows=args.get("row_windows", 0), interline_scaled=args.get("interline_scale", False),
+                        staff_anchored=args.get("staff_anchored", False),
+                        staff_bands=args.get("staff_bands", False),
+                        staff_windows=args.get("staff_windows", False)).to(device)
     model.load_state_dict(state["model"])
     return model.eval()
+
+
+def reading_dataset(model, pairs: list, vocab: Vocab):
+    """(dataset, collate) that reads (sample, staves) pairs as `model` was trained to: staff crops,
+    systems at staff scale, or systems at the model's fixed height (staves unused)."""
+    from seq.staff_data import InterlineSystemDataset, StaffDataset, collate_staves, collate_systems
+    if isinstance(model, StaffSeq2Seq):
+        return StaffDataset(pairs, vocab, False, model.max_tokens, outward=model.staff_outward,
+                            meter_context=model.meter_context, cut_between=model.staff_cut_between), collate_staves
+    if model.interline_scaled:
+        return InterlineSystemDataset(pairs, vocab, False, model.max_tokens, meter_context=model.meter_context), collate_systems
+    return SystemDataset([s for s, _ in pairs], vocab, False, model.max_tokens, model.height, model.meter_context), collate
 
 
 def main() -> None:
