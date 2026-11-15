@@ -14,3 +14,4 @@ cpp/third_party/pdfium/
 .venv-copisteria/
 .venv-smashcima/
 tools/
+.env
