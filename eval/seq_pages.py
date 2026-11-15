@@ -195,9 +195,9 @@ def model_input(model, crop: Crop):
 
 
 def transcribe(model, vocab: Vocab, crops: list[Crop], device, batch: int,
-               bars: list[Fraction | None] | None = None) -> list[str]:
+               bars: list[Fraction | None] | None = None, beam: int = 1) -> list[str]:
     """LMX of each crop; widest together, so a batch pads little. bars: each crop's meter in force,
-    for a model that reads one (seq.meter)."""
+    for a model that reads one (seq.meter); beam: readings kept side by side (1: greedy)."""
     batched = (collate_staves if isinstance(model, StaffSeq2Seq) else collate_systems if model.interline_scaled
                else collate)
     order = sorted(range(len(crops)), key=lambda i: crops[i].image.shape[1] / crops[i].image.shape[0])
@@ -208,7 +208,7 @@ def transcribe(model, vocab: Vocab, crops: list[Crop], device, batch: int,
         images, widths, _ = batched([(model_input(model, crops[i]), empty) for i in chosen])
         starts = [vocab.encode(" ".join(meter_tokens(bars[i])))[1:-1] if bars and bars[i] else [] for i in chosen]
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            predicted = model.generate(images.to(device), widths, starts=starts)
+            predicted = model.generate(images.to(device), widths, starts=starts, beam=beam)
         for i, tokens in zip(chosen, predicted):
             out[i] = without_meter(vocab.decode(tokens))
     return out
@@ -224,14 +224,14 @@ def meters_in_force(lmx_of_systems: list[str]) -> list[Fraction | None]:
 
 
 def best_readings(model, vocab: Vocab, pages: list[np.ndarray], systems: list[SystemCrop], wanted, device,
-                  batch: int) -> list[str]:
+                  batch: int, beam: int = 1) -> list[str]:
     """LMX of each wanted system: of its reading at each crop height, the one that fills its
     bars best, the earlier height among equals. Neighbours bound a crop, wanted or not."""
     def read(bars=None) -> list[str]:
         readings = []
         for ratio in CROP_HEIGHT_RATIOS:
             crops = [c for s, c in zip(systems, page_crops(pages, systems, ratio)) if wanted(s)]
-            readings.append(transcribe(model, vocab, crops, device, batch, bars))
+            readings.append(transcribe(model, vocab, crops, device, batch, bars, beam))
         return [max(reads, key=lambda lmx: bar_fill(sounding(lmx))) for reads in zip(*readings)]
     chosen = read()
     # A model that reads the meter reads again, given what the first reading found in force.
@@ -301,7 +301,7 @@ def transcribe_pages(args, model, vocab, device) -> None:
     for image in sorted(args.pages.glob("*.png")):
         layout, pages = layout_of(args, [image], args.out / "work" / image.stem)
         systems = piano_systems(layout, page_scales(layout))
-        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch)
+        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch, args.beam)
         (args.out / f"{image.stem}.musicxml").write_text(joined_musicxml(lmx))
         print(image.stem, f"{len(systems)} systems", flush=True)
 
@@ -312,7 +312,7 @@ def transcribe_score(args, model, vocab, device) -> None:
     with tempfile.TemporaryDirectory() as work:
         layout, pages = layout_of(args, args.inputs, Path(work))
         systems = piano_systems(layout, page_scales(layout))
-        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch)
+        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch, args.beam)
     args.out.write_text(joined_musicxml(lmx))
     print(f"{len(systems)} systems: {args.out}")
 
@@ -334,7 +334,7 @@ def bench_mutopia(args, model, vocab, device) -> dict[str, Counter]:
         name = Path(piece).name
         layout, pages = layout_of(args, [MUTOPIA / "pieces" / f"{name}-a4.pdf"], args.out / "work" / name)
         systems = piano_systems(layout, page_scales(layout))
-        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch)
+        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch, args.beam)
         source = (MUTOPIA / "repo" / "ftp" / piece / f"{name}.ly").read_text(errors="replace")
         truth = midi_events(MUTOPIA / "pieces" / f"{name}.mid", pickup_quarters(source))
         results[piece] = score(truth, joined_events(lmx, args.out / "work" / name / "systems"))
@@ -352,7 +352,7 @@ def bench_rendered(args, model, vocab, device) -> dict[str, Counter]:
             continue
         layout, pages = layout_of(args, [page], args.out / "work" / page.stem)
         systems = piano_systems(layout, page_scales(layout))
-        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch)
+        lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch, args.beam)
         truth = [e for e in parse_musicxml(score_path) if e.measure < int(measures.read_text())]
         correct, predicted, gold = f1_counts(truth, joined_events(lmx, args.out / "work" / page.stem / "systems"))
         results[score_path.name] = Counter(correct=correct, pred=predicted, missed=gold - correct)
@@ -373,7 +373,7 @@ def bench_olimpic(args, model, vocab, device) -> dict[str, Counter]:
         pages = [cv2.imread(str(image), cv2.IMREAD_GRAYSCALE) for image in images]
         inside = lambda s: any(b["top"] <= sum(s.bottom_staff) / 2 <= b["top"] + b["height"] for b in boxes[s.page - 1])
         all_systems = piano_systems(layout, defaultdict(lambda: 1.0))
-        lmx = best_readings(model, vocab, pages, all_systems, inside, device, args.batch)
+        lmx = best_readings(model, vocab, pages, all_systems, inside, device, args.batch, args.beam)
         results[song] = score(song_truth(annotated), joined_events(lmx, args.out / "work" / song / "systems"))
         print(song, dict(results[song].most_common(3)), flush=True)
     return results
@@ -393,6 +393,7 @@ def main() -> None:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--split", choices=["dev", "test"], default="dev")
     ap.add_argument("--batch", type=int, default=16)
+    ap.add_argument("--beam", type=int, default=1, help="readings kept side by side (beam search); 1: greedy")
     args = ap.parse_args()
     device = torch.device("cuda")
     vocab = Vocab.load(VOCABULARY)

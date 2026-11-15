@@ -94,10 +94,14 @@ class _TokenDecoder(nn.Module):
 
     @torch.no_grad()
     def generate(self, images, widths, max_tokens: int | None = None,
-                 starts: list[list[int]] | None = None) -> list[list[int]]:
-        """Greedy decoding, each sequence after <bos> and its start tokens (a context the model
-        reads, such as seq.meter's), which are returned with it."""
+                 starts: list[list[int]] | None = None, beam: int = 1) -> list[list[int]]:
+        """Each sequence after <bos> and its start tokens (a context the model reads, such as
+        seq.meter's), which are returned with it: greedy, or the best of `beam` readings kept
+        side by side (beam search), one crop at a time."""
         memory, padding = self.encode(images, widths)
+        if beam > 1:
+            return [self._beam_from(memory[i:i + 1], padding[i:i + 1], max_tokens, starts[i] if starts else [], beam)
+                    for i in range(memory.shape[0])]
         if not starts or len({len(s) for s in starts}) == 1:
             return self._generate_from(memory, padding, max_tokens, starts)
         out: list[list[int]] = [[] for _ in starts]  # one decoding batch per length of start tokens
@@ -107,6 +111,25 @@ class _TokenDecoder(nn.Module):
                                                              [starts[i] for i in chosen])):
                 out[i] = tokens
         return out
+
+    def _beam_from(self, memory, padding, max_tokens, start: list[int], width: int) -> list[int]:
+        """The reading with the best mean log-probability per token among `width` kept at each
+        step; a reading that ends stops there, and the search when `width` have ended."""
+        prefix = [BOS] + start
+        live, ended = [(prefix, 0.0)], []
+        while live and len(live[0][0]) < (max_tokens or self.max_tokens) and len(ended) < width:
+            tokens = torch.tensor([seq for seq, _ in live], device=memory.device)
+            n = len(live)
+            logits = self.decode(tokens, memory.expand(n, -1, -1), padding.expand(n, -1))[:, -1].float()
+            scores = torch.tensor([score for _, score in live], device=memory.device)[:, None] + logits.log_softmax(-1)
+            top = scores.flatten().topk(width)
+            live = []
+            for score, index in zip(top.values.tolist(), top.indices.tolist()):
+                which, token = divmod(index, scores.shape[1])
+                seq = tokens[which].tolist() + [token]
+                (ended if token == EOS else live).append((seq, score))
+        best, _ = max(ended or live, key=lambda kept: kept[1] / (len(kept[0]) - len(prefix)))
+        return best[1:]
 
     def _generate_from(self, memory, padding, max_tokens, starts) -> list[list[int]]:
         b, device = memory.shape[0], memory.device
