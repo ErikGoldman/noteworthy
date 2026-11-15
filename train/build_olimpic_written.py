@@ -1,6 +1,11 @@
-"""OLiMPiC's synthetic training set with pitches as printed and ottava tokens (seq.ottava).
+"""An OLiMPiC split (by default the synthetic training set) with pitches as printed and ottava
+tokens (seq.ottava).
 
-usage: build_olimpic_written.py OLIMPIC_ROOT OUT_DIR
+usage: build_olimpic_written.py OLIMPIC_ROOT OUT_DIR [SPLIT]
+
+OLIMPIC_ROOT is olimpic-1.0-synthetic or olimpic-1.0-scanned (whose systems are the synthetic
+dev and test systems, printed and scanned); SPLIT train, dev or test, written to
+OUT_DIR/samples.SPLIT.txt.
 
 Labels come from each system's MusicXML; images are linked, not copied. A system that opens
 with the stop of a sign from an earlier system is left out: its file does not say which way
@@ -26,8 +31,9 @@ def opens_inside_a_sign(part: ET.Element) -> bool:
 
 def main() -> None:
     root, out = Path(sys.argv[1]), Path(sys.argv[2])
+    split = sys.argv[3] if len(sys.argv) > 3 else "train"
     kept = []
-    for name in (root / "samples.train.txt").read_text().split():
+    for name in (root / f"samples.{split}.txt").read_text().split():
         part = ET.parse(root / f"{name}.musicxml").find("part")
         if opens_inside_a_sign(part):
             continue
@@ -37,7 +43,7 @@ def main() -> None:
         target.with_suffix(".png").unlink(missing_ok=True)
         target.with_suffix(".png").symlink_to((root / f"{name}.png").resolve())
         kept.append(name)
-    (out / "samples.train.txt").write_text("\n".join(kept) + "\n")
+    (out / f"samples.{split}.txt").write_text("\n".join(kept) + "\n")
     print(f"{len(kept)} systems kept")
 
 

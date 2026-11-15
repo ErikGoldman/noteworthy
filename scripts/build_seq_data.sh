@@ -30,6 +30,11 @@ build_crops marks --systems-per-score 2 --thick-beams --marks
 # Prints often number the first tuplets of a run and no more: systems with tuplets, numbers hidden.
 build_crops unmarked --systems-per-score 2 --unmarked-tuplets
 (cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-synthetic" "$data/olimpic_written")
+# OLiMPiC's dev systems, synthetic and scanned, labelled the same way: eval/outer_notes.py's set.
+outer_dev="$NW_DATA/olimpic_written_dev"
+for source in synthetic scanned; do
+  (cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-$source" "$outer_dev/$source" dev)
+done
 (cd "$ROOT/train" && with_display "$PY" rebuild_grandstaff_lmx.py "$olimpic/grandstaff-lmx" "$data/grandstaff_rebuilt")
 (cd "$ROOT/train" && "$PY" build_grandstaff_written.py "$olimpic/grandstaff-lmx" "$data/grandstaff_rebuilt" "$data/grandstaff_written")
 (cd "$ROOT/train" && with_display "$PY" build_musescore_crops.py --scores "$NW_DATA/render_scores.txt" \
@@ -42,3 +47,5 @@ build_crops unmarked --systems-per-score 2 --unmarked-tuplets
   "$data/grandstaff_written:train" "$crops/pdmx:train" "$crops/beams:train" "$crops/round:train" "$crops/marks:train" \
   "$crops/musescore:train" "$crops/unmarked:train" "$crops/smashcima:train" "$data/musicorpus:train" \
   "$olimpic/olimpic-1.0-scanned:dev")
+(cd "$ROOT/train" && "$PY" find_staff_positions.py "$outer_dev/staff_positions" "$outer_dev/synthetic:dev" \
+  "$outer_dev/scanned:dev")
