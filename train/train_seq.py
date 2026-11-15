@@ -87,7 +87,12 @@ def with_own_readings(model, memory, padding, tokens: torch.Tensor, vocab: Vocab
     one wrong token does not lead it astray (scheduled sampling, two passes). <bos> and a meter
     prefix, which the model is given, are kept, and so is padding."""
     inputs = tokens[:, :-1]
-    with torch.no_grad():
+    # Uncached: autocast keeps each weight's cast for the rest of the step, and before torch 2.11 one
+    # first made under no_grad carries no gradient, so the second pass would leave the decoder's
+    # weights untrained (the first run of this on torch 2.8, 2026-11-15).
+    device = inputs.device.type
+    with torch.no_grad(), torch.autocast(device, dtype=torch.get_autocast_dtype(device),
+                                         enabled=torch.is_autocast_enabled(device), cache_enabled=False):
         logits = model.decode(inputs, memory, padding)
         sampled = torch.distributions.Categorical(logits=logits.float()).sample()
     swap = torch.rand(inputs.shape, device=inputs.device) < share

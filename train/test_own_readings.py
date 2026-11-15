@@ -7,6 +7,7 @@ import unittest
 import torch
 
 from seq.meter import with_meter
+from seq.model import _TokenDecoder
 from seq.vocab import BOS, PAD, Vocab
 from train_seq import VOCABULARY, own_readings_share, with_own_readings
 
@@ -23,6 +24,12 @@ class ReadsOneToken:
         logits = torch.full((*inputs.shape, self.vocab_size), -1e9)
         logits[..., self.token] = 0.0
         return logits
+
+
+class TinyDecoder(_TokenDecoder):
+    def __init__(self, vocab_size: int) -> None:
+        super().__init__()
+        self._init_decoder(vocab_size, dim=32, decoder_layers=1, heads=2, max_tokens=64, dropout=0.0)
 
 
 class OwnReadings(unittest.TestCase):
@@ -57,6 +64,20 @@ class OwnReadings(unittest.TestCase):
         padded = tokens[1, :-1] == PAD
         self.assertTrue(padded.any())
         self.assertTrue((inputs[1][padded] == PAD).all())
+
+    def test_the_decoder_still_learns_under_autocast(self):
+        """The first pass, under no_grad, must not leave the second's weight casts without a gradient."""
+        torch.manual_seed(0)
+        model = TinyDecoder(len(self.vocab))
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = model.to(device)
+        tokens = self.batch(BAR).to(device)
+        memory = torch.randn(1, 6, 32, device=device)
+        padding = torch.zeros(1, 6, dtype=torch.bool, device=device)
+        with torch.autocast(device, dtype=torch.bfloat16):
+            inputs = with_own_readings(model, memory, padding, tokens, self.vocab, 0.25)
+            model.decode(inputs, memory, padding).float().sum().backward()
+        self.assertTrue(all(p.grad is not None for p in model.decoder.parameters()))
 
     def test_share_rises_over_the_first_half(self):
         self.assertEqual(own_readings_share(0, 100, 0.2), 0.0)
