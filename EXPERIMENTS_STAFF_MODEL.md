@@ -469,6 +469,1137 @@ CPU pipeline: a full-resolution network pass per crop (1.2-1.4 s on 2 threads), 
 other scales when fewer than two staves are found at the first, and parallel workers limited by
 memory bandwidth.
 
+## The race, staff arm: 50,000 steps, and what it gets wrong (2026-11-13)
+
+`runs/race_staff`: StaffSeq2Seq on the full `train_seq.sh` mix of `data/seq516g_data`, positions
+from `staff_positions_v2`, batch 10, lr 3e-4, warmup 4,800, 50,000 steps, seed 0, local GPU
+(about 4.5 h). The Seq2Seq arm (`runs/race_system`, `--staff-samples-only`, `--height 512`, same
+samples and schedule) followed it on the same GPU.
+
+| Step | 5k | 10k | 15k | 20k | 25k | 30k | 35k | 40k | 45k | 50k |
+|---|---|---|---|---|---|---|---|---|---|---|
+| OLiMPiC scanned dev SER | 3.914 | 1.203 | 0.261 | 0.185 | 0.145 | 0.127 | 0.117 | 0.100 | 0.100 | 0.098 |
+
+**Polish dev** (50,000-step averaged weights, through the segmenter as before; OMR-NED, the 49
+two-staff pages): print gold 11.58 (whole-page 10.82), corrected 15.47 (15.09), published 43.71.
+The 25,000-step PDMX-only snapshot was at 28.84 print, seq516 (150,000 steps) at 6.97. The staff model is
+ahead of its 25k self on all 49 pages, ahead of seq516 on 3 and behind it on 42; 25 pages are under 10,
+none over 60; the worst 10 pages hold 48% of the summed OMR-NED. Three-staff pages 91.2 (never trained on).
+
+**Polish: what it misses.**
+- *Note fates* (`eval/note_errors.py`, print gold, 49 pages): 13,695 right; missing 902, extra 780,
+  other pitch 472, duration 246, onset 244, octave 116. seq516: 14,667 right; 430, 349, 236, 128,
+  134, 80. The staff model makes about twice seq516's errors of every kind. OMR-NED charges
+  most for inserted and deleted notes (75% of its cost, as for seq516).
+- *Unprinted tuplets are the largest single cause.* A run of triplets or sextuplets shows its
+  number for the first group or two only; after that the staff model writes plain eighths
+  (page 003: measure 1 read as triplets, measure 2 as eighths), and every onset after them
+  shifts, so each note counts as missing and extra at once. Of 1,373 notes in tuplets in the gold
+  it reads 1,040 as tuplets, seq516 1,272. Seven pages where it loses them (003, 056, 081, 087,
+  088, 096, 110) hold 41% of its gap to seq516; page 003 alone is 29.5 against 1.4. Without
+  those pages: 9.2 against 6.0.
+- OMR-NED's tuplet edits agree: tuplets edited 182 times, inserted 140 (seq516: 45, 42). Beam,
+  accidental and tie edits are near seq516's (beam 265 vs 255, accidental deleted 120 vs 116).
+
+**OLiMPiC dev: what it misses** (615 crops, read as the dev check reads them, SER 0.0982;
+token edits by Levenshtein alignment, `scratchpad dev_patterns.py`):
+- By kind of token, share of all edits (and per gold token of that kind): durations 18% (6.7%),
+  tuplet tokens 17% (43%), pitches 12% (5.3%), slurs 7% (27%), arpeggios 5% (33%), ties 4% (26%),
+  staff tokens 4% (8.5%), rests 3.6% (14%). Most are missed tokens, not substituted ones.
+  Notes and rhythm alone (pitches, durations, rests, chords, dots, accidentals, staff, measure,
+  backup/forward): SER 6.5%.
+- Ties and slurs are confused both ways (tied->slur 173, slur->tied 150), and one tuplet ratio
+  is written as another that means the same thing (3in2 -> 6in4, 209). Durations go wrong one
+  value at a time (quarter->half 142, quarter->eighth 66).
+- Pitch substitutions: an octave 133, more than an octave 98, a step 90, two steps 85.
+- *Notes far from the staff* (`scratchpad edge_checks.py`; a note's staff carried from the last
+  `staff:N`, as LMX writes it only on a change). Pitch tokens on the staff are wrong 3.4% of the
+  time. Between the staves it stays about 3% at any distance (engravers move such notes to the
+  nearer staff, so none is more than three ledger lines out). Outside the system (above the
+  treble, below the bass) it climbs: 4% one step out, 6-10% at three to six, 15% and more past
+  eight, with no step where the crop ends (eleven steps). Much of the climb is ottavas:
+  OLiMPiC's labels are at sounding pitch, and in the 24 crops with an octave shift, notes three
+  or more ledger lines outside are wrong 63% of the time (12% elsewhere). By eye (5989993
+  p2-s3): the *8va bassa* below the bass staff is cut off by its staff crop's lower edge, only
+  the top of the 8 left, and the lowest notehead clipped; the system crop shows both. Without
+  the octave-shift crops the climb is milder (4% near, 6-10% at three to seven steps).
+- *Error along the crop is mostly a mix of crops.* By tenth of the crop, header tokens left
+  out: long crops (350+ tokens) 7% in the first tenth, then 10-12%; medium 5.2% rising to 8.2%;
+  short flat at 5-7%. At the same number of tokens decoded (100-150), long crops are at 12%,
+  medium 6.6%, short 5.4%: long crops are denser music, not later in a drifting decode. The
+  earlier 5.7%-to-12.5% rise mixed the easy header into the first tenth and long crops into the
+  rest. Staff drift across the finder's strips does not predict late errors (rank correlation
+  -0.01; 0-0.25 interlines of drift: 7.5% in the last 30%, over 1 interline: 7.6%).
+- Bass staff slightly worse than treble (10.7% vs 9.2% edits per gold token; this split takes a
+  token's staff from the next `staff:N`, so it is approximate). Measures are dropped in 17 crops and added in 3, of 615.
+- Error is concentrated by song: three of 46 songs hold 35% of all edits; without them SER is
+  7.7%. By eye: 6801790, sextuplets of 32nds numbered once, read without the tuplet (895 tuplet
+  tokens missed); 6581327, two-note half-note tremolos read as beamed 32nds; 6011095, ten-note
+  arpeggiated chords several ledger lines below the bass staff, notes dropped from them.
+- Things it rarely gets: hidden objects (`print-object:no`, 94% wrong: nothing to see), strong
+  accents (65%), measured tremolos (62%), `forward` (71%, invisible rests).
+
+Next, when the Seq2Seq arm finishes: the same analysis of it, so that what belongs to staff
+crops and what to this mix and length can be told apart (seq516 had 150,000 steps; the
+tuplet loss may simply be training length). If unprinted tuplets stay the staff model's own
+weakness, one hypothesis is that a staff crop leaves out the number printed on the other staff
+or far above it; that is a guess until the arms are compared.
+
+## Ties and slurs: the labels, the system's edges, and what the staff model misses (2026-11-13)
+
+**Why.** Tie against slur looks like a simple rule (adjacent notes of the same pitches: tie;
+otherwise slur), yet ties and slurs were 11% of the staff arm's OLiMPiC dev edits. Three
+questions: do the labels follow the rule, how many arcs are open at a system's edge (a half arc
+the crop shows only in part), and what the model gets wrong.
+
+**How.** `scratchpad arcs.py`: each start paired with its stop in the same voice, then leftovers
+across voices (a tie into another voice, a slur from hand to hand; ties by pitch, slurs in
+order); what is still unpaired is open at an edge. A slur is *tie-like* if its two events are
+adjacent in the voice and have the same pitches; a tie is *odd* if its events are not adjacent.
+
+**The labels follow the rule.**
+
+| Set | Crops | Tie-like slurs (of slurs) | Odd ties (of ties) | Arcs open at an edge |
+|---|---|---|---|---|
+| PDMX (Verovio) | 56,727 | 3.9% | 0.5% | 10.2% |
+| MuseScore | 52,243 | 3.9% | 0.4% | 0.0% |
+| Smashcima | 14,189 | 3.9% | 0.4% | 10.8% |
+| OLiMPiC synthetic, train | 14,907 | 2.1% | 0.9% | 10.9% |
+| GrandStaff | 32,156 | (no slurs) | 0.1% | 0.0% |
+| MusiCorpus | 53 | 0.7% | 4.8% | 10.2% |
+| OLiMPiC dev (written labels) | 1,422 | 2.9% | 3.6% | 9.6% |
+
+Relabelling slurs as ties would change little; label noise is not why the model errs.
+
+**Open arcs, set by set.**
+- *PDMX (Verovio):* labels keep them, and the images draw the half arcs (the builder draws
+  them from the neighbouring measures, `with_neighbours`). Checked by eye on two crops
+  (000086/s2, 000087/s2).
+- *MuseScore:* the builder leaves out systems with an open arc (`open_at_an_edge`), since
+  MuseScore engraving one system alone draws none.
+- *GrandStaff: open ties are drawn but not labelled.* Its labels keep only ties that close in
+  the crop: on 3,000 crops, 3,642 tie starts in the kern sources against 3,252 in the labels
+  (and stops equal to starts), so about 11% of its ties are missing. Its images draw their half
+  arcs: by eye, beethoven sonata12-1 maj3_down_m-212-216 has ties running off the right edge in
+  both hands and no tie token. 32,156 training crops teach that a half arc at the edge means
+  nothing, against PDMX's, which label them. GrandStaff has no slurs in kern, labels or images
+  (consistent; it teaches nothing about slurs).
+- *Smashcima:* labels keep them (10.8%); not checked by eye whether the fork draws them.
+- `TODO.md`'s note (2026-11-09) that neither engraver draws a half arc is out of date for
+  Verovio and MuseScore.
+
+**What the staff arm gets wrong** (OLiMPiC scanned dev, 615 crops, 50,000-step snapshot).
+Gold arc tokens read wrong (substituted or missed): ties 18.4% of 2,454, slurs 16.6% of 3,786,
+tie-like slurs 18.9% of 106; arcs open at an edge 30.4% of 369. Edge arcs are about 6% of arc
+tokens and about a tenth of arc errors. Mid-system, most errors are arcs not written at all:
+
+| Gold | Right | Not written | Read as the other | Other |
+|---|---|---|---|---|
+| Tie (2,454 tokens) | 81.6% | 9.9% | 6.7% | 1.8% |
+| Slur (3,892 tokens) | 83.3% | 11.4% | 3.7% | 1.6% |
+
+So the confusion between ties and slurs is the smaller part. Per arc (both ends in the
+system), the missing tokens are more often one end than both:
+
+| Gold | Read whole | Both ends missed | Start only missed | Stop only missed |
+|---|---|---|---|---|
+| Tie (1,280 arcs) | 85.9% | 5.5% | 5.2% | 3.4% |
+| Slur (1,893 arcs) | 80.5% | 3.4% | 6.2% | 9.9% |
+
+A slur is rarely overlooked altogether (3.4%); far more often one end is put on another note
+(a stop missed here, one written elsewhere: 381 extra slur tokens). Where a slur starts and ends
+is the slur problem, not whether it is there.
+
+What the wholly missed arcs are. The six crops with the most (one per song) show stacks of ties
+between chords (6816059 p2-s4, 6652787 p8-s3, the latter across a double barline and a change
+of meter), long slurs over several bars in the bass (6505088 p4-s4) and slurs weaving between
+two voices of sixteenths (6982743 p2-s1). But per arc, chords and barlines are not where it
+fails: ties in a chord are wholly missed 4.7% of the time, on a single note 8.1%; ties across a
+barline 2.9%, within a bar 6.9%; slurs over three bars or more 11.8% (of 17), otherwise 3-4%.
+Crops with many chords simply have many arcs to miss. No single kind of arc explains it.
+
+**Fixes made (2026-11-13).**
+- *GrandStaff's open ties.* They are lost in OLiMPiC's build itself: music21 reads the kern's
+  `[` and writes `<tie type="start">`, and MuseScore 3.6.2's normalisation drops a tie with no
+  note to end on. Rather than put tokens back into the LMX by matching kern notes to it,
+  `build_grandstaff_written.py` now leaves such systems out, as `build_musescore_crops.py`
+  leaves out its own (`open_at_an_edge`). `seq.kern` counts `ties_at_edges` (ties paired by
+  pitch within a staff, `_` both ending one and starting the next; five tests in
+  `test_rebuild_grandstaff_lmx.py`). Of GrandStaff-LMX's 41,598 training systems, 3,477 have
+  one; after the other filters 3,213 are left out and 29,500 kept (was 32,156). On 3,000 kept
+  crops, tie starts in kern and labels now agree (2,818 against 2,811, from 3,642 against
+  3,252). Built into `data/seq516g_data/grandstaff_written_v2`, positions in
+  `staff_positions_v2/grandstaff_written_v2.json`; for the next runs, not the race's.
+- *Smashcima's open arcs,* by eye on six crops (three ties into the next system, three slurs
+  from the last): each draws an arc to or from the edge (000777/s0's reads more like a whole
+  slur from the first note). Labels and images agree.
+
+
+## The race, Seq2Seq arm, and the two arms' errors side by side (2026-11-14)
+
+`runs/race_system`: Seq2Seq at height 512 on the samples with staff positions
+(`--staff-samples-only`), the staff arm's data, seed and schedule, 50,000 steps, local GPU (about
+5.5 h). Checkpoints verified (`verify_ckpt.py`: both arms' averaged, best and resumable last).
+
+| Step | 5k | 10k | 15k | 20k | 25k | 30k | 35k | 40k | 45k | 50k |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Staff arm, OLiMPiC dev SER | 3.914 | 1.203 | 0.261 | 0.185 | 0.145 | 0.127 | 0.117 | 0.100 | 0.100 | **0.098** |
+| Seq2Seq arm | | | 0.314 | 0.188 | 0.143 | | | 0.111 | 0.111 | 0.110 |
+
+**Polish dev**, 49 two-staff pages, OMR-NED: print gold 12.28 (whole-page 10.90) against the staff
+arm's 11.58 (10.82); corrected 17.08 against 15.47; published 44.51 against 43.71; seq516 6.97
+(print). Page by page the staff arm is better on 17 pages, worse on 20 (by more than 1). On Polish
+the two designs are level; on OLiMPiC dev the staff arm leads by about 10%.
+
+**Note fates on Polish** (`eval/note_errors.py`, print gold):
+
+| | Right | Missing | Extra | Other pitch | Duration | Onset | Octave |
+|---|---|---|---|---|---|---|---|
+| Staff arm | 13,695 | 902 | 780 | 472 | 246 | 244 | 116 |
+| Seq2Seq arm | 13,763 | 837 | 779 | 515 | 251 | 196 | 113 |
+| seq516 (150,000 steps) | 14,667 | 430 | 349 | 236 | 128 | 134 | 80 |
+
+**The same errors, mostly.**
+- *Unprinted tuplets are not the staff design's.* Of Polish dev's 1,373 notes in tuplets the
+  staff arm reads 1,040 as tuplets, Seq2Seq 1,080, seq516 1,272. On OLiMPiC dev tuplet tokens are
+  wrong 43% of the time for the staff arm, 41% for Seq2Seq. Both arms lose them alike at 50,000
+  steps: training length or data, not reading staff by staff.
+- *Notes beyond the system: the crop is a part, not the cause.* Seq2Seq's crop reaches 7
+  interlines beyond the staves (the staff crop 5.5), yet far-outside notes (three ledger lines or
+  more) are wrong 30% of the time against 33%. Under ottava signs 51% against 63%: seeing the sign
+  helps, but half are still wrong. Elsewhere far notes are worse for Seq2Seq (16% against 12%).
+  E1 should help ottava passages somewhat; it will not fix them.
+- *Ties and slurs alike:* tie tokens wrong 18.9% against 18.4%, slurs 15.4% against 16.6%, arcs at
+  an edge 27.1% against 30.4%; the same tie/slur swaps.
+- *The same worst songs:* 6581327 (measured tremolos; Seq2Seq worse, 48.7% against 28.5%),
+  6011095 (big arpeggiated chords, 17.0% against 16.7%), 6801790 (sextuplets numbered once, 20.5%
+  against 20.8%), 6499366 (49.8% against 40.2%).
+- *Polish OMR-NED edits* (`allops6`, print gold): inserted and deleted notes 10,841 against the
+  staff arm's 10,354 cost units; beams 282 against 265; tuplets inserted 142 against 140.
+
+**Where they differ.**
+- *Pitch by a step:* Seq2Seq reads a pitch a step off 286 times on OLiMPiC dev, the staff arm 90;
+  pitch tokens on the staff wrong 5.0% against 3.4%. A staff crop gives each staff its own 256 px:
+  the same pixels per interline as a system at 512, but the CNN and attention see one staff at a
+  time. On Polish the gap is smaller (other pitch 515 against 472).
+- *The bass staff:* Seq2Seq 12.8% of gold tokens against 9.6% on the treble; the staff arm 10.7%
+  against 9.2%.
+- *Hidden objects:* Seq2Seq writes 326 `print-object:no` (hidden rests) where the label has none;
+  the staff arm 23.
+- *Late in long crops:* Seq2Seq's error in the last tenth of a crop is 18.3% (the staff arm's 12.5%);
+  by tokens decoded in long crops, 16.4% against 14.1% after 350 tokens.
+- *Tuplet ratios:* the staff arm writes `6in4` for `3in2` 209 times, Seq2Seq 59 (the same rhythm;
+  Polish's tuplet edits 182 against 71). Seq2Seq has more `2in1` read as 32nds (67 against 31,
+  measured tremolos).
+
+**What it means.** At 50,000 steps on this mix, reading staff by staff is about as good as reading
+the system: a little better on OLiMPiC (pitches, the bass staff, long crops), level on Polish. The
+large gap to seq516, about twice its errors of every kind for both arms, belongs to training
+length (T7 tests it) or data, not to the design. Unprinted tuplets are the clearest case.
+
+## Why the staff arm leads on OLiMPiC: two hypotheses tested (2026-11-14)
+
+The staff arm's lead over Seq2Seq at 50,000 steps is on OLiMPiC dev (SER 0.098 against 0.110),
+not on Polish dev (11.58 against 12.28 print, 17 pages better, 20 worse). It comes from pitches a
+step off (90 against 286), the bass staff (10.7% against 12.8% of gold tokens), hidden rests
+written where none are (23 against 326) and the end of long crops (12.5% against 18.3% in the
+last tenth).
+
+**Hypothesis 1: a fixed frame for pitch.** A staff crop is centred on its staff, so each feature
+row always stands at the same height relative to the staff's lines, and the row embedding can
+carry the line position; in a system crop the staves sit at heights that vary with margins and
+the gap between them (3 to 11 interlines), so Seq2Seq must find the lines first. The bass staff,
+whose height depends on the gap above it, varies most. *Test* (`runs/overnight_2026-11-14/
+frame_test.py`): on the 615 OLiMPiC dev crops, each staff's centre as a share of the crop's
+height (line finder positions), in fifths per staff, against the share of that staff's pitch
+tokens read a step off.
+
+| Bass staff, by its height in the crop (fifths) | 1st (highest) | 2nd | 3rd | 4th | 5th |
+|---|---|---|---|---|---|
+| Seq2Seq: a step off | 2.4% | 1.4% | 0.8% | 0.7% | 1.0% |
+| Seq2Seq: wrong at all | 9.9% | 8.3% | 6.2% | 5.6% | 5.7% |
+| Staff arm: a step off | 0.3% | 0.4% | 0.1% | 0.1% | 0.4% |
+| Staff arm: wrong at all | 8.3% | 5.6% | 3.9% | 4.7% | 4.9% |
+
+Seq2Seq's step errors on the bass staff move with its height, the staff arm's do not: as the
+hypothesis predicts. *Weak*: OLiMPiC's crops are cut alike, so the fifths span little (centres at
+0.32 and 0.67 of the height, the outer fifths holding the few that differ), and crops whose staves
+sit unusually may differ in other ways (denser music); both arms' "wrong at all" also rise in the
+first fifth. The treble staff shows little (Seq2Seq 0.5%, 0.1%, 0.4%, 0.4%, 1.0%).
+
+**Hypothesis 2: on Polish the staff arm is held back by the segmenter's staff positions** (a crop
+centred a line off loses the frame; Seq2Seq does not care). *Test* (`positions_test.py`): the 239
+system crops the staff arm read on the 49 two-staff pages, rebuilt from the layouts tonight's
+scoring saved, the segmenter's staff centres against the line finder's on the same crops.
+**Refuted**: the largest disagreement on any page is 0.34 interlines (median page 0.14); no crop
+is off by half an interline; the finder finds every system. Two independent methods agree, so the
+positions are right, and the lead's absence on Polish needs another cause. A guess, untested: the
+staff arm's advantage is partly one on familiar layouts (OLiMPiC dev is the same source as
+OLiMPiC's synthetic training crops, at weight 2 in the mix); Polish's older prints are not.
+
+**Ways to give a system model the staff model's properties without cutting staves** (ideas, not
+run; all keep the whole system crop, so nothing beyond the staves is lost):
+1. *Relative vertical positions:* in Seq2Seq's encoder, replace the absolute row embedding with a
+   learned attention bias by vertical distance, so heights are read relative to the lines
+   wherever the staff sits. Needs nothing at inference; the cheapest and most direct test of
+   hypothesis 1.
+2. *Staff-relative position embedding:* each feature row embeds its height relative to the
+   nearest staff's centre, in interlines, and which staff (needs staff positions).
+3. *Straightened crops:* stretch the system crop vertically so each staff's centre lands on a
+   fixed row at a fixed interline (piecewise linear; varying along the width would also take out
+   a slight warp). Preprocessing only; needs staff positions.
+4. *Staff lines as an auxiliary task:* a training-only head predicts the staff lines' positions
+   from the encoder's features (labels free from the drawn positions), pushing the encoder to
+   localise lines.
+5. *Staff lines as input:* a second input channel with the line finder's staff-line ink.
+6. *The staff model's attention pattern:* factorise Seq2Seq's encoder attention into within a
+   band of rows about a staff tall, then across bands at each column.
+Order proposed: 1, then 3 if 1 does not help; the night's T2, T3 and T5 bear on 6.
+
+## The outer-notes set: the staff model writes no ottava at all (2026-11-14)
+
+Phase A's A1 and A2: both race arms (50,000 steps) on `eval/outer_notes.py` (OLiMPiC dev's 1,422
+systems, synthetic and scanned, labels with pitches as printed and ottava tokens) and
+`eval/tuplet_bars.py`. The baselines for T1 and the tuplet runs.
+
+| | Staff arm | Seq2Seq arm |
+|---|---|---|
+| SER, all 2,844 crops | 0.089 | 0.097 |
+| Notes under a sign, wrong (948) | **100.0%** | 40.2% |
+| Notes far outside the system, wrong (3,606) | 10.6% | 13.0% |
+| All other notes, wrong (158,426) | 3.0% | 3.6% |
+| Ottava tokens written where no sign is | 0 | 298 |
+| Ottava tokens written at all | **0** | 1,115 (labels: 948) |
+| Bars with tuplets, numbers shown, right rhythm (1,180) | 35.2% | 28.2% |
+| Bars with a hidden number, right rhythm (340) | 59.7% | 52.4% |
+| Bars without tuplets, right rhythm (9,308) | 74.9% | 75.0% |
+| Tuplet-ratio tokens read (23,420) | 52.6% | 47.6% |
+
+**The staff arm writes no ottava token in any of the 2,844 crops.** Not a pipeline fault: the
+vocabulary has them, training labels have them (1,264 of the first 3,000 `marks` crops), and
+Seq2Seq, trained on the same samples, writes them. Fed the labels (teacher forcing), on 12 `marks`
+training crops with 195 `ottava:8va` tokens the staff arm gives the token a median probability of
+0.90 where it belongs and ranks it first 91% of the time (Seq2Seq 0.90, 95%): it reads signs it can
+see. By eye on OLiMPiC dev (6412767 p8-s4): MuseScore sets the `8` above the highest notes, at the
+system crop's top edge; the top staff's crop cuts it off (a speck left), while `marks` draws its
+signs near the staff, inside the crop. On OLiMPiC's engraving the staff arm never sees the sign,
+and has learned to write no token it cannot see (likely, not checked: OLiMPiC's synthetic
+training crops, at weight 2, label ottavas whose signs their staff crops cut off, the same
+engraving). So the staff arm reads ottava passages an
+octave off on every OLiMPiC-style page; Seq2Seq, whose crop reaches 7 interlines beyond the
+staves, reads 60% of their notes right. T1 (the outer staves' crops slid out by an interline)
+is judged first on this row.
+
+**Tuplets.** Bars with a hidden tuplet number are read right more often than bars with every
+number shown, by both arms: the hidden-number bars are mostly simple triplet runs, the shown ones
+include sextuplets, mixed tuplets and the like. Both read about three bars in four without
+tuplets right; with tuplets, the staff arm is ahead (35.2% against 28.2% shown, 59.7% against
+52.4% hidden).
+
+## The attention across staves switched off at inference (A3, 2026-11-14)
+
+The staff arm's 50,000-step snapshot read with each block's `across_staves` layer skipped (the
+grid passes through unchanged; `runs/overnight_2026-11-14/without_across.py`), against itself
+intact. Step 4 again, on a model that reads (on the overfit model it was inconclusive).
+
+| | Intact | Without attention across staves |
+|---|---|---|
+| OLiMPiC scanned dev SER (615) | 0.098 | 0.560 |
+| Edits per gold token, upper / lower staff | 9.2% / 10.7% | 41.8% / 75.2% |
+| Crops read exactly | 90 | 5 |
+| Crops with the measure count right | 595 | 332 (216 with more) |
+| Invisible-rest `forward` tokens written where none are | 44 | 8,061 |
+| Outer-notes set SER (2,844) | 0.089 | 0.527 |
+| Bars without tuplets, right rhythm | 74.9% | 25.6% |
+| Bars with tuplets (numbers shown / hidden), right rhythm | 35.2% / 59.7% | 2.2% / 3.5% |
+
+The trained model leans hard on the layer, the lower staff most (a guess, not tested: the
+label gives each bar's upper-staff tokens first, so where the reading of the lower staff is in
+the bar may come from the upper staff's columns). This says the
+layer is used, not that it is needed: a model trained without it may learn the same from the
+decoder's view of both grids. T5 (trained with `--across-columns 0`) answers that.
+
+## The overnight runs at 20,000 steps: too short to test what they were for (2026-11-14)
+
+Eleven 20,000-step runs on RTX 5090 pods (`EXPERIMENTS_STAFF_MODEL_PLAN.md`; the race's data with
+`grandstaff_written_v2`; warmup 4,800, cosine to 20,000; results in R2 and
+`runs/overnight_2026-11-14/r2/runs`). Dev SER is OLiMPiC scanned dev (615); the rest is the
+outer-notes set (2,844 crops) and its tuplet bars (`tuplet_bars.py`).
+
+| Run | Dev SER | Outer SER | Under a sign | Far outside | Other notes | Tuplet bars, shown / hidden | Bars without tuplets |
+|---|---|---|---|---|---|---|---|
+| T0 baseline, seed 0 | 0.271 | 0.241 | 100% | 29.0% | 10.7% | 0.0% / 0.6% | 44.9% |
+| T0b baseline, seed 1 | 0.287 | 0.262 | 100% | 32.1% | 12.4% | 0.0% / 0.0% | 40.5% |
+| T0c baseline, seed 2 | 0.250 | 0.222 | 100% | 28.0% | 10.3% | 0.0% / 0.6% | 44.9% |
+| T1 outer crops slid out | 0.278 | 0.251 | 100% | 28.1% | 11.1% | 0.0% / 0.9% | 45.0% |
+| T2 two blocks | 0.259 | 0.235 | 100% | 26.9% | 9.8% | 0.0% / 0.3% | 46.2% |
+| T3 groups of 5 columns | 0.272 | 0.244 | 100% | 28.5% | 10.6% | 0.0% / 0.0% | 44.9% |
+| T5 no attention across staves | 0.285 | 0.271 | 100% | 35.9% | 12.8% | 0.0% / 0.0% | 40.8% |
+| T6 `unmarked` at weight 3 | 0.282 | 0.260 | 100% | 32.9% | 12.5% | 0.2% / 0.3% | 40.9% |
+| T9 batch 20, lr 4.2e-4 | **0.123** | 0.124 | 100% | 11.6% | 4.5% | 17.6% / 45.9% | 69.1% |
+| T4 Seq2Seq baseline | 0.296 | 0.279 | 100% | 46.9% | 16.2% | 0.0% / 0.0% | 38.2% |
+| T10 Seq2Seq, relative rows | 0.276 | 0.252 | 100% | 36.8% | 13.3% | 0.2% / 0.3% | 43.2% |
+
+T7 (100,000 steps) stopped at step 75,800 when the account's balance ran out (below); dev SER
+0.074 at 75,000, against the race's 0.098 at 50,000. It is being finished from its last.pt
+(step 75,000) on the local GPU.
+
+**Conclusions.**
+1. *20,000 steps of this schedule is too short.* Every 20,000-step run is at dev SER 0.25-0.30,
+   worse than the 50,000-step run's own snapshot at step 20,000 (0.185): with warmup taking 4,800
+   steps and the rate decaying to nothing by 20,000, a short schedule learns less per step than the
+   first 20,000 of a long one (the plan expected 0.14-0.17; that was wrong). None reads tuplet bars
+   (0-1%), and none writes a single ottava token, Seq2Seq included. So T1 (ottavas), T6 (tuplets)
+   and T8's question cannot be read off these runs; the 50,000-step race models can (tuplet bars
+   35-60%, Seq2Seq reading 60% of notes under signs).
+2. *Seeds differ more than the variants do.* The three baselines span 0.250-0.287; T1, T2, T3, T5,
+   T6 and T10 all fall inside that span or at its edge. T5 (no attention across staves) and T4
+   (Seq2Seq) are at the worse end and T2 (two blocks) at the better, hints at most.
+3. *Training amount is the lever.* T9 (twice the samples a step) is at 0.123 against about 0.27
+   and is the only 20,000-step run reading tuplets; T7 at 75,000 steps is at 0.074. But T9 took
+   about twice as long a step (20 samples a step at about the same samples a second), so per hour
+   of GPU it is no faster: what counts is samples seen. Per sample it is about where the race was
+   at 40,000 steps (400,000 samples, dev SER 0.100 mid-schedule).
+4. *Experiments must run to about 50,000 steps* for tuplets and ottavas to be measurable, with two
+   baseline seeds, since the noise at that length is not yet known.
+
+**Operations.** Pods are now removed by their own scripts once their results are verified in R2
+(`runs/overnight_2026-11-14/pod_side.sh`); the first night they waited for the session, which ran
+on the PC; the PC restarted at about 06:05 UTC, eleven finished pods idled until the balance ran
+out at about 09:00, $40.14 spent against about $15 needed, and T7 stopped. Details and the other
+lessons (two bad Community hosts, a hung SSH launch, Vast.ai's prices) in `TODO_STAFF_MODEL.md`.
+
+## Where the decoder looks when it decides a tie, a slur or a tuplet (2026-11-14)
+
+The question: do ties, slurs and tuplets go wrong because the decoder does not look at what decides
+them (an arc's end note; the rest of the bar, the time signature)? `runs/overnight_2026-11-14/
+attention_probe.py`: both race arms (50,000 steps), the labels fed (teacher forcing), on 300 of
+OLiMPiC dev's written crops (150 synthetic, 150 scanned); the decoder's cross-attention averaged
+over heads and summed into image columns; a note's column is where the decoder looks when it
+writes that note's pitch. "Read right": the label's token is the decoder's first choice there.
+Only arcs whose ends are three or more columns apart.
+
+When writing `tied:start` / `slur:start`, attention within one column of the arc's end note:
+
+| | Arcs | Averaged over layers | Best layer | On the start note | Even spread | Writing the end note's own pitch |
+|---|---|---|---|---|---|---|
+| Staff arm, ties read right | 201 | 5.6% | 15.7% | 4.0% | 2.2% | 14.6% |
+| Staff arm, ties read wrong | 55 | 6.4% | 18.6% | 3.5% | 2.3% | 13.8% |
+| Staff arm, slurs read right | 963 | 7.7% | 28.7% | 3.6% | 2.2% | 13.1% |
+| Staff arm, slurs read wrong | 35 | 5.5% | 14.9% | 4.1% | 2.3% | 13.2% |
+| Seq2Seq, ties read right | 205 | 5.8% | 17.4% | 6.5% | 2.3% | 13.9% |
+| Seq2Seq, ties read wrong | 49 | 6.7% | 19.0% | 7.7% | 2.5% | 13.6% |
+| Seq2Seq, slurs read right | 902 | 6.9% | 21.8% | 7.5% | 2.3% | 12.6% |
+| Seq2Seq, slurs read wrong | 27 | 4.9% | 14.4% | 7.5% | 2.3% | 13.6% |
+
+- *Both models look ahead to the end note when deciding the arc:* about three times an even
+  spread on average, and one layer puts as much there as it does writing that note's own pitch
+  (15-29%). The model is not blind to the far end.
+- *Slurs read wrong are slurs it looked at less* (best layer 14.9% against 28.7% for the staff arm,
+  14.4% against 21.8% for Seq2Seq): a slur goes wrong when the decoder does not find its end.
+- *Ties read wrong are not:* their end gets as much attention as ties read right, or more. A tie's
+  error is a judgement made while looking (a tie taken for a slur, or none), not a failure to look.
+- Tuplets: writing a group's first ratio token, about 90% of the attention lies farther than two
+  columns from the note itself, for right and wrong alike (staff arm 94.0% / 88.5%, Seq2Seq 90.6% /
+  85.8%, 189 and 9, 191 and 7 groups): the decoder looks across the bar. None of the 198 groups was
+  in a crop whose label has a time signature, so whether it looks at one is not answered here.
+
+Caveats: attention is not causation, and teacher forcing is not free reading; 300 crops; wrong
+cases few (27-55 arcs, 7-9 tuplet groups).
+
+## Key signatures: read well on prints, misread on two handwritten pages (2026-11-14)
+
+The question: as with tuplets and the meter, does a weak reading of the key signature cost
+pitches? In LMX a pitch token gives line or space only (`F4`); its sharp or flat comes from the
+key token (`key:fifths:N`) and printed accidentals, so a misread key is one token in SER but a
+semitone on every note of the affected steps once the reading is a score, each charged by OMR-NED.
+
+**OLiMPiC dev** (outer-notes set, 2,844 crops, written labels): the first key signature is wrong in
+3 crops for the staff arm (0.1%), 7 for Seq2Seq (0.2%); key tokens differ anywhere in 22 and 27.
+Printed accidentals: 5.3% wrong (staff arm) and 5.6% (Seq2Seq) of 14,184, with 308 and 350
+written where none are.
+
+**Polish dev** (`runs/overnight_2026-11-14/polish_keys.py`, print gold, 49 two-staff pages; the key in
+force per staff and bar, bars paired in order; notes found at their place, by onset, letter and
+octave, whose sharp or flat differs):
+
+| | Staff-bars, key wrong | Pages | Semitone off, key right | Semitone off, key wrong |
+|---|---|---|---|---|
+| Staff arm (50,000) | 72 of 2,150 (3.3%) | 4 | 155 of 13,420 (1.2%) | 41 of 237 |
+| Seq2Seq arm (50,000) | 64 (3.0%) | 4 | 155 of 13,774 (1.1%) | 26 of 206 |
+| seq516 (150,000) | 26 (1.2%) | 2 | 79 of 14,712 (0.5%) | 27 of 160 |
+
+- *Key signatures are not a large cost.* About 3% of bars, nearly all on two pages: 051 (32 of 46
+  bars, staff arm) and 065 (30 of 82), both handwritten. By eye on 051: four flats, the
+  copyist's loosely spaced and crowding the first notes, read as two (system 2) and three
+  (system 3) on both staves; each system restates its key, so one misread signature takes its
+  system. 093 and 012 have 8 and 2 such bars.
+- *Accidentals cost more than keys:* about 155 notes a semitone off in bars whose key is right,
+  against 26-41 in bars whose key is wrong. seq516 has half as many (79), as with every other
+  error kind.
+- *Both are small beside the notes missed and added* (about 1,700 for the staff arm on Polish).
+- Handwriting is about 10% of training samples (Smashcima at weight 2, 53 MusiCorpus grand
+  staves at weight 30); whether more of it would fix keys like 051's is open.
+
+## T7: the staff model at 100,000 steps, and the ottava conclusion revised (2026-11-14)
+
+T7 (`runs/t7_100k_final`): StaffSeq2Seq, the race's mix with `grandstaff_written_v2`, a
+100,000-step schedule; 75,000 steps on a pod, the rest from its last.pt on the local RTX 5080.
+OLiMPiC scanned dev SER (averaged weights), against the race's staff arm (50,000-step schedule):
+
+| Step | 20k | 30k | 40k | 50k | 60k | 70k | 75k | 80k | 90k | 100k |
+|---|---|---|---|---|---|---|---|---|---|---|
+| T7 | 0.154 | 0.102 | 0.088 | 0.080 | 0.075 | 0.077 | 0.074 | 0.071 | 0.074 | **0.0715** |
+| Race staff arm | 0.185 | 0.127 | 0.100 | 0.098 (end) | | | | | | |
+
+Most of T7's gain came before 50,000 steps; 50,000 to 100,000 took it from 0.080 to 0.0715. That
+T7 at 50,000 steps (its rate still high) is ahead of the race at the end of its schedule points to
+the data (GrandStaff without open ties), the pod's hardware, or a longer schedule's higher rate; the
+50,000-step baselines on the same data will tell which.
+
+Outer-notes set and tuplet bars, against the race's staff arm at 50,000 steps:
+
+| | Race staff arm (50,000) | T7 (100,000) |
+|---|---|---|
+| SER, 2,844 crops | 0.089 | 0.065 |
+| Notes under a sign, wrong | 100.0% | **31.3%** |
+| Notes far outside the system, wrong | 10.6% | 6.4% |
+| All other notes, wrong | 3.0% | 2.2% |
+| Ottava tokens where no sign is | 0 | 527 |
+| Tuplet bars, numbers shown, right rhythm | 35.2% | **57.5%** |
+| Tuplet bars, a number hidden, right rhythm | 59.7% | **69.1%** |
+| Bars without tuplets, right rhythm | 74.9% | 82.4% |
+| Tuplet-ratio tokens read | 52.6% | 71.9% |
+
+**Polish dev** (OMR-NED, 49 two-staff pages; T7 through the segmenter as before):
+
+| | Print, authors' | Print, whole page | Corrected, authors' | Published, authors' |
+|---|---|---|---|---|
+| Staff arm, 50,000 (race) | 11.58 | 10.82 | 15.47 | 43.71 |
+| **T7, 100,000** | **7.16** | **6.72** | **11.48** | **41.36** |
+| seq516, 50,000 (of its 192,000 schedule) | 9.68 | | 13.63 | |
+| seq516, 100,000 (of its 192,000 schedule) | 6.97 | | 10.92 | |
+| seq516, 150,000 | 6.97 | | 10.84 | |
+
+Training length closes nearly all of the gap to seq516: T7 at 100,000 steps is within 0.2 of
+seq516 on print gold and 0.6 on corrected. seq516's own curve: 9.68 at 50,000 steps (mid-schedule),
+6.97 at 100,000 and still 6.97 at 150,000: on Polish both designs stop gaining at about 100,000.
+Three-staff pages stay at about 91 for every model (none trained on three staves).
+
+**The ottava conclusion revised.** "The staff arm writes no ottava token: on OLiMPiC's engraving it
+never sees the sign" (above) was too strong. At 100,000 steps the staff model writes them and reads
+69% of the notes under signs right, more than Seq2Seq at 50,000 (60%) with its taller crop; likely
+from what of the sign its crop keeps (the top of the 8, the dashed line running into the crop),
+learned late, and with more false signs (527). E1 (the crops slid outward) still tests how much a
+fuller view adds; it is not the only way to the sign. **Tuplets, too, come with training**: bars
+with a hidden number from 59.7% to 69.1%, all numbers shown from 35.2% to 57.5%.
+
+## Layout probe: Seq2Seq reads by where the staves sit and how large they are (2026-11-14)
+
+Does a model read relative to the staff lines, or by where things sit in its crop?
+`runs/overnight_2026-11-14/layout_probe.py`: OLiMPiC scanned dev's 615 crops read as they are and
+with white margin added, 25% of the crop's height above, below or both (staff positions moved to
+match, so the staff model cuts the same staves). A system crop scaled to a fixed height then shows
+its staves smaller (80% for one margin, 67% for both) and moved (down for a margin above). SER:
+
+| | As is | +25% above | +25% below | +25% both |
+|---|---|---|---|---|
+| Seq2Seq, race (absolute rows, 50,000) | 0.110 | 0.119 | 0.110 | **0.153** |
+| Staff arm, race (50,000) | 0.098 | 0.099 | 0.097 | 0.101 |
+| Staff baseline, seed 0 (50,000) | 0.092 | 0.087 | 0.087 | 0.087 |
+
+- *The staff models do not move,* as they should (their staff crops are the same); their spread,
+  about 0.005, is the noise of reading on a GPU (not bit for bit repeatable, and greedy decoding
+  carries a small difference on).
+- *Seq2Seq depends on where the staves sit:* a margin above and a margin below shrink the staves
+  alike, but only the one above (the staves pushed down from where they usually are) costs, 9%.
+- *And on how large they are:* both margins (staves at two thirds of their size, as in a
+  three-staff system at a fixed height) cost 39%.
+- T4 and T10 (50,000 steps, today's data) through the same probe:
+
+| | As is | +25% above | +25% below | +25% both |
+|---|---|---|---|---|
+| T4, Seq2Seq (absolute rows) | 0.109 | 0.118 (+9%) | 0.122 (+12%) | 0.160 (+47%) |
+| T10, Seq2Seq (relative rows) | 0.098 | 0.126 (+29%) | 0.115 (+18%) | 0.164 (+68%) |
+
+- *The weakness is the staves' size, not where they sit.* T4 loses about as much to a margin below
+  as above (the race's Seq2Seq less so); every variant shrinks the staves, and relative rows,
+  which take only where the staves sit out of the reading, do not help: T10 is more sensitive,
+  not less. A CNN's features depend on the size of what it sees; the staff models, which scale
+  each staff to a fixed interline, do not move.
+- So interline scaling (the system at a fixed interline, `--interline-scale`) is the fix this
+  probe points to, for robustness to layout as for systems of more staves; relative rows come with
+  it only because rows have no fixed meaning in crops of varying height.
+
+## The 50,000-step batch: Seq2Seq baseline (T4) and relative rows (T10) (2026-11-14)
+
+Both on the race's mix with `grandstaff_written_v2`, `--staff-samples-only`, height 512, 50,000
+steps, RTX 5090 (Secure). Against the staff baselines of the same batch (seeds 0 and 1).
+
+| | T4 Seq2Seq | T10 relative rows | Staff, seed 0 | Staff, seed 1 |
+|---|---|---|---|---|
+| OLiMPiC dev SER | 0.109 | **0.098** | 0.092 | 0.100 |
+| Outer-notes SER | 0.100 | 0.097 | 0.084 | 0.091 |
+| Pitch wrong, upper / lower staff | 3.25% / 4.73% | 2.98% / 4.09% | 2.41% / 3.58% | 2.75% / 4.19% |
+| Pitch a step off, upper / lower | 0.36% / 0.55% | 0.36% / 0.75% | 0.20% / 0.24% | 0.16% / 0.26% |
+| Notes under a sign, wrong | 45.3% | 40.4% | 100% | 52.1% |
+| Far outside the system, wrong | 10.4% | 11.6% | 12.8% | 11.3% |
+| Tuplet bars right, numbers shown / hidden | 25.2% / 57.4% | 25.3% / 56.2% | 38.6% / 55.6% | 34.6% / 56.2% |
+| Bars without tuplets, right | 73.8% | 75.1% | 74.9% | 74.4% |
+
+- *At matched data, schedule and hardware the staff model leads Seq2Seq on OLiMPiC:* dev SER by
+  about 15%, pitches a step off by about 2x, tuplet bars with numbers shown by 10-13 points.
+- *Relative rows close most of the overall gap* (dev SER 0.109 to 0.098, within the staff seeds'
+  range) and lower wrong pitches, *but not pitches a step off* (unchanged above, worse below):
+  the fixed-frame account of the staff model's pitch advantage (above) is not borne out; the
+  advantage lies elsewhere (a constant scale, staff-anchored rows, or attention within a staff),
+  untested. Not resolution as such: a 256 px staff crop has the pixels per interline of a typical
+  two-staff system at 512 (seq/staff_data.py), so the two models read at the same scale on average;
+  the staff model's scale is constant, Seq2Seq's moves with each system's margins and spacing.
+- Tuplet bars do not move with relative rows. Polish dev for both is in the local queue.
+
+## The 50,000-step batch on Polish dev (2026-11-14)
+
+All nine runs of the batch (`EXPERIMENTS_STAFF_MODEL_PLAN.md`, 50,000 steps, the race's mix with
+`grandstaff_written_v2`, RTX 5090 pods), read through the segmenter as before. OMR-NED, 49
+two-staff pages:
+
+| Run | Print, authors' | Print, whole page | Corrected | Published |
+|---|---|---|---|---|
+| Staff baseline, seed 0 | 11.03 | 9.79 | 14.98 | 42.99 |
+| Staff baseline, seed 1 | 11.71 | 10.33 | 15.39 | 43.90 |
+| E1, outer crops slid out | 10.99 | 10.38 | 15.33 | 43.25 |
+| T8, meter given | 10.75 | 10.06 | 15.03 | 43.63 |
+| T2, two encoder blocks | 10.68 | 10.11 | 14.48 | 43.44 |
+| T6, `unmarked` at weight 3 | 12.86 | 11.57 | 16.00 | 44.64 |
+| T5, no attention across staves | 12.45 | 11.42 | 16.24 | 44.07 |
+| T4, Seq2Seq | 12.63 | 11.45 | 16.95 | 44.92 |
+| T10, Seq2Seq with relative rows | 12.51 | 11.10 | 16.48 | 44.37 |
+
+Paired by page (print, authors'; the two staff seeds averaged per page; 95% range of 5,000
+resamples of pages):
+- *Staff model against Seq2Seq:* 1.26 lower than T4 (range -3.13 to +0.43; better on 20 pages,
+  worse on 16 by more than 1), 1.14 lower than T10 (-2.35 to -0.05). About 10%, as on OLiMPiC
+  (15%); against one Seq2Seq seed, at the edge of what pages can show.
+- *Against the staff baselines:* T2 -0.69 (-2.46 to +0.88), T8 -0.62 (-1.95 to +0.66), E1 -0.38
+  (-1.59 to +0.82): none clear. T5 +1.08 (+0.23 to +1.96): **the attention across staves helps on
+  Polish too**. T6 +1.49 (-0.32 to +3.80): **more crops with hidden tuplet numbers make Polish
+  worse**, though they help OLiMPiC's bars whose number is hidden (61.8% against about 56%);
+  perhaps they teach tuplets where none are; not looked into.
+
+**For the next runs.** Keep the attention across staves; leave the `unmarked` weight at 1 until
+T6's cost on Polish is understood; the meter (T8) points the right way on both benchmarks without
+being clear on either; E1 helps notes far outside the system (6.3% against 11-13% wrong) without
+moving Polish. Whether the staff model's lead over Seq2Seq is its constant scale is pure (c)'s
+question (Seq2Seq with `--interline-scale`, today's attention, running).
+
+## Did T2, T8 and E1 help? Errors by kind of token (2026-11-14)
+
+`runs/overnight_2026-11-14/category_errors.py` (output in `category_errors_50k.txt`) charges each
+edit of a run's outer-notes readings (OLiMPiC dev, 1,422 systems, synthetic and scanned) to the
+kind of token it concerns, per 100 label tokens of that kind. Each variant against the mean of
+the two staff baselines (seeds 0 and 1); 95% range from resampling systems. The last column is
+the baselines' own gap (seed 1 minus seed 0): **the resampling range shows how much the systems
+read vary, not how much training runs do, and the seeds differ by more than most effects below.**
+
+| Kind (label tokens) | Baselines, seed 0 / 1 | E1, outer crops | T8, meter | T2, two blocks | Seed gap |
+|---|---|---|---|---|---|
+| Pitch (162,980) | 3.66 / 4.32 | +0.01 | -0.07 | -0.31 | +0.66 |
+| Accidental (14,184) | 6.94 / 7.71 | +0.56 | -0.08 | -0.65 | +0.78 |
+| Duration (214,790) | 5.21 / 5.79 | -0.16 | -0.55 | -0.19 | +0.59 |
+| Tuplet ratio and marks (33,852) | 50.6 / 54.1 | **-5.11** | **-5.44** | -0.41 | +3.49 |
+| Tie (13,532) | 19.2 / 18.3 | +1.39 | +0.29 | +0.43 | -0.90 |
+| Slur (19,246) | 17.8 / 19.6 | +0.70 | -0.07 | -0.37 | +1.81 |
+| Beam (51,526) | 2.73 / 3.44 | +0.23 | -0.07 | -0.30 | +0.72 |
+| Voices, chords, backups (113,030) | 5.89 / 6.12 | -0.30 | **-0.77** | -0.30 | +0.23 |
+| Rest (17,864) | 12.1 / 12.6 | -0.55 | +0.85 | -0.17 | +0.55 |
+| Key, clef, time (10,558) | 1.43 / 1.69 | -0.07 | -0.05 | -0.28 | +0.26 |
+| Ottava (948) | 100 / 111 | **-17.3** | -5.5 | -1.5 | +11.0 |
+| Articulation (18,826) | 22.3 / 24.1 | +0.18 | +0.74 | -0.54 | +1.72 |
+
+Read against the seed gap, not the resampling range:
+- **T8 (meter given): helps rhythm.** Tuplet tokens -5.4 (seed gap 3.5), voices and chords -0.8
+  (gap 0.2), durations -0.6 (gap 0.6); tuplet bars with numbers shown 44.5% right against
+  34.6-38.6%. Everything it should touch moves its way, and nothing else moves. The one variant
+  of the three whose effect is clear on OLiMPiC.
+- **E1 (outer crops slid out): helps what sits outside the system, costs a little on ties.**
+  Notes far outside 6.3% wrong against 11-13%, ottava tokens -17 (gap 11); tuplet tokens -5.1;
+  ties +1.4 (gap 0.9), accidentals +0.6 (gap 0.8): the outer staves' crops lose some of the
+  space between the staves to gain what lies beyond them. A small, targeted gain.
+- **T2 (two encoder blocks): nothing beyond seed noise.** Slightly lower on most kinds (pitch
+  -0.3, accidentals -0.65, key -0.3), each within the seeds' gap; ties and slurs, the reason it
+  was run, do not move (+0.4, -0.4). Polish -0.69 is within page noise too. As at 20,000 steps.
+- **On Polish none of the three is resolved by one seed.** The two baselines differ by 4.4 OMR-NED
+  per page (standard deviation); each variant's page-by-page differences have the same spread, so
+  the means (-0.38 to -0.69) are below what 49 pages and one seed can show. The largest moves are
+  a few rhythm-heavy pages (003, 017, 030: 25-28 for both baselines, 6-17 for T8 and T2) with the
+  same notes and bars written and only their reading different.
+- Ottava, grace notes and rests swing between seeds by 10-25 points: no single-seed conclusion
+  on them.
+
+So: **keep T8's meter (clear on rhythm), keep E1's outward slide if notes outside the system
+matter (small, targeted), drop T2's second block (costs a second encoder for nothing measured).**
+A second seed of T8 would turn its effect from likely to established.
+
+## (c): Seq2Seq at a constant interline, attention unchanged (2026-11-14)
+
+The first step of walking Seq2Seq toward the staff model (EXPERIMENTS_STAFF_MODEL_PLAN.md, "Why is
+the staff model better?"): whole systems scaled so that every staff's interline is a staff crop's
+(256/15, about 17 px; `at_interline`, height up to 1,024), absolute row embeddings and attention as
+T4's. `--staff-samples-only ... --interline-scale`, 50,000 steps, seed 0, Community RTX PRO 6000
+(about 3 h 15 min). Run `runs/c_interline_pure_50k`.
+
+| run | dev SER (scanned, 615) | outer notes SER, both renderings | false ottava tokens | Polish dev, print, authors, two staves |
+|---|---|---|---|---|
+| staff, seed 0 | 0.0916 | 0.0839 | 0 | 11.03 |
+| staff, seed 1 | 0.0999 | 0.0909 | 249 | 11.71 |
+| T4 (Seq2Seq, 512 px) | 0.1087 | 0.0996 | 338 | 12.63 |
+| T10 (relative rows) | 0.0976 | 0.0966 | 360 | 12.51 |
+| **(c) constant interline** | **0.1139** | **0.1052** | **41** | **13.35** |
+
+Tuplet-ratio tokens read: 39.3% (staff seed 1: 50.6%). Layout probe (as is / +25% above / +25%
+below / +25% both): (c) 0.114 / 0.117 / 0.117 / 0.123, against T4's 0.109 / 0.118 / 0.122 / 0.160.
+
+- A constant scale alone does not close the gap: (c) is slightly worse than T4 on every measure
+  but false ottavas, by less than the two staff seeds differ. One seed.
+- It does what it should on the layout probe: added margin no longer shrinks the staves, so the
+  model's errors barely move (+0.010 with both margins, T4 +0.052). The size sensitivity Seq2Seq
+  showed is gone, and the gap to the staff model stays: size was not what the staff model wins by.
+- False ottava tokens fall from 338 to 41, nearer the staff models' (0 and 249); why is not yet
+  looked at.
+- The staff positions it scales by were checked: after scaling every source's interline is
+  17.05-17.07 px; a five-line fit to the ink agrees with the stored positions (median within 0.05
+  interline and 1% spacing on prints), and the crops the fit flagged (handwritten, blurred
+  GrandStaff, tilted scans) were looked at by eye: lines on their staves. A tilted scan's lines
+  drift a fraction of an interline toward one end, for both models alike.
+- So what the staff model has beyond scale: the fixed frame (f) and the attention within and across
+  staves (g), below.
+
+## (f) and (g): the staff model's fixed frame and its attention, on whole systems (2026-11-14)
+
+Both on (c)'s constant interline, 50,000 steps, seed 0, Secure GPUs (about 5 h each).
+- (f) `--staff-anchored`: absolute row embeddings replaced by the staff model's frame. Each row is
+  given its offset from the nearest staff's centre (in interlines, sine waves) plus that staff's
+  embedding. Run `runs/f_staff_anchored_50k`.
+- (g) `--staff-anchored --staff-bands`: also the staff model's two-stage attention. First each
+  staff's rows attend among themselves, then each column attends across staves.
+  Run `runs/g_staff_bands_50k`.
+
+| run | dev SER (scanned, 615) | outer notes SER, both | false ottava tokens | tuplet-ratio tokens read | Polish dev, print, authors, two staves |
+|---|---|---|---|---|---|
+| staff, seed 0 / 1 | 0.0916 / 0.0999 | 0.0839 / 0.0909 | 0 / 249 | - / 50.6% | 11.03 / 11.71 |
+| T4 (Seq2Seq, 512 px) | 0.1087 | 0.0996 | 338 | - | 12.63 |
+| T4b (T4, seed 1) | 0.1135 | 0.1046 | 198 | 43.9% | 12.68 |
+| (c) constant interline | 0.1139 | 0.1052 | 41 | 39.3% | 13.35 |
+| (f) + fixed frame | 0.1202 | 0.1101 | 295 | 30.1% | 15.94 |
+| (g) + frame + staff attention | 0.1051 | 0.1040 | 304 | 44.0% | 13.11 |
+
+- No step of the walk reaches the staff model, and none beats T4 on Polish.
+- The fixed frame alone hurts: (f) is worst everywhere, 3.3 behind T4 on Polish, more than the
+  two staff seeds differ.
+- The staff model's attention recovers what the frame lost and a little more. (g) is (f) plus
+  attention, and it is better by 0.015 dev SER, 14 points of tuplets and 2.8 on Polish. It is
+  level with T4 at best: ahead on scanned dev by 0.004, behind on Polish by 0.5, both within seed
+  noise.
+- So the frame is useful only with the attention that keeps each staff to itself. Even both
+  together, on a whole system, do not give what cutting the system into staves gives. The likeliest
+  remaining difference (not tested) is what (g) still shares with Seq2Seq: the gap between staves is seen once, in one image, and the
+  encoder's convolutions see across it. The staff model crops each staff separately (the gap twice,
+  and nothing of the next staff).
+- One seed each; T4's second seed (running) gives the noise on the Seq2Seq side.
+
+## (h) and (i): what of cutting into staves matters? (2026-11-14)
+
+After (c), (f) and (g) the difference left is the crop itself. Pixels per staff are not it: at
+staff scale every source's interline is 17.07 px for both models, no system is shrunk (2 of about
+2,100 past 1,024 px) and widths are squeezed alike (0-7%). A staff crop is 15 interlines tall and
+staves sit 9-11 apart, so neighbouring crops share 4-6 interlines of ink, each placed by its own
+staff, and the convolutions see each staff alone. Two runs pull those apart, 50,000 steps, seed 0,
+Community RTX 5090s:
+- (h) `--staff-samples-only P --interline-scale --staff-anchored --staff-windows`: (g) with the
+  nearest-staff bands replaced by overlapping windows, each the 8 feature rows a staff crop would
+  hold, each row embedded by its offset from the window's own staff. StaffSeq2Seq's encoder on the
+  whole system's features: the convolutions see across staves. If it reaches the staff model, a
+  whole-system model can have its accuracy.
+- (i) `--staves P --staff-cut-between`: the staff model with each crop white past the midpoints to
+  its neighbours (no shared ink). If it holds, the overlap does not matter; if it falls to (g),
+  the overlap is what (h) restores.
+
+Results (staff seeds 11.03 / 11.71 and T4 12.63 on Polish, above):
+
+| run | dev SER (scanned, 615) | outer notes SER, both | false ottava tokens | tuplet-ratio tokens read | Polish dev, print, authors, two staves |
+|---|---|---|---|---|---|
+| (g) + frame + staff attention | 0.1051 | 0.1040 | 304 | 44.0% | 13.11 |
+| (h) + windows | 0.1055 | 0.0975 | 80 | 43.2% | 14.51 |
+| (i) staff model, crops cut at midpoints | 0.1059 | 0.0965 | 280 | 48.9% | 12.58 |
+
+Runs `runs/h_staff_windows_50k` and `runs/i_staff_cut_between_50k`.
+
+- (h) is level with (g) on scanned dev and tuplets. It is better on outer notes by 0.007, now
+  ahead of T4 (0.0996) though still behind both staff seeds (0.0839 / 0.0909), and it has a quarter
+  of (g)'s false ottavas.
+- (i) falls below both staff seeds on dev (by 0.014 / 0.006) and outer notes (0.013 / 0.006), to
+  where (h) is. The tuplets hold (48.9% against seed 1's 50.6%). Seed 1 is within noise of it, so
+  this is a lean, not a result: the neighbours' ink helps the staff model a little.
+- Polish agrees about (i): 12.58, behind both staff seeds by 0.9 / 1.6 and level with T4. Without
+  the neighbours' ink the staff model is no better than Seq2Seq.
+- Polish disagrees about (h): 14.51, behind (g) by 1.4 and T4 by 1.9, despite its better outer
+  notes and ottavas. The windows give the system model the staff model's overlap, but not its
+  accuracy; what still separates them (untested) is the convolutions seeing each staff alone.
+- Layout probe (OLiMPiC scanned dev SER, as is / +25% above / below / both): (h) 0.105 / 0.103 /
+  0.107 / 0.103, (i) 0.106 / 0.102 / 0.106 / 0.102, against T4's 0.109 / 0.118 / 0.122 / 0.160.
+  Anchored to the staves, (h) is as indifferent to the margins as the staff model, so its Polish
+  loss is not the crop's size.
+- Open: training time. T7 (staff, 100,000 steps) reached 7.16 on Polish and seq516 (Seq2Seq, other
+  mix and schedule) 6.97 at 100,000: the 1-1.6 lead at 50,000 may be the staff model learning the
+  layout sooner, not reading better. A Seq2Seq run matched to T7 (data, 100,000-step schedule),
+  scored on Polish at 60k, 80k and 100k, tells.
+
+## (j): the staff model with its frame loosened (2026-11-15)
+
+Hypothesis 2 from the staff side: `--staves P --staff-jitter 1.5`, each training crop centred up
+to 1.5 interlines off its staff, so the staff no longer sits at the same rows of every crop
+(inference unjittered). 50,000 steps, seed 0, local RTX 5080. Run `runs/j_staff_jitter_50k`.
+
+| run | dev SER (scanned, 615) | outer notes SER, both | false ottava tokens | tuplet-ratio tokens read | Polish dev, print, authors, two staves |
+|---|---|---|---|---|---|
+| staff, seed 0 / 1 | 0.0916 / 0.0999 | 0.0839 / 0.0909 | 0 / 249 | - / 50.6% | 11.03 / 11.71 |
+| T4 / T4b (Seq2Seq, seeds 0 / 1) | 0.1087 / 0.1135 | 0.0996 / 0.1046 | 338 / 198 | - / 43.9% | 12.63 / 12.68 |
+| (j) staff, jittered 1.5 | 0.1096 | 0.0982 | 0 | 41.0% | 12.85 |
+
+- Loosening the frame costs the staff model its whole dev lead: 0.018 / 0.010 behind the two
+  staff seeds, level with T4, and its tuplets fall to Seq2Seq's (41.0% against 50.6%).
+- It keeps the staff model's ottava habit (0 false ottava tokens), so that comes from the crops,
+  not the frame.
+- Polish agrees: 12.85, behind both staff seeds by 1.8 / 1.1 and level with T4 / T4b (12.63 /
+  12.68).
+- With (f), where the frame alone hurt Seq2Seq, this says the frame is necessary to the staff
+  model but not sufficient for a whole-system one. Seq2Seq's two seeds differ by 0.05 on Polish,
+  the staff model's by 0.7.
+
+## How each model divides a system between its staves (2026-11-15)
+
+`runs/overnight_2026-11-14/staff_attention.py`, on the 615 OLiMPiC scanned dev crops, labels fed
+(teacher forcing), 50,000-step snapshots. (1) The decoder's cross-attention when it writes a pitch,
+summed over memory rows by where each row sits: within 2.5 interlines of the pitch's own staff,
+the rest of that staff's side of the midpoint, or the other staff's side; against an even spread.
+(2) The same crops with the other staff's side whited out: how much the memory on the own staff's
+rows changes (relative L2; the staff model's own crop only), and the share of the own staff's
+pitches that are the decoder's first choice, intact and blanked. 20,251 treble and 14,662 bass
+pitches.
+
+| model | attention on own staff / its side / other side (even 13-16 / 33-37 / 49-52) | memory change, treble / bass | treble pitches right, intact -> blanked | bass pitches right |
+|---|---|---|---|---|
+| staff, seed 0 | 14 / 47 / 38; 14 / 44 / 42 | 21% / 25% | 97.6 -> 96.0 | 96.5 -> 93.4 |
+| staff, seed 1 | 15 / 44 / 41; 16 / 48 / 37 | 21% / 24% | 97.6 -> 95.6 | 96.5 -> 92.8 |
+| T4 (Seq2Seq, 512 px) | 19 / 44 / 37; 19 / 40 / 42 | 19% / 32% | 97.2 -> 93.7 | 96.2 -> 85.6 |
+| (c) constant interline | 18 / 34 / 48; 18 / 46 / 36 | 20% / 29% | 97.0 -> 92.5 | 95.4 -> 89.8 |
+| (g) + frame + staff attention | 16 / 32 / 52; 17 / 50 / 33 | 15% / 24% | 97.2 -> 95.6 | 94.9 -> 91.5 |
+
+- The decoder's attention says little: every model puts only a little more than an even spread on
+  the pitch's own staff and its side. Its memory rows have each seen the whole system (or, for the
+  staff model, the other staff through the attention across staves), so where a row sits is not
+  what it holds.
+- Blanking says more. Seq2Seq reads a staff's pitches with more help from the other staff than the
+  staff model does: without the treble, T4 loses 10.6 points of bass pitches and (c) 5.6, the staff
+  model 3.1 and 3.7. T4's loss also has the layout in it (half its crop now blank, and it reads by
+  where things sit); (c)'s does not.
+- (g) is as independent as the staff model (1.6 and 3.4), but 1.4-2 behind it on Polish. So the
+  staves' independence is not what gives the staff model its lead either.
+- Caveats: blanked crops are outside every model's training; teacher forcing; one seed each but
+  the staff model's two (the noise: under 0.6 points).
+
+## (k): one staff at a time (2026-11-15, planned)
+
+The staff model leads Seq2Seq by 0.9-1.6 on Polish dev (11.03 / 11.71 against T4's 12.63) and
+0.009-0.022 dev SER, and no step of (c)-(i) gave a whole system its accuracy. On one staff the two
+models nearly coincide: at staff scale both see 17.07 px per interline, and what differs is the
+staff model's fixed 15-interline frame against the crop's own height. If the lead vanishes on one
+staff, it is about reading several staves together; if it stays, it is the crop itself.
+
+**The data: every two-staff system taken apart** (`seq.one_staff`, `train/build_one_staff.py`,
+`scripts/build_onestaff_data.sh`), into `data/seq516g_onestaff`, laid out as `seq516g_data`.
+- Labels: each bar's runs of notes between backups are a voice on one staff. A staff's label keeps
+  the bar's key and meter, its own clef and runs, the backups between them recounted over the
+  runs left out, and no staff tokens (OLiMPiC's linearizer on a one-staff part; a test checks
+  this). LMX does not write a whole-bar rest's length: it is taken as the backup after it where
+  that equals the bar's longest written voice (1,922 of 1,961 sampled) or every voice rests.
+- Images: between the staves (half an interline clear of their lines) each piece of ink goes to
+  the staff it touches, both if it runs right through (barlines, brace), and a piece touching
+  neither (slur, dynamic, dot, tuplet number) to the side of the middle its centre lies on. Each
+  crop ends at its own last ink in the gap; the other staff's ink there is painted out (with a
+  0.1-interline halo, else blur and anti-aliasing leave outlines) in the paper's median tone.
+- Left out, the system whole: a voice on both staves (cross-staff beams and chords, voices
+  moving between hands), an ottava sign between the staves (8vb under the upper, 8va over the
+  lower: alone in the gap nothing says whose; PDMX's sit as near the other staff, by eye), a
+  clef change among the other staff's notes, notes and backups that do not add up, a whole-bar
+  rest backed up by other than the bar's length.
+
+| set | systems | split | voice on both | ottava between | other |
+|---|---|---|---|---|---|
+| OLiMPiC written | 14,907 | 12,493 | 2,404 | 2 | 8 |
+| GrandStaff v2 | 29,500 | 27,113 | 2,320 | 0 | 67 (66 clef changes) |
+| pdmx | 56,727 | 55,892 | 667 | 145 | 23 |
+| beams | 29,267 | 28,858 | 333 | 67 | 9 |
+| round | 29,266 | 28,857 | 333 | 67 | 9 |
+| marks | 29,068 | 24,742 | 317 | 3,997 | 12 |
+| musescore | 52,243 | 51,633 | 466 | 135 | 9 |
+| unmarked | 3,987 | 3,717 | 217 | 34 | 19 |
+| smashcima | 14,189 | 14,062 | 126 | 0 | 1 |
+| MusiCorpus | 53 | 47 | 6 | 0 | 0 |
+| **training, all** | **259,207** | **247,414 (95.5%)** | 7,189 | 4,447 | 157 |
+| OLiMPiC scanned dev, clean 615 | 615 | 514 | 101 | 0 | 0 |
+| outer-notes set (synthetic / scanned) | 1,422 | 1,225 | 197 | 0 | 0 |
+
+Each split system gives two crops: 494,828 training crops, 1,028 dev crops. `marks` loses 14%:
+its added 8va passages over the lower staff. OLiMPiC loses 16% and the dev 101 of 615 to voices
+crossing between the hands, so the one-staff dev is easier than the two-staff dev in exactly what
+it leaves out: one-staff numbers compare only with each other.
+
+Checked by eye (contact sheets of systems and their two crops; rare tokens in their crops): notes
+far below the upper staff and far above the lower kept whole with their stems and beams on their
+own staff, beamed groups reaching past the middle kept, barlines in both, ties and slurs with
+their notes, tuplet numbers below an upper staff kept with it, the 8vb sign that made us drop
+ottavas between the staves. Seen and left: words in the gap (dynamics, `dim. sempre`, `a tempo`)
+split letter by letter between the crops (noise either way); painted patches lighter than a
+GrandStaff copy's uneven grey paper; a cross-staff slur drawn as a half arc on each staff with an
+open slur in each label, as at a system's edge; on Smashcima's odd layouts a floating beamed pair
+in the gap can land in both crops. Also found, not ours: some PDMX crops label `ottava:8vb`
+where the source crop draws no sign (`samples/006690/s2`, lower staff, second bar).
+
+**The runs**, 50,000 steps, seed 0, the race's mix and schedule (`staff_experiment.sh`):
+
+```
+R=/home/erikg/projects/noteworthy; O=$R/data/seq516g_onestaff
+export NW_SEQ_DATA=$O NW_EXPERIMENT_STEPS=50000 NW_EXPERIMENT_DEV=$O/olimpic-1.0-scanned \
+  NW_EXPERIMENT_DEV_SAMPLES=$O/olimpic-1.0-scanned/samples.dev.txt NW_EXPERIMENT_OUTER_DEV=$O/olimpic_written_dev
+scripts/staff_experiment.sh k_staff_onestaff_50k --staves $O/staff_positions
+scripts/staff_experiment.sh k_system_onestaff_50k --staff-samples-only $O/staff_positions --interline-scale
+```
+
+Seq2Seq at constant interline, (c)'s arm, not T4's `--height 512`: on one staff 512 px would give
+twice the staff model's pixels per interline, a second difference besides the crop. On two staves
+T4 led (c) by 0.005 dev SER and 0.7 on Polish, less than the two staff seeds differ. Smoke tests
+(150 steps, batch 2, local GPU) train both arms and score the outer-notes set.
+
+A step is 10 staves, not 10 systems: 50,000 steps see half the music the two-staff runs saw, for
+both arms alike.
+
+**What each outcome would mean** (dev SER on the 1,028 one-staff crops, outer notes on 2,450):
+- Staff arm ahead by about the two-staff lead (0.01-0.02): the crop itself (the fixed frame, each
+  staff alone in the convolutions) is what wins, with nothing of several staves.
+- Level within seed noise (0.008 between staff seeds on two staves): the lead is about reading
+  several staves: what the whole-system model does with the other staff, or the staff model's
+  attention across staves.
+- Seq2Seq ahead: the fixed frame costs on one staff what it gains on two.
+- One seed each; a second seed for whichever way it falls before a conclusion.
+
+Polish is not scored: its pages are two-staff systems. It would take cutting each segmented system
+with `seq.one_staff.staff_images`, reading the staves apart and joining the two readings bar by
+bar into one LMX (the inverse of `staff_labels`), with cross-staff passages unreadable by
+construction and every bar-count mismatch between the two readings an error of the join, not
+of either model.
+
+## (l): Seq2Seq matched to T7, 100,000 and 150,000 steps (2026-11-15)
+
+Training time, the hypothesis left after (c) to (j): the staff model may learn the layout sooner
+rather than read better. Seq2Seq on T7's data and schedule (`--staff-samples-only P --height 512`,
+the race's mix with `grandstaff_written_v2`, T4's settings otherwise), seed 0, Community RTX 5090s:
+`runs/l_system_100k` (100,000-step schedule, against T7), `runs/l_system_150k` and the staff model
+`runs/l_staff_150k` (150,000-step schedules, both still training).
+
+OLiMPiC scanned dev SER (averaged weights):
+
+| Step | 20k | 30k | 40k | 50k | 60k | 70k | 75k | 80k | 90k | 100k |
+|---|---|---|---|---|---|---|---|---|---|---|
+| T7 (staff) | 0.154 | 0.102 | 0.088 | 0.080 | 0.075 | 0.077 | 0.074 | 0.071 | 0.074 | **0.0715** |
+| (l) Seq2Seq, 100k | 0.172 | 0.116 | 0.100 | 0.085 | 0.075 | 0.077 | 0.082 | 0.078 | 0.073 | **0.0717** |
+
+Outer-notes set (2,844 crops) and tuplet bars, both sets, at 100,000 steps:
+
+| | T7 (staff) | (l) Seq2Seq |
+|---|---|---|
+| SER | 0.065 | 0.065 |
+| Notes under a sign, wrong | 31.3% | **14.0%** |
+| Notes far outside the system, wrong | 6.4% | 6.0% |
+| All other notes, wrong | 2.2% | 2.2% |
+| Ottava tokens where no sign is | 527 | 362 |
+| Tuplet bars, numbers shown, right rhythm | 57.5% | 51.5% |
+| Tuplet bars, a number hidden, right rhythm | 69.1% | 68.5% |
+| Bars without tuplets, right rhythm | 82.4% | 82.5% |
+| Tuplet-ratio tokens read | 71.9% | 68.2% |
+
+- The staff model's dev lead is a head start: 0.018 at 20,000 steps, 0.005 at 50,000, none from
+  60,000 on, and the two end level (0.0715 / 0.0717).
+- At 100,000 Seq2Seq reads notes under an ottava sign twice as well (its crop holds the sign) with
+  fewer false signs; the staff model keeps a small lead on tuplets with their numbers shown.
+150,000-step schedules, OLiMPiC scanned dev SER:
+
+| Step | 20k | 50k | 60k | 80k | 100k | 120k | 130k | 140k | 150k |
+|---|---|---|---|---|---|---|---|---|---|
+| (l) staff, 150k | 0.161 | 0.086 | 0.075 | 0.068 | 0.065 | 0.063 | 0.060 | 0.062 | **0.0614** |
+| (l) Seq2Seq, 150k | 0.182 | 0.091 | 0.078 | 0.073 | 0.070 | 0.067 | 0.067 | 0.068 | **0.0660** |
+
+The staff model at 150,000, outer-notes set (both): SER 0.057, notes under a sign 25.6% wrong,
+far outside 4.8%, elsewhere 2.1%, 582 false ottava tokens; tuplet bars right 63.2% (numbers
+shown), 70.6% (a number hidden), 85.2% (none); tuplet-ratio tokens read 77.8%.
+
+Seq2Seq at 150,000, the same sets: SER 0.060, notes under a sign 13.6% wrong, far outside 5.6%,
+elsewhere 2.1%, 233 false ottava tokens; tuplet bars right 60.1% / 68.5% / 84.2%; tuplet-ratio
+tokens read 74.4%.
+
+- On the longer schedule the staff model's lead does not close: 0.005 at 60,000, 0.005 at 80,000,
+  0.004 at 100,000, 0.004 at 120,000, 0.007 at 130,000. Steady, but smaller than the staff
+  seeds' spread at 50,000 (0.008), and the 100,000-step pair ended level: one seed each, so a lean.
+
+Errors by kind of token at 150,000 (`category_errors.py`, outer-notes readings, per 100 label
+tokens of the kind; edits = rate x tokens), Seq2Seq's ranked by edits:
+
+| Kind (label tokens) | staff | Seq2Seq | Seq2Seq's edits |
+|---|---|---|---|
+| Tuplet ratio and marks (33,852) | 26.3 | **31.2** | 10,600 |
+| Duration (214,790) | 3.45 | 3.71 | 8,000 |
+| Voices, chords, backups (113,030) | 4.23 | 4.31 | 4,900 |
+| Pitch (162,980) | 2.77 | 2.81 | 4,600 |
+| Slur (19,246) | 16.3 | 15.8 | 3,000 |
+| Articulation (18,826) | 14.1 | 15.2 | 2,900 |
+| Tie (13,532) | 18.0 | 16.7 | 2,300 |
+| Rest (17,864) | 9.7 | 10.9 | 2,000 |
+| Ottava (948) | 106 | **52** | 500 |
+
+- Seq2Seq's weakness is rhythm: tuplets most of all (the one kind it trails by more than the
+  seeds' gap at 50,000, 3.5), then durations and rests. It is level on pitch, voices and beams and
+  ahead on ottavas, ties and slurs.
+
+Polish dev (print gold, authors' alignment, 49 two-staff pages):
+
+| Step | 50k | 60k | 80k | 100k |
+|---|---|---|---|---|
+| T7 (staff) | 8.76 | 8.02 | 7.75 | **7.16** |
+| (l) Seq2Seq, 100k | 9.79 | 9.13 | 8.22 | **7.44** |
+
+150,000-step schedules:
+
+| Step | 100k | 120k | 150k |
+|---|---|---|---|
+| (l) staff, 150k | 7.39 | 7.17 | 7.35 |
+| (l) Seq2Seq, 150k | 6.82 | **6.73** | 7.29 |
+
+- The staff model flattens on Polish from 100,000 (7.39 / 7.17 / 7.35) while its dev SER still
+  falls (0.065 to 0.061): as seq516 did (6.97 at 100,000 and 150,000), and level with T7 (7.16).
+- Seq2Seq on the same schedule is ahead on Polish at every snapshot: 6.82 / 6.73 / 7.29, by 0.57 /
+  0.44 / 0.06. Its best (6.73 at 120,000) is the best Polish dev score so far, the staff model's
+  dev SER lead (0.004-0.005) notwithstanding. Both slip a little by 150,000 (by one seed each,
+  within page noise); the published model is not chosen on Polish dev, so its schedule length is a
+  question for OLiMPiC or PDMX dev.
+- **Decision: Seq2Seq.** With training matched, the staff model's lead was a head start: level by
+  100,000 steps on dev, behind on Polish. Seq2Seq also reads ottavas twice as well, takes any number
+  of staves, and is the simpler model.
+
+- On Polish the gap narrows with training: 1.03 at 50,000, 1.11 at 60,000, 0.47 at 80,000, 0.28
+  at 100,000. At 100,000 it is less than the staff seeds differ at 50,000 (0.7), more than
+  Seq2Seq's do (0.05). Seq2Seq was still gaining 0.8 per 20,000 steps at the end, T7 0.6; the
+  150,000-step runs tell whether it passes the staff model or both flatten.
+
+## Does the decoder count the bar? (2026-11-15)
+
+Seq2Seq's weakness at 150,000 steps is rhythm, tuplets most of all (above). Three questions: does
+the decoder keep count of the bar, does it know at a bar's first note how long the bar will be (a
+left-to-right decoder commits the first note before it writes the rest), and does it see tuplets
+whose number is not printed? `runs/overnight_2026-11-14/counting_probe.py` (output in
+`counting_probe.log`): both 150,000-step runs, OLiMPiC scanned dev (615 crops, 38,406 notes),
+labels fed (teacher forcing). Linear probes (ridge) from the decoder's state where it chooses each
+note's duration, trained on two thirds of the crops and read on the rest; self-attention by head.
+Which groups hide their number comes from each crop's MusicXML (OLiMPiC's LMX has no
+`tuplet:hidden`; our training labels do).
+
+| | Seq2Seq | staff |
+|---|---|---|
+| Onset in the bar, R2 (best layer; embedding alone 0.23) | 0.85 | 0.86 |
+| Bar's length at a voice's first note, R2 (embedding -0.01) | 0.83 | 0.85 |
+| The same, bars whose length differs from the bar before (54 held out) | 0.49 | 0.63 |
+| "Same as the bar before" at first notes, exact | 95.1% | 95.1% |
+| Counting head (layer 2): attention on the voice's durations so far in the bar (even 5.2%) | 70.4% | 82.8% |
+| The same head, durations read wrong | 37.3% | 70.1% |
+| Ratio token read right, numbers shown / hidden | 98.7% / 99.7% | 98.5% / 99.6% |
+| The same at a group's first note | 95.9% / 98.6% | 95.4% / 98.2% |
+| "A tuplet" read out before the duration, a hidden group's first note (best layer) | 89.8% | 86.2% |
+| Durations read right (labels fed) | 99.6% | 99.6% |
+
+- **The decoder counts.** Its state knows where a note falls in the bar, and one head (layer 2,
+  head 7 in Seq2Seq) looks almost only at the voice's durations so far. Where that head looks
+  away, the duration goes wrong more often (37% against 70%; about 150 wrong durations).
+- **It knows the bar ahead mostly from the bar before.** At a voice's first note the bar's length
+  reads out well, but "the same as the bar before" is right 95% of the time. Where the length
+  changes (about 5% of bars) the readout falls to R2 0.49: there the first note is written without
+  knowing where the bar ends. Real but rare.
+- **It sees hidden tuplets.** With the labels fed it writes a hidden group's ratio right 99.7% of
+  the time, 98.6% at the group's first note, and its state says "a tuplet" before it writes that
+  note's duration for 90% of them (by layers 4-6): it reads the unprinted triplet in the image.
+  OLiMPiC dev hides more groups (566) than it shows (366).
+- **So the rhythm errors are mostly compounding.** Fed the right history, durations are 99.6%
+  right; reading on its own, Seq2Seq errs on 3.7 per 100 duration tokens. Some of that gap is notes
+  missed or added, which teacher forcing cannot show, but most of the rhythm weakness looks like
+  errors after an earlier error, not a failure to count or to see.
+- What this changes: an embedding of the time used in the bar would tell the decoder what it
+  already knows; drop it. Worth trying instead: reranking whole bars by whether their durations add
+  up (no training; it can undo an early error), and training on the model's own readings
+  (scheduled sampling) so it learns to recover. Next check, cheap: errors within a bar before and
+  after its first error, reading freely.
+- Caveats: teacher forcing is not free reading; linear readouts are a floor on what the state
+  holds; within hidden groups the fed labels lack the `tuplet:hidden` the model would have written
+  (no effect at a group's first note, where the ratio precedes `tuplet:start`).
+
+## When real scores hide a tuplet's number (2026-11-15)
+
+Our synthetic data hides tuplet numbers by a blind rule (`build_seq_dataset.py`): one system in
+five with tuplets has every number hidden, half the time keeping the first; the `unmarked` set
+hides all. `runs/overnight_2026-11-14/tuplet_hiding.py` (output `tuplet_hiding.log`) reads every
+tuplet group (`show-number="none"` or `print-object="no"` on its start) in 40,000 PDMX piano scores
+(one track, program 0, best path; 2,646 with tuplets), ASAP's piano scores (158 with tuplets) and
+OLiMPiC's training systems (349 scores; a system's file rarely carries the time signature). All
+three are MuseScore engravings. A run is back-to-back groups of one ratio and value in one voice,
+nothing else between.
+
+**Hiding is first a score's choice.** Scores hiding none / some / all: PDMX 2,583 / 52 / 11, ASAP
+50 / 87 / 21, OLiMPiC 275 / 67 / 7. Within the scores that hide some, the share hidden by:
+
+| | PDMX (52 scores) | ASAP (87) | OLiMPiC (67) |
+|---|---|---|---|
+| All groups | 71% | 74% | 74% |
+| Run place 1st / 2nd / 3rd / 4th / 5th+ | 49 / 64 / 68 / 76 / 85% | 51 / 64 / 73 / 77 / 89% | 53 / 66 / 77 / 82 / 88% |
+| First tuplet of the voice in a system / later | 55 / 76% | 64 / 77% | 56 / 77% |
+| Alone in its bar / with other tuplets | 43 / 77% | 57 / 77% | 40 / 77% |
+| 3:2 / 6:4 / 5:4 | 69 / 85% / - | 73 / 86 / 46% | 75 / 49% / - |
+| 4/4 / 3/4 / 2/4 | 77 / 56 / 88% | 83 / 78 / 72% | - |
+| Beamed / not | 73 / 68% | 75 / 72% | 75 / 72% |
+| On the bar's first note / later | 71 / 72% | 78 / 72% | 72 / 75% |
+
+Across every score in PDMX: 3:2 13%, 6:4 41%, 5:4 5%, 9:8 4%, 7:8 and 4:3 none of 288 and 225.
+
+- **The rule engravers follow is the run:** the longer a passage of like groups has gone on, the
+  likelier the number is gone, 50% at the first group to 85-89% from the fifth, the same in all
+  three sources. In ASAP, 4/4 and 3/4 runs past their fourth group are 99% hidden.
+- **They print it again where the reader needs it:** at the voice's first tuplet in a system
+  (55-64% hidden against 76-77% later) and for a lone tuplet in a bar (40-57% against 77%).
+- **Sextuplets are hidden more than triplets, odd groupings less**: 5:4 5% in PDMX (7:8 and 4:3
+  never), but 30% in ASAP (46% within its scores that hide some): classical engravers hide
+  quintuplets in running passages too.
+- **3/4 is not hidden more than 4/4.** Within scores it is hidden less (PDMX 56% against 77%, ASAP
+  78% against 83%); 2/4 is the most hidden in PDMX. Across all PDMX scores, more 3/4 scores hide
+  some (by score 2.8% against 1.4%), which may be the impression: more waltz-like pieces with
+  running triplets, not a rule of the meter.
+- Beaming and where in the bar the group starts make no difference.
+- Even the first group of a run is hidden half the time in these scores: a run here ends at any
+  ordinary note, while an engraver thinks in passages (a triplet passage with a quarter between
+  groups is still settled). Whether a number, once gone, ever comes back mid-run was not measured.
+- Against our rule: we hide by system, all or nothing, in 20% of systems with tuplets, odd
+  groupings and lone tuplets alike, and never produce the commonest real pattern (printed at the
+  start of a passage or system, then dropped). A rule from this table, per score: show all (about
+  three in four), hide all (a few), or hide by run place (1st about half, rising to 90%), printed
+  at a system's first tuplet and for lone tuplets more often, 5s and 7s shown more often.
+- MuseScore users, mostly amateurs in PDMX; ASAP is curated. Real printed editions may differ.
+
 ## Leakage to watch
 
 - In the overfit test: width (fixed above). Staff count (2 for all), batch statistics (blank
