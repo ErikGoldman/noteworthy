@@ -3,6 +3,32 @@
 Status as of 2026-11-13, late evening (UTC). Results and evidence are in
 `EXPERIMENTS_STAFF_MODEL.md`; the older pipeline's list is `TODO.md`.
 
+## Priorities by root cause (decided 2026-11-15)
+
+From what OMR-NED charges the best model on Polish dev (EXPERIMENTS_STAFF_MODEL.md, "The four
+largest note-level kinds, regrouped by root cause"; corrected gold, whole-page alignment). In
+this order; the big causes before the small ones (spanning marks and beams wait).
+
+1. **Polyphony: a staff's second voice.** Two-voice staves are 36.5% of the cost on 38% of the
+   notes; were they as accurate as one-voice staves, the cost would fall about 16%. What goes wrong:
+   a second voice off the staff dropped whole (012 bars 20-21), oom-pah basses with the voices
+   merged (022 bars 12-14), inner-voice entries placed early (096 bar 4). Not the decoder failing
+   to look back, nor a rest convention learned from OLiMPiC (tested). Open: real engraving's
+   layout of two voices against our renders (hypothesis 4), whether the model decides to start the
+   second voice at all (the backup token, labels fed). First steps: a metric of dropped, merged and
+   mistimed voices; then training data with more real-engraving polyphony, or two-voice systems
+   weighted up.
+2. **Hidden tuplets.** 10.7% of the cost, the largest single cause, two thirds of it on two-voice
+   staves (triplets in one voice against plain notes in the other). Read with (n), scheduled
+   sampling, since a misread triplet moves every later note; then the engraver-like hiding rule
+   below ("Hide tuplet numbers as engravers do"). Measure apart from polyphony: they overlap.
+3. **Chord tones left out or added.** 9.7% now, the largest note-level cause once polyphony is
+   fixed (12.6%); mostly one-voice staves, on few pages (051's octave doublings hold 30 of 79).
+   First: check by eye whether the gold or the reading is wrong, as for the rests.
+
+Later: spanning marks and beams (9.7%; what musicdiff's extras are, slurs or dynamics and pedal the
+vocabulary cannot write, not yet known), ledger lines (7.1%).
+
 ## Running now (night of 2026-11-14)
 
 The overnight experiments of `EXPERIMENTS_STAFF_MODEL_PLAN.md`:

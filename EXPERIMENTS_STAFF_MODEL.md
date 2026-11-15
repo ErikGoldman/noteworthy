@@ -1898,6 +1898,83 @@ gold rests is not printed) and 5 cross-staff passages on page 056 (left as they 
   to 7.18; T7 at 100k 7.16 to 6.91. Seq2Seq gains a little more (0.26 against 0.18-0.25); the
   order and the decision stand. Scores from here on are against this gold.
 - Not looked at: rests on staves with one voice, and the 7 three-staff pages.
+
+**What "whole bars replaced" is (2026-11-15).** The largest single cause on the corrected gold
+(17.1%, 58 bars), on few pages: 110, 042, 093 hold 57% of it. `ned_costs.py` now places a bar's
+edit too. Pages 042 and 093: mostly small errors in passages that repeat. 042's bars 7-8 repeat
+5-6; the reading drops two grace notes in bars 5 and 7 and misreads bar 6's rhythm (triplet 16ths
+as a dotted 16th and 32nds), and has bar 8 right. 093's lower staff repeats bars 9 and 11; the
+reading has one wrong pitch in each of bars 9 and 10. The authors' alignment first pairs bars that
+match exactly: in a repeat it pairs the reading's right bar with the gold's earlier twin, and what
+is left is deleted and inserted whole, at 20-54 a bar for an error or two. Page 110 is its dotted
+`8` ottava passage (bars 23-27), which `ned_costs.py` scores without the ottava folding the
+scorer allows (26.10 there against the score's 19.04; every other page agrees to 0.05).
+
+With the page's bars compared as one block (`--whole-page`, as omr_ned.py's whole-page
+alignment), the cost falls from 8,593 to 7,801 and the whole-bar cost from 1,470 to 569 (32 bars,
+part of it page 110's ottava), while every note-level cause stays within a few percent. So about
+900 of it was the alignment magnifying small errors. By cause, whole-page alignment:
+
+| Cause | Share | 2+ voices / 1 voice |
+|---|---|---|
+| Notes at another onset | 20.7% | 7.5% / 13.2% |
+| Notes missing | 20.4% | 13.1% / 7.3% |
+| Extra notes | 15.0% | 9.6% / 5.4% |
+| Pitch wrong (with or without length) | 13.4% | 6.3% / 7.1% |
+| Whole bars replaced | 7.3% | |
+| Slurs and other extras, beams | 9.7% | |
+
+- **Polyphony is again the largest family**: the note-level causes on two-voice staves are 36.5%
+  of the cost on 38% of the notes (one-voice staves 33% on 62%; per note 1.8 times).
+- **Second: timing on one-voice staves** (13.2%), the compounding of a missing note or wrong
+  length.
+- The headline metric keeps the authors' alignment, so a small error in a repeated passage costs
+  a whole bar or two there: fixing small errors in repeats is worth more than it looks.
+
+**The four largest note-level kinds, regrouped by root cause (2026-11-15).** `ned_costs.py` now
+records each edited note's context (grace, rest, chord size, clef, how far its outer pitches lie
+from the middle line, an ottava over it, a tuplet); `note_causes.py` (`note_causes_best_120k.txt`,
+whole-page alignment, corrected gold) pairs a bar's deletions and insertions as before and gives
+every note-level edit a root cause: for a missing or extra note the first of ottava, other clef,
+grace, a staff's later voice, rest, tuplet, chord tone, off the staff; for a misread pitch the
+first of ottava or clef, octave, accidental, a step off the staff, a step on it; for a note moved
+in time, the root cause of the earliest note missing or added before it on that staff in that bar.
+Each is split by whether the staff holds two or more voices in the bar (kern's voice order is
+arbitrary, so a dropped voice is as often the gold's first as its second). Note-level edits are
+70% of the cost.
+
+| Root cause | Share of the cost | Of which on staves with 2+ voices |
+|---|---|---|
+| Tuplets (a hidden triplet read as plain values, and what it moves) | 10.7% | 6.5% |
+| A staff's later voice dropped, added or misplaced | 10.5% | 10.5% |
+| Chord tones left out or added | 9.7% | 3.1% |
+| Off the staff (ledger lines): left out, added, a step or two off | 7.1% | 2.4% |
+| Notes moved by an error on another staff or in another bar | 6.0% | 1.2% |
+| Pitch on the staff (a step, an accidental, an octave) | 5.8% | 2.7% |
+| A plain note left out or added | 4.7% | 2.3% |
+| A length or dot | 4.7% | 2.1% |
+| Clef change or ottava | 4.4% | 2.5% |
+| Rests | 3.5% | 1.5% |
+| Grace notes | 3.0% | 1.7% |
+| All note-level | 69.9% | 36.5% |
+
+Seen by eye:
+- *A low second voice below the staff, dropped whole* (page 012 bars 20-21: the bass's B1 half and
+  whole notes two ledger lines down, stems down, a half rest drawn below; the reading has the
+  upper chords right and no second voice).
+- *Oom-pah bass, the voices merged* (022 bars 12-14: a held low note stems down under after-beat
+  chords stems up, sharing its head with the first chord; the reading writes one voice and drops a
+  chord).
+- *Hidden triplets read as plain eighths* (096 bar 15, in the lower staff in treble clef; 042 bar
+  6), every later onset moved.
+- *Dotted rhythms misread* (051 bar 15, octave pairs: quarter and two 16ths read as a dotted
+  quarter and two 32nds).
+- *Chord tones left out*, on few pages: of 79 on one-voice staves, 30 on 051 (octave doublings)
+  and 16 on 093.
+
+So polyphony runs through it: half the tuplet cost and all the later-voice cost are on two-voice
+staves, and every cause is a little worse there. The other large single causes are chord tones
+(mostly one-voice, page-bound) and ledger lines.
 - Also noticed (not fixed): page 097 bar 3, the gold's `8BBJ` may be printed an octave higher.
 
 
