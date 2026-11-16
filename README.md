@@ -63,7 +63,8 @@ alone.
 - `train/` dataset building (Verovio, MuseScore and Smashcima crops, MUSCIMA++ conversion) and training
 - `third_party/smashcima` our fork of [Smashcima](https://github.com/OMR-Research/Smashcima) (Apache-2.0), which draws the handwritten crops; a submodule
 - `cpp/` the recognizer
-- `eval/` benchmarks and error analysis; `EXPERIMENTS.md` is the experiment log
+- `eval/` benchmarks and error analysis; `EXPERIMENTS.md` is the experiment log, `TODO.md` the open work
+- `docs/` the evaluation protocol, training-data checks and gold follow-ups; `docs/history/` older plans and notes
 - `scripts/` the stages `train.sh` and `reproduce.sh` run
 
 ## Data and licenses

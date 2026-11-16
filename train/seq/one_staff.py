@@ -1,5 +1,5 @@
 """A two-staff system taken apart into two one-staff systems, label and image, to train and score
-the models on one staff at a time (EXPERIMENTS_STAFF_MODEL.md, (k)). Free of torch, as
+the models on one staff at a time (EXPERIMENTS.md, (k)). Free of torch, as
 staff_positions.py, for the builders.
 
 Labels. A bar of LMX is a header (key, meter, each staff's clef), then runs of notes separated

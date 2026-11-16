@@ -25,7 +25,7 @@ images draw each one as a stemless notehead, often under a stray dash, like no p
 and two thirds of their labels have none (checked by eye, 2026-11-11: drawn in all 8 sampled).
 And every system with a tie from the system before or into the one after: its image draws the
 half arc, but its label has no tie (OLiMPiC's build lost them: MuseScore drops a tie with no note
-to end on), and the other sets label such arcs (EXPERIMENTS_STAFF_MODEL.md, 2026-11-13).
+to end on), and the other sets label such arcs (EXPERIMENTS.md, 2026-11-13).
 """
 from __future__ import annotations
 

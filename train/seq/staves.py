@@ -9,7 +9,7 @@ half times too wide, whose teeth reach the other staff's lines, leaves some in t
 shifted a line up or down has a tooth off the staff; a
 faint line only weakens the match, and a line broken within a strip (Smashcima draws some so)
 leaves that strip to the others. Checked against the
-segmenter on 300 crops (EXPERIMENTS_STAFF_MODEL.md): it splits where darkness alone could not.
+segmenter on 300 crops (EXPERIMENTS.md): it splits where darkness alone could not.
 The comb's spacing is the interline: about the one whose best match is strongest (_interline). Blurred lines, as on
 GrandStaff's small JPEGs, still darken their rows. Staves are looked for in vertical strips, so
 that a page's slight tilt, a camera's warp or a hand's wavering moves a line only a little within
@@ -45,7 +45,7 @@ STRIPS = 8
 # scan thousands of pixels wide a strip is hundreds wide, and a slight skew moves its lines more
 # than that, so taller crops are looked at shrunk to this height, at which a strip is about 160
 # px wide. GrandStaff's crops are about 260 px tall; at 256, five of 3,000 PDMX crops' thin lines
-# faded too far to be found (EXPERIMENTS_STAFF_MODEL.md).
+# faded too far to be found (EXPERIMENTS.md).
 FINDING_HEIGHT = 320
 INTERLINE_PLATEAU = 0.03
 # Interlines tried, as shares of the crop's height: a system crop is about CROP_INTERLINES tall,
@@ -113,7 +113,7 @@ def _staff_line_ink(image: np.ndarray, thickness: int) -> np.ndarray:
     whose lines beams and chords cover or blur fades (Audiveris keeps only such thin, long ink for
     its staff lines, too). Ink running a third of the strip was not enough: on GrandStaff's
     blurred, warped copies a beamed group's ledger lines merge into runs that long, and a staff
-    found a line up or down on them (EXPERIMENTS_STAFF_MODEL.md)."""
+    found a line up or down on them (EXPERIMENTS.md)."""
     within_a_row = cv2.dilate(255 - image, np.ones((3, 1), np.uint8))
     long = cv2.morphologyEx(within_a_row, cv2.MORPH_OPEN, np.ones((1, image.shape[1]), np.uint8))
     thicker_than_a_line = cv2.morphologyEx(long, cv2.MORPH_OPEN, np.ones((2 * thickness + 3, 1), np.uint8))

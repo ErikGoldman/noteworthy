@@ -1,5 +1,8 @@
 # Staff model: the overnight experiments (2026-11-14)
 
+> Kept as written. File names in it are those of the time: `EXPERIMENTS_STAFF_MODEL.md` is now part
+> of `EXPERIMENTS.md`, `TODO_STAFF_MODEL.md` and the old `TODO.md` are replaced by `TODO.md`.
+
 What runs the night after the race, and why. Results go into `EXPERIMENTS_STAFF_MODEL.md` as
 they come in; this file says what each experiment is for and how it is judged. Open work and
 later experiments are in `TODO_STAFF_MODEL.md`.

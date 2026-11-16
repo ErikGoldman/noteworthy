@@ -5,7 +5,7 @@ reading before anything else sees it.
 voice_counts: after each `measure`, one `voices:N` per staff the bar uses, in staff order: how many
 voices that staff holds in the bar (VOICE_COUNT_CAP or more as the cap). The decoder commits to a
 bar's voices before writing them; without it, it notices a staff's second voice (fed the right
-history it writes the backup) yet drops or merges it reading on its own (EXPERIMENTS_STAFF_MODEL.md,
+history it writes the backup) yet drops or merges it reading on its own (EXPERIMENTS.md,
 "Polyphony: three experiments toward a root cause").
 
 canonical_gaps: one way to write each gap and each return to the bar's start. A run of gaps in a

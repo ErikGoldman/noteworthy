@@ -9,7 +9,7 @@ OUT_DIR/<ROOT's name>.json: {"split": SPLIT, "staves": {sample: [centre, ..., in
 centres in the image's own rows, top to bottom, as many as the sample's LMX has staves; null
 where they are not found. Found ones: on 300 crops, by the segmenter's staves (the recognizer's
 layout, which inference uses) and by eye where the two disagree, about 9 in 10 of the crops the
-finder once missed are right, and 97 in 100 of the rest (EXPERIMENTS_STAFF_MODEL.md).
+finder once missed are right, and 97 in 100 of the rest (EXPERIMENTS.md).
 """
 from __future__ import annotations
 

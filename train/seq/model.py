@@ -154,7 +154,7 @@ class RowRotaryEncoderLayer(nn.Module):
     feature row (rotary position embedding, on the row axis only): the score of two positions
     depends on how many rows apart they are, not on where they are. Unlike a learned bias added
     to the scores, it leaves PyTorch's fused attention usable: a bias table over every pair of a
-    wide crop's positions took 5 GB a layer and half the speed (EXPERIMENTS_STAFF_MODEL.md)."""
+    wide crop's positions took 5 GB a layer and half the speed (EXPERIMENTS.md)."""
 
     def __init__(self, dim: int, heads: int, dropout: float):
         super().__init__()
@@ -209,7 +209,7 @@ class Seq2Seq(_TokenDecoder):
     """relative_rows: instead of each feature row's own embedding (where it is in the crop), the
     encoder's queries and keys are rotated by their row (RowRotaryEncoderLayer), so heights are
     read relative to one another and a staff means the same wherever it sits in the crop, as a
-    StaffSeq2Seq staff crop's centred staff does (EXPERIMENTS_STAFF_MODEL.md, "a fixed frame for
+    StaffSeq2Seq staff crop's centred staff does (EXPERIMENTS.md, "a fixed frame for
     pitch").
 
     row_windows: with relative rows, an encoder whose attention grows with the crop's height, not

@@ -1,5 +1,8 @@
 # Morning notes (overnight run, started 2026-11-06)
 
+> Kept as written. File names in it are those of the time: `EXPERIMENTS_STAFF_MODEL.md` is now part
+> of `EXPERIMENTS.md`, `TODO_STAFF_MODEL.md` and the old `TODO.md` are replaced by `TODO.md`.
+
 Ground rules kept: open Polish half and dev sets only; sealed Polish, OLiMPiC test, Mutopia test,
 Night Album untouched; nothing from Polish in training; no emails or contact.
 

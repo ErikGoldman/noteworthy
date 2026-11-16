@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One short run of EXPERIMENTS_STAFF_MODEL_PLAN.md: the race's mix (train_seq.sh's sets of
+# One short run of docs/history/EXPERIMENTS_STAFF_MODEL_PLAN.md: the race's mix (train_seq.sh's sets of
 # $NW_SEQ_DATA, GrandStaff with no tie across an edge), 20,000 steps with the whole schedule,
 # then its averaged weights scored on OLiMPiC dev's written labels (outer_notes.py, tuplet_bars.py)
 # into $NW_RUNS/NAME/scores.txt. Polish dev is scored apart (it needs the C++ segmenter).

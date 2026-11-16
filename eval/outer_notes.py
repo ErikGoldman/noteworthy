@@ -1,6 +1,6 @@
 """How well a sequence model reads the music beyond a system's outer staff lines: notes under
 ottava signs and notes far above the top staff or below the bottom one, where a StaffSeq2Seq
-staff crop runs out of room (EXPERIMENTS_STAFF_MODEL.md). For comparing short training runs
+staff crop runs out of room (EXPERIMENTS.md). For comparing short training runs
 that change the crops: overall SER is too blunt, since such notes are under 1% of its edits.
 
 usage: outer_notes.py CHECKPOINT --out PREDICTIONS.jsonl [--limit N] [--device cuda|cpu]

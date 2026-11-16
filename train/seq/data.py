@@ -99,7 +99,7 @@ def degrade(rng: np.random.Generator, image: np.ndarray, interline: float) -> np
     interline, in pixels."""
     if rng.random() < 0.5:
         # Never thinned: a crop's staff lines are 1-3 px, which thinning erases, the label keeping
-        # the notes on them (EXPERIMENTS_STAFF_MODEL.md).
+        # the notes on them (EXPERIMENTS.md).
         image = stroke_weight(rng, image, interline * 2, thin=False)
     if rng.random() < 0.3:
         image = np.where(image < rng.uniform(100, 200), 0, 255).astype(np.uint8)  # binarized scan

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One staff at a time (EXPERIMENTS_STAFF_MODEL.md, (k)): every two-staff system of the staff
+# One staff at a time (EXPERIMENTS.md, (k)): every two-staff system of the staff
 # experiments' sets taken apart into one crop and label per staff (train/build_one_staff.py), in
 # OUT laid out as SYSTEMS is, so that staff_experiment.sh trains on it with NW_SEQ_DATA=OUT:
 # staff_experiment.sh's mix, OLiMPiC scanned dev's systems with no copy in PDMX (train_seq.py's dev)

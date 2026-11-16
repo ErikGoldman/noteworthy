@@ -1,5 +1,5 @@
 """Takes a set of two-staff system crops apart into one crop per staff (seq.one_staff), for
-training and scoring the models on one staff at a time (EXPERIMENTS_STAFF_MODEL.md, (k)).
+training and scoring the models on one staff at a time (EXPERIMENTS.md, (k)).
 
 usage: build_one_staff.py ROOT SPLIT POSITIONS_DIR OUT_ROOT OUT_POSITIONS_DIR [--names LIST] [--workers N]
 

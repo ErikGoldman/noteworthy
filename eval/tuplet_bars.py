@@ -1,5 +1,5 @@
 """How well a sequence model reads the rhythm of bars with tuplets, numbered and unnumbered: the
-staff model's largest single weakness on Polish dev (EXPERIMENTS_STAFF_MODEL.md), where a run of
+staff model's largest single weakness on Polish dev (EXPERIMENTS.md), where a run of
 triplets numbered only at first is read as plain notes after that.
 
 usage: tuplet_bars.py READINGS.jsonl     (written by outer_notes.py: OLiMPiC dev, synthetic and
