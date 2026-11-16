@@ -1978,6 +1978,74 @@ staves, and every cause is a little worse there. The other large single causes a
 - Also noticed (not fixed): page 097 bar 3, the gold's `8BBJ` may be printed an octave higher.
 
 
+## Polyphony: three experiments toward a root cause (2026-11-15)
+
+The best model (`l_system_150k` at 120,000), no training. Scripts in `runs/overnight_2026-11-14/`.
+
+**1. Does it decide to start the second voice?** `backup_probe.py` (`backup_probe_120k.txt`),
+OLiMPiC scanned dev, labels fed: at each `backup` that opens a staff's later voice (993), the
+decoder's probability for `backup`, split by whether the greedy reading drops that voice (8.5%).
+- Fed the right history, it chooses `backup` there for 86% of the voices it drops reading on its
+  own (median probability 0.90), 98% of those it keeps. **It notices the voice**; the drop happens
+  in free reading.
+- What predicts a drop: entering after a silence (20% dropped against 5%), no notes at all (50% of
+  16), one note (12%) against four or more (2%). The first voice's length: no effect.
+- What becomes of a dropped voice (`voice_metrics.py`, chord notes counted): 36% merged (all its
+  notes written in the other voice at their onsets), 22% partly, 42% lost.
+
+**2. Is it the engraving?** `render_dev_verovio.py` draws OLiMPiC dev's 615 systems with Verovio as
+our synthetic crops are drawn (`render_system`, random engraving options), with OLiMPiC's labels:
+the same music and labels in three engravings. `voice_metrics.py`, bars read right:
+
+| Same 615 systems | Bars with a two-voice staff | Bars without | Voices dropped |
+|---|---|---|---|
+| MuseScore, printed and scanned | 65.3% | 88.6% | 5.4% |
+| Verovio | 66.0% | 94.3% | 5.7% |
+
+(The MuseScore synthetic twin stopped at 130 systems on an unreadable image.) On Verovio's
+engraving, the one our training draws most, one-voice bars get easier and two-voice bars do not:
+**polyphony is as hard on clean renders as on scans**. The wrong two-voice bars go wrong alike in
+both: a forward's length (an entry placed wrong) 20% / 18%, notes added to a voice 20% / 17%, a
+voice missing 17% / 17%, added 13% / 6%, notes missing 12% / 12%; voice structure, not notes.
+Second-voice rests are kept alike (94% / 93%). Real engraving (Polish) is other music and not
+compared here; it may add to this, but it is not the main cause.
+
+**3. Are Polish's textures rare in training?** `textures.py` (`textures.txt`): two-voice
+staff-bars flagged held (a note held through two or more of the other voice's onsets: oom-pah
+basses, pedal notes), late (a voice entering after a silence), together (shared onsets), else
+independent; and whether a voice lies mostly off the staff.
+
+| | Two-voice staff-bars | Held | Late | Together | Independent | A voice off the staff |
+|---|---|---|---|---|---|---|
+| Polish dev gold | 27.9% | 53% | 18% | 4% | 24% | 49% |
+| olimpic_written | 26.0% | 45% | 18% | 11% | 27% | 59% |
+| unmarked | 20.0% | 54% | 24% | 6% | 17% | 58% |
+| pdmx | 16.6% | 38% | 27% | 16% | 18% | 53% |
+| musescore / smashcima | 15.0 / 14.9% | 40 / 39% | 27 / 28% | 17 / 14% | 16 / 19% | 53 / 52% |
+| grandstaff_written_v2 | 13.7% | 41% | 17% | 9% | 32% | 54% |
+| musicorpus | 9.9% | 28% | 16% | 30% | 25% | 33% |
+
+The textures are not rare: training's two-voice writing has Polish's mix. Only the amount differs
+(Polish 28% of staff-bars, most sources 14-20%).
+
+**4. Is the entry gap itself hard?** `entry_probe.py` (`entry_probe_120k.txt`), the same dev, labels
+fed, bars with a two-voice staff: the decoder's first choice at each duration token. Right for
+99.2% of note and rest durations (7,628), 92.2% of forwards inside a voice (141), 89.0% of the
+forward that opens a later voice (109). Fed the right history, a gap is about ten times as likely
+to be wrong as a note's length: not only compounding. Of the 12 wrong entry gaps, 10 would bring
+the voice in under another of the staff's notes (the right kind of place, the wrong note), 2 at no
+onset there. Few cases, a lean; it supports writing a voice's entry, and gaps in general, as a
+position in the bar (an onset the decoder already knows, since it lines entries up with the other
+voice's notes) rather than a length it must work out.
+
+**So far:** the model sees the second voice; on any engraving it then loses or merges it in free
+reading, or times its entry wrong (a forward's length), most of all when the voice enters after a
+silence. Not perception, not a texture missing from training. What is left: how a second voice is
+written (a whole voice after a backup, its entry as a forward's length, decided far from where
+the voice's notes are), compounding in free reading ((n) tests that), and the amount of two-voice
+training data. Experiments it points to: (n)'s two-voice bars against (m)'s; two-voice systems
+weighted up; a voice's entry written as its position in the bar rather than a forward's length.
+
 ## (m) and (n): the meter, and training on its own readings (2026-11-15, running)
 
 Against (l)'s `l_system_100k` (Seq2Seq, T7's data and 100,000-step schedule, no meter: dev 0.0717,
@@ -1993,6 +2061,26 @@ the meter in force (seq.meter; `--meter-context` retired):
 Read by dev SER, tuplet bars, errors by kind of token (`category_errors.py`) and Polish dev at
 60k, 80k and 100k.
 
+**(m) at 100,000** (pod gone, exit 0), against (l) at 100,000 (no meter): dev SER 0.0676 against
+0.0717 (50k / 60k / 80k: 0.0827 / 0.0764 / 0.0670); outer notes, both sets, 0.0635 against 0.0652;
+tuplet-ratio tokens read 80.1% against 68.2%; tuplet bars right, numbers shown 62.9% against 51.5%,
+a number hidden 69.7% against 68.5%; bars without tuplets 82.3% against 82.5%; false ottava tokens
+189 against 362. The meter helps printed tuplets most and hidden ones hardly; nothing else
+moves.
+
+Polish dev, corrected gold (print, authors' alignment, two-staff pages), against (l):
+
+| Step | 60k | 80k | 100k |
+|---|---|---|---|
+| (l) no meter | 8.90 | **7.97** | **7.18** |
+| (m) meter | 8.91 | 8.54 | 7.63 |
+
+Level at 60k, behind by 0.57 and 0.45 after: the meter does not help on pages. Where the page prints
+a time signature (23 pages) both read it right (22) and (m) is still worse (7.45 against 6.79), so
+not a wrong meter; second-voice rests explain little (kept 87% against 89%). Dev hands a meter model
+the label's meter (even where none is printed), which pages never get; its dev gain is in part that.
+The meter is off by default again (32a8995).
+
 **(n)'s first start was broken** (12:23 PM to 1:50 PM, about 11,000 steps). Its training loss ran
 1.4-1.9 above (m)'s and (l)'s from the first thousand steps, when under 1% of its inputs were
 replaced. Cause: before torch 2.11, autocast keeps each weight's bf16 cast for the rest of the
@@ -2003,6 +2091,53 @@ own uncached autocast; a test that fails on torch 2.8 before the fix and passes 
 restarted from scratch on the same pod at about 2:00 PM; the broken run is kept as
 `runs/n_broken_autocast`. (m) is unaffected: it has no pass under no_grad. Expected end about
 11:30 PM.
+
+**(n) at 100,000** (pod gone, exit 0), against (m) at 100,000: dev SER 0.0717 against 0.0676; outer
+notes 0.0618 against 0.0635; tuplet-ratio tokens read 80.9% against 80.1%. Polish dev, corrected
+gold, two-staff pages (authors' alignment as above; whole-page in brackets):
+
+| Step | 60k | 80k | 100k |
+|---|---|---|---|
+| (l) no meter | 8.90 (8.06) | **7.97** (7.35) | **7.18** (6.61) |
+| (m) meter | 8.91 (7.76) | 8.54 (7.29) | 7.63 (7.03) |
+| (n) meter, own readings | 9.19 (8.38) | 8.15 (7.18) | 8.00 (7.11) |
+
+Training on a quarter of its own readings does not help: against (m) it is ahead at 80k and behind
+at 60k and 100k, and behind (l) at every step. Not promoted (`--own-readings` stays off by default).
+
+Two voices, OLiMPiC scanned dev's 615 systems holding a two-voice staff, each run at 100,000
+(`read_samples.py --polyphonic`, `voice_metrics.py`, `voice_metrics_lmn_100k.txt`):
+
+| Run | Two-voice staff-bars dropped | Of those merged / partly / lost | Bars right, two-voice staff | Bars right, none |
+|---|---|---|---|---|
+| (l) | 8.6% | 29% / 29% / 42% | **60.7%** | **86.5%** |
+| (m) | 8.4% | 30% / 32% / 39% | 59.3% | 85.5% |
+| (n) | 9.7% | 34% / 31% / 36% | 58.3% | 85.4% |
+
+Its own readings in training do not keep the second voice: (n) drops more of them, not fewer.
+Compounding in free reading is not cured by scheduled sampling at this share. (m)'s better dev SER
+does not show in bars read right either (with the label's meter handed to it).
+
+## (o) and (p): how a second voice is written (2026-11-15, running)
+
+From "Polyphony: three experiments toward a root cause": the model notices a staff's second voice
+but drops, merges or mistimes it reading on its own, and an entry gap's length is ten times as
+hard as a note's. Two label forms (`seq.label_form`, applied as labels load, taken out of
+readings; round trip over 32,040 training labels from every source with no visible note changed),
+each against `l_system_100k` (Seq2Seq, T7's data and 100,000-step schedule, no meter: dev 0.0717,
+Polish 7.18 on the corrected gold), seed 0, Community RTX 5090s, `rhythm` at 32a8995:
+- (o) `o_system_voice_counts_100k`, `--voice-counts`: after each `measure`, a `voices:N` per staff
+  (how many voices it holds in the bar), so the decoder commits to them before writing any.
+- (p) `p_system_canonical_gaps_100k`, `--canonical-gaps`: a return to the bar's start as one
+  token, `backup:bar` (98% of backups; their length spelled in note values, often two tokens, is
+  arithmetic the model need not do), and every run of gaps (forwards, rests not drawn) spelled one
+  way, as forwards adding up to it.
+
+The meter is off in both (and by default again): on Polish (m) reads worse than (l), 7.63
+against 7.18 at 100,000, 7.45 against 6.79 on the 23 pages that print a time signature, where
+both read it right (22 of 23); so not a wrong meter but the meter run itself, or one seed's
+noise. On OLiMPiC dev a meter model is handed the label's meter, even on systems that print none,
+which pages never get: its dev gain is in part that.
 
 ## Leakage to watch
 
@@ -2025,3 +2160,191 @@ restarted from scratch on the same pod at about 2:00 PM; the broken run is kept 
    attention across staves off, cross-staff passages against the rest.
 3. Later: the C++ staff linking (a tilted staff's chains across a gap); seq_predict.py for staff
    models; three-staff training data.
+
+**(p) at 100,000** (pod gone, exit 0), against (l) at 100,000: dev SER 0.0692 against 0.0717. Polish
+dev, corrected gold, two-staff pages (authors' alignment; whole-page in brackets):
+
+| Step | 60k | 80k | 100k |
+|---|---|---|---|
+| (l) plain | 8.90 (8.06) | 7.97 (7.35) | 7.18 (6.61) |
+| (p) canonical gaps | **7.64** (7.12) | **6.98** (6.31) | **6.85** (6.39) |
+
+Ahead at every step, by 1.26, 0.99 and 0.33. Two voices on OLiMPiC scanned dev (as above, 615
+systems, `voice_metrics_p_system_canonical_gaps_100k.txt`): two-voice staff-bars dropped 7.1%
+against (l)'s 8.6%, and of those dropped, lost outright 26% against 42% (merged 40%, partly 34%);
+bars right with a two-voice staff 60.0% against 60.7%, without 86.1% against 86.5%. Fewer voices
+dropped, and those dropped mostly kept as notes in the other voice, which costs less on pages.
+(`read_samples.py` now takes readings out of the model's label form; (l), (m), (n) are plain, so
+their readings are unchanged.)
+
+**(o) at 100,000** (pod gone, exit 0): dev SER 0.0742 against (l)'s 0.0717. Polish dev as above:
+
+| Step | 60k | 80k | 100k |
+|---|---|---|---|
+| (l) plain | 8.90 (8.06) | 7.97 (7.35) | 7.18 (6.61) |
+| (o) voice counts | 8.89 (7.76) | 7.60 (6.84) | 7.32 (6.48) |
+| (p) canonical gaps | **7.64** (7.12) | **6.98** (6.31) | **6.85** (6.39) |
+
+Mixed against (l) (level, ahead 0.37, behind 0.14 by the authors' alignment; ahead at every step
+whole-page) and behind (p) at every step. Two voices on OLiMPiC scanned dev: dropped 8.3% (l 8.6%,
+p 7.1%), lost outright 45% of those (l 42%, p 26%); bars right with a two-voice staff 61.3%, the
+best of the five, without 84.7%, the worst. Counting a staff's voices first barely changes how many
+it drops. Writing where a voice enters in one form (p) is what helps: (p) is the label form to
+build on.
+
+**(p) against (l): what changes.** Polish dev, OMR-NED cost by cause (`ned_costs.py --whole-page`,
+`ned_causes.py`, corrected gold, 49 two-staff pages, at 100,000; `ned_causes_l_vs_p.txt`): 8,851
+to 8,403.
+
+| Cause | (l) | (p) | Change |
+|---|---|---|---|
+| Missing note, 2+ voices | 1,360 | 1,037 | -323 |
+| Extra note, 2+ voices | 1,096 | 797 | -299 |
+| Pitch and length wrong, 2+ voices | 335 | 215 | -120 |
+| Missing note, 1 voice | 651 | 533 | -118 |
+| Whole bar replaced | 856 | 806 | -50 |
+| Same note, other onset, 2+ voices | 561 | 832 | +271 |
+| Same note, other onset, 1 voice | 717 | 853 | +136 |
+| Tuplet edits (edittuplet) | 86 | 152 | +66 |
+
+(p) keeps notes on two-voice staves that (l) drops or replaces (-742), and gives back 407 by writing
+some of them at the wrong onset, on one-voice staves too, and more tuplet marks wrong.
+
+OLiMPiC scanned dev, the 615 systems holding a two-voice staff, bar by bar (`compare_bars.py`,
+`compare_bars_l_p.txt`). Labels and readings are compared with their gaps spelled one way and gaps
+that end a voice left out, as both draw nothing: the label's hidden rests are forwards in (p)'s
+readings, and (p) leaves out the padding to the bar's end, which a token comparison counts against
+it (`voice_metrics.py`'s bars right for (p) above are low for that reason). Of 2,352 bars, both read
+1,614 right and 499 wrong; only (l) 106, only (p) 133 (bars right 73.1% against 74.3%).
+- Where only (p) is right, (l)'s error: notes at other onsets 63%, lengths, rests or marks 16%, a
+  voice dropped 9%.
+- Where only (l) is right, (p)'s error: notes at other onsets 56%, lengths, rests or marks 26%
+  (tuplet ratios: 3in2 left out or added, 3in2 written 6in4), a voice added 9%, a voice dropped 5%.
+  These bars hold a tuplet more often (24% against 15% where (p) wins).
+
+**(p) against (l): wrong onsets, tuplets, and the two-voice bars it newly reads right**
+(`p_patterns.py`, `p_patterns_l_p.txt`; OLiMPiC scanned dev as above, compared as `compare_bars.py`;
+Polish from the `ned_costs` edits).
+- Where a voice's notes go out of place (dev, wrong bars, the first event out of place in a voice
+  read with the right voice count): at the voice's entry, (l) 303 voices, (p) 101; after the event
+  before it read another value, 159 against 187; after a tuplet's ratio missed or added, 56 against
+  73. (p) places voices where they enter; it reads a few more values wrong.
+- Two-voice bars only (p) reads right, against those both read right: the label's backup is spelled
+  awkwardly (two tokens, dotted, or under a quarter) in 64% against 43% (46% where only (l) is
+  right); a voice ends before the bar on 36% of their two-voice staves against 12%; the voices share
+  every onset on 24% against 12%. (l)'s error there: notes at other onsets, from the voice's entry
+  (later voice 41, first voice 24 of 66). What (p) gains is the backup's arithmetic.
+- Polish, measures where only (p) writes notes at the wrong onset (44): there (p) costs 1,297, (l)
+  500, so these are real losses, not notes (l) dropped. 39 of the 44 hold no tuplet in the edited
+  notes; the worst are values misread (sixteenths as 32nds, a sixteenth rest as an eighth), the rest
+  of the voice shifted after them, plus a few triplets left out or added. Whether a lost checksum
+  explains it: no; (p)'s wrong dev bars still have every voice fill the bar as often as (l)'s (49.0%
+  against 49.1%).
+- Tuplets: tuplet bars read right 52.6% against 54.4% of 270 (5 bars); a ratio added in 33 wrong
+  bars against 22; Polish tuplet edits +66 cost (0.8% of the total). No pattern beyond noise: by
+  printed or hidden numbers and one or two voices, every cell is within 4 bars.
+
+**OMR-NED cost by root cause for (p)** (`note_causes.py` on the whole-page edits, corrected gold,
+49 two-staff Polish dev pages, both at 100,000; `note_causes_p_system_canonical_gaps_100k_100000.txt`,
+`note_causes_l_system_100k_100000.txt`; the other edits grouped from `ned_causes_l_vs_p.txt`):
+
+| Root cause | (p) | Share | Against (l) |
+|---|---|---|---|
+| Tuplets, notes (missing 478, extra 172, misread 242, moved 172) | 1,064 | 12.7% | +115 |
+| A staff's later voice | 924 | 11.0% | -474 |
+| A chord's note | 828 | 9.9% | -8 |
+| Whole bar replaced | 806 | 9.6% | -50 |
+| Text, dynamics and other marks (extras) | 619 | 7.4% | -31 |
+| Off the staff | 459 | 5.5% | -53 |
+| Moved, nothing wrong on that staff in the bar | 431 | 5.1% | +140 |
+| Clef or ottava | 408 | 4.9% | +83 |
+| Pitch on the staff | 388 | 4.6% | -31 |
+| Beams | 385 | 4.6% | -8 |
+| A rest | 356 | 4.2% | +49 |
+| A plain note | 293 | 3.5% | -134 |
+| A length or dot | 286 | 3.4% | +29 |
+| Tuplet marks (brackets, numbers) | 226 | 2.7% | +72 |
+| Noteheads, dots, grace marks | 225 | 2.7% | +37 |
+| Articulations and expressions | 218 | 2.6% | +36 |
+| Accidentals | 202 | 2.4% | -4 |
+| A grace note | 181 | 2.2% | -203 |
+| Ties | 104 | 1.2% | -13 |
+| Total | 8,403 | | -448 |
+
+Tuplets, notes and marks together, 1,290 (15.4%), are now the largest cause, ahead of a staff's
+later voice; next chord notes, then whole bars replaced.
+
+**Tuplet cost by whether the print shows the number.** Polish: the gold's kern marks hidden numbers
+(`*Xtuplet`, `*tuplet`; converter21 sets tupletActualShow on a group's first note only), now in
+`ned_costs.py`'s rows (`tuplet_numbers`) and split by `note_causes.py`; checked against the page
+images on 003 and 037 (hidden, no numbers drawn), 065 (printed) and 096 (mixed, its hidden part).
+Tuplet notes and marks, whole-page alignment, corrected gold, at 100,000
+(`note_causes_*_tuplets.txt`):
+
+| Polish bars whose tuplets | Bars | (l) | (p) | (p) per bar |
+|---|---|---|---|---|
+| hide the number | 147 | 583 (6.6%) | 658 (7.8%) | 4.5 |
+| print it | 63 | 376 (4.2%) | 374 (4.5%) | 5.9 |
+| no tuplet in the gold's bar | | 144 (1.6%) | 258 (3.1%) | |
+
+OLiMPiC dev, all 615 clean systems, scanned (`tuplet_split.py`, the crop's MusicXML
+show-number; token edits per bar as compare_bars.py compares them; `tuplet_split_l_p.txt`):
+
+| OLiMPiC scanned bars whose tuplets | Bars | (l) right | (p) right | (l) edits | (p) edits |
+|---|---|---|---|---|---|
+| hide every number | 104 | 72.1% | **77.9%** | 900 (8.2%) | **614 (5.9%)** |
+| print every number | 133 | 52.6% | 50.4% | 1,556 (14.1%) | 1,525 (14.7%) |
+| some of each | 11 | 63.6% | 63.6% | 215 | 97 |
+| no tuplet | 2,066 | 80.4% | 80.8% | 8,347 | 8,118 |
+
+The synthetic twin stopped at 128 systems on an unreadable image (as before); on those, hidden 10
+bars, printed 42: too few to read. Per bar, printed tuplets cost more than hidden ones on both sets
+(Polish 5.9 against 4.5; OLiMPiC 0.114 against 0.043 edits per label token for (p)). Polish holds
+more hidden-number bars than printed (147 against 63), OLiMPiC fewer (104 against 133), so Polish's
+tuplet cost is mostly hidden by count. (p) reads hidden tuplets better than (l) on OLiMPiC and a
+little worse on Polish; printed ones are level on both.
+
+**How tuplets are misread** (`tuplet_kinds.py`; Polish from `ned_costs.py` rows that now record each
+tuplet edit's group types and what is drawn, `tuplet_kinds_polish.txt`; OLiMPiC scanned dev, all 615
+clean systems reread keeping tuplet:hidden, `tuplet_kinds_olimpic.txt`). In OLiMPiC, 21 systems
+(60 bars, 242 notes) carry tuplets with no `<tuplet>` element at all: nothing drawn, so hidden.
+
+Polish, cost of tuplet notes' edits and tuplet marks, with the reading's notes written in place of
+a tuplet counted as well (wider than note_causes.py's root cause, which charges those to plain
+notes):
+
+| Kind | (l) | (p) | (p) hidden / printed / no gold tuplet |
+|---|---|---|---|
+| Rhythm: the notes read without the tuplet | 688 | 371 | 190 / 181 / 0 |
+| Tuplet notes left out | 446 | 416 | 311 / 105 / 0 |
+| Tuplet notes added | 281 | 292 | 43 / 17 / 232 |
+| Length at the same onset | 322 | 242 | 157 / 43 / 42 |
+| Moved | 140 | 171 | 22 / 149 / 0 |
+| Number or bracket drawn otherwise | 80 | 146 | 116 / 30 / 0 |
+| Pitch | 70 | 145 | 61 / 84 / 0 |
+| Grouping | 74 | 80 | 36 / 30 / 14 |
+| Another tuplet rhythm | 9 | 9 | 0 / 9 / 0 |
+| Total | 2,110 | 1,872 | |
+
+OLiMPiC scanned, label bars with a tuplet read wrong, (l) / (p): numbers hidden or not drawn at
+all, 66 / 46 of 164 (ratio left out 37 / 33); printed, 63 / 66 of 133 (ratio left out 34 / 30,
+another ratio 6 / 7, other pitches 6 / 8, notes missing or added 3 / 7, other onsets 7 / 6). Every
+label group, its number as the print draws it: of 566 hidden, shown 44.0% / 55.1%, as printed
+38.7% / 34.5%, group not read 17.3% / 10.4%; of about 360 printed, as printed 70.5% / 70.8%, hidden
+4.5% / 6.6%, not read 25.1% / 22.7%.
+
+The commonest misread is the tuplet not read at all, its notes written as plain values. Next, a
+hidden number drawn: the models show a hidden group's number about half the time, and rarely hide a
+printed one. Pitches are a small share. (p) reads hidden tuplets' rhythm better than (l) (Polish
+504 to 190, OLiMPiC 66 to 46 bars wrong) but draws their numbers more often; printed tuplets are
+no better. Counted this way, (p)'s tuplet cost is 238 lower than (l)'s, not higher.
+
+**What a tuplet's notes are read as** (`tuplet_values.py`, `tuplet_values_l_p.txt`; OLiMPiC scanned
+dev, all 615 clean systems; each label note under a ratio matched to the reading's note in the same
+voice by pitch sequence). (l) / (p), of 2,880 / 2,911 notes: kept 77.6% / 87.0%; the same note value
+without the ratio 16.5% / 7.8%; the same value under another ratio 4.1% / 2.9%; another value 1.7% /
+2.4%. So a tuplet read as plain values is the same note shape written without its ratio (`16th 3in2`
+to `16th` 153 / 120 times, `32nd 6in4` to `32nd` 264 / 16, `eighth 3in2` to `eighth` 24 / 46), not a
+value chosen to fit the beat. "Another ratio" is mostly `16th 3in2` written `16th 6in4` (119 / 81):
+the same lengths grouped as a sextuplet, a grouping and number error, not a rhythm one. `half 2in1`
+read as `32nd` or `64th` (30 / 48) is probably two-note tremolos, unchecked.

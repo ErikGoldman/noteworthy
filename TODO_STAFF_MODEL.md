@@ -29,6 +29,47 @@ this order; the big causes before the small ones (spanning marks and beams wait)
 Later: spanning marks and beams (9.7%; what musicdiff's extras are, slurs or dynamics and pedal the
 vocabulary cannot write, not yet known), ledger lines (7.1%).
 
+## To test next (from the review of both logs, 2026-11-16)
+
+In this order: 1 first, since 2-5 are judged by differences of its size.
+
+1. **Confirm (p) before building on it, and measure the noise.** (p)'s lead over (l) on Polish
+   dev shrinks with training: 1.26, 0.99, 0.33 at 60k, 80k, 100k (authors' alignment), the shape
+   the staff model's lead had before it proved a head start. And two staff baselines at 50,000
+   steps differ by 0.68 (11.03 against 11.71), more than the gaps (m), (o) and (p) were judged on
+   (0.45, 0.14, 0.33). Runs: (p) on the 150,000-step schedule against `l_system_150k` (6.73 at
+   120,000); one more seed each of (l) and (p) at 100,000. The seeds' spread is the noise floor
+   for every later comparison; until it is known, a single-seed gap under about 0.7 decides
+   nothing.
+2. **Labels in time order.** Compounding is the main rhythm cause (fed the right history, 92% of
+   plain bars are read right), and neither beam search nor training on its own readings (n) cured
+   it; (p) fixed where a voice enters, and what it gave back is notes shifted after a misread
+   value. A label form in which one misread length cannot move the rest: events written in time
+   order across a staff's voices (as kern does), or each event with its position in the bar
+   rather than only its length. Copisteria writes kern and had half our moved-onset cost early on
+   (1,689 against 3,676, clean model, 45 pages). Through `seq.label_form`, against (l) and (p),
+   at the length and seeds item 1 settles.
+3. **Tuplets, now the largest cause for (p)** (15.4% of the cost, notes and marks). First why T6
+   (`unmarked` at weight 3) made Polish worse (+1.49 [-0.32, +3.80]) while helping OLiMPiC's
+   hidden-number bars: whether it writes tuplets where none are, by page. Then "Hide tuplet
+   numbers as engravers do" (below) across every set's crops, the first group or two numbered and
+   the rest not, rather than a separate set weighted up.
+4. **Two-voice systems weighted up.** Polish dev has 27.9% two-voice staff-bars, most training
+   sources 14-20%, with the same mix of textures. Cheap, and already named under priority 1;
+   measured with `voice_metrics.py` and the two-voice rows of `ned_causes.py`.
+5. **seq516's data changes, one at a time.** Smashcima, MusiCorpus, `unmarked` and the GrandStaff
+   cleaning went in together and were worth about 2 points; the GrandStaff control planned then
+   was never run. One run leaving each out (four runs), so the next data decisions, the handwriting
+   share and T6's question among them, rest on what each set does.
+6. **The whole bars musicdiff replaces, by eye.** 9.6% of (p)'s cost, 58 bars for the best model,
+   110, 042 and 093 holding 57%; "not yet looked into page by page". No GPU.
+7. **A second set of real scans scored by OMR-NED.** Polish dev's 49 two-staff pages now decide
+   post-rules, gold overrides, stopping, architecture and label form, ten pages holding half the
+   cost; and OLiMPiC's SER disagrees with it ((m) and T6 better on dev, worse on Polish: SER
+   weighs arcs, OMR-NED notes). OLiMPiC's scanned dev pages through `seq_pages.py`, scored by
+   OMR-NED against their MusicXML, reported beside Polish dev for every run; a change counts when
+   both move the same way.
+
 ## Running now (night of 2026-11-14)
 
 The overnight experiments of `EXPERIMENTS_STAFF_MODEL_PLAN.md`:
