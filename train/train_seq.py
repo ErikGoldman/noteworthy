@@ -32,6 +32,7 @@ import torch
 from torch.nn import functional as F
 
 from seq.data import SystemDataset, collate, samples, split_names
+from seq.label_form import LabelForm
 from seq.meter import METER, PREFIX_LENGTH, without_meter
 from seq.model import Seq2Seq, StaffSeq2Seq
 from seq.ottava import sounding
@@ -157,6 +158,11 @@ def meter_starts(tokens: torch.Tensor, vocab: Vocab) -> list[list[int]]:
     return [t[1:1 + PREFIX_LENGTH] if t[1] == meter else [] for t in tokens.tolist()]
 
 
+def as_lmx(model, vocab: Vocab, ids: list[int]) -> str:
+    """A decoded reading or label as plain LMX: the meter prefix and its label form's additions out."""
+    return model.label_form.reading(without_meter(vocab.decode(ids)))
+
+
 def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
     model.eval()
     errors = total = 0
@@ -164,8 +170,8 @@ def ser(model: Seq2Seq, loader, vocab: Vocab, device) -> float:
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths, starts=meter_starts(tokens, vocab))
         for p, g in zip(predicted, tokens.tolist()):
-            gold = comparable(without_meter(vocab.decode(g[1:]))).split()
-            errors += Levenshtein.distance(comparable(without_meter(vocab.decode(p))).split(), gold)
+            gold = comparable(as_lmx(model, vocab, g[1:])).split()
+            errors += Levenshtein.distance(comparable(as_lmx(model, vocab, p)).split(), gold)
             total += len(gold)
     model.train()
     return errors / max(1, total)
@@ -189,9 +195,11 @@ def main() -> None:
     ap.add_argument("--height", type=int, default=256, help="crop height at the model's input")
     ap.add_argument("--row-stride", type=int, default=32, choices=[8, 16, 32])
     ap.add_argument("--seed", type=int, default=0, help="decides the initial weights, batches and augmentation")
-    # Every model reads the meter in force (seq.meter) since 2026-11-15; recorded in each checkpoint,
-    # where seq_predict reads an older one's absence as without.
-    ap.set_defaults(meter_context=True)
+    ap.add_argument("--meter-context", action="store_true", help="labels start with the meter in force (seq.meter)")
+    ap.add_argument("--voice-counts", action="store_true",
+                    help="labels say how many voices each staff holds after each measure (seq.label_form)")
+    ap.add_argument("--canonical-gaps", action="store_true",
+                    help="labels write each gap and each return to the bar's start one way (seq.label_form)")
     ap.add_argument("--own-readings", type=float, default=0.0,
                     help="share of the decoder's input tokens replaced by ones sampled from its own reading "
                          "of the batch (scheduled sampling), rising from 0 over the first half of training")
@@ -264,27 +272,30 @@ def main() -> None:
         dev_items = with_staves(dev_items, Path(dev_root), positions)
     if args.staff_samples_only and not args.interline_scale:
         train_items, dev_items = [s for s, _ in train_items], [s for s, _ in dev_items]
+    form = LabelForm(voice_counts=args.voice_counts, canonical_gaps=args.canonical_gaps)
     if args.staves:
         dataset = lambda items, train: StaffDataset(items, vocab, train, args.max_tokens, outward=args.staff_outward,
                                                     meter_context=args.meter_context, jitter=args.staff_jitter,
-                                                    cut_between=args.staff_cut_between)
+                                                    cut_between=args.staff_cut_between, form=form)
         batched = collate_staves
         model = StaffSeq2Seq(len(vocab), max_tokens=args.max_tokens, row_stride=args.row_stride, blocks=args.blocks,
                              across_columns=args.across_columns, staff_outward=args.staff_outward,
-                             meter_context=args.meter_context, staff_cut_between=args.staff_cut_between)
+                             meter_context=args.meter_context, staff_cut_between=args.staff_cut_between, label_form=form)
     elif args.interline_scale:
         dataset = lambda items, train: InterlineSystemDataset(items, vocab, train, args.max_tokens,
-                                                              meter_context=args.meter_context)
+                                                              meter_context=args.meter_context, form=form)
         batched = collate_systems
         model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
                         meter_context=args.meter_context, relative_rows=args.relative_rows,
                         row_windows=args.row_windows, interline_scaled=True, staff_anchored=args.staff_anchored,
-                        staff_bands=args.staff_bands, staff_windows=args.staff_windows)
+                        staff_bands=args.staff_bands, staff_windows=args.staff_windows, label_form=form)
     else:
-        dataset = lambda items, train: SystemDataset(items, vocab, train, args.max_tokens, args.height, args.meter_context)
+        dataset = lambda items, train: SystemDataset(items, vocab, train, args.max_tokens, args.height, args.meter_context,
+                                                     form)
         batched = collate
         model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
-                        meter_context=args.meter_context, relative_rows=args.relative_rows, row_windows=args.row_windows)
+                        meter_context=args.meter_context, relative_rows=args.relative_rows, row_windows=args.row_windows,
+                        label_form=form)
     train = torch.utils.data.DataLoader(dataset(train_items, True), batch_size=args.batch,
                                         shuffle=True, num_workers=args.workers, collate_fn=batched, drop_last=True,
                                         persistent_workers=True)

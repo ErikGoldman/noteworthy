@@ -17,8 +17,8 @@ import cv2
 import numpy as np
 import torch
 
-from .data import WIDTH_MULTIPLE, Sample, degrade, max_width, reframe, to_tensor
-from .meter import with_meter
+from .data import WIDTH_MULTIPLE, Sample, degrade, label_of, max_width, reframe, to_tensor
+from .label_form import LabelForm
 from .model import StaffImages, SystemImages
 from .staves import STAFF_INTERLINES, Staves, staff_crops
 from .vocab import PAD, Vocab
@@ -53,12 +53,13 @@ class StaffDataset(torch.utils.data.Dataset):
 
     def __init__(self, items: list[tuple[Sample, Staves]], vocab: Vocab, train: bool, max_tokens: int,
                  height: int = STAFF_HEIGHT, outward: float = 0.0, meter_context: bool = False, jitter: float = 0.0,
-                 cut_between: bool = False):
+                 cut_between: bool = False, form: LabelForm = LabelForm()):
         """jitter: in training, each staff's crop is centred up to this many interlines off its staff
         (uniformly, each staff apart), so that no row of a crop holds a fixed place on the staff.
         cut_between: crops white past the midpoints between staves (staves.staff_crops)."""
         self.items, self.vocab, self.train, self.max_tokens, self.height = items, vocab, train, max_tokens, height
         self.outward, self.meter_context, self.jitter, self.cut_between = outward, meter_context, jitter, cut_between
+        self.form = form
         self.rng: np.random.Generator | None = None
 
     def __len__(self) -> int:
@@ -75,9 +76,7 @@ class StaffDataset(torch.utils.data.Dataset):
                             staves.interline)
             image = degrade(rng, image, interline)
         crops = cut_staves(image, staves, self.height, self.outward, self.cut_between)
-        lmx = sample.lmx.read_text()
-        if self.meter_context:
-            lmx = with_meter(lmx, self.augmentation_rng() if self.train else None)
+        lmx = label_of(sample, self.form, self.meter_context, self.augmentation_rng() if self.train else None)
         tokens = self.vocab.encode(lmx)[: self.max_tokens]
         return torch.stack([to_tensor(c) for c in crops]), torch.tensor(tokens)
 
@@ -121,9 +120,7 @@ class InterlineSystemDataset(StaffDataset):
             image, moved = reframe(rng, image)
             staves = Staves(tuple(moved(c) for c in staves.centres), staves.interline)
             image = degrade(rng, image, staves.interline)
-        lmx = sample.lmx.read_text()
-        if self.meter_context:
-            lmx = with_meter(lmx, self.augmentation_rng() if self.train else None)
+        lmx = label_of(sample, self.form, self.meter_context, self.augmentation_rng() if self.train else None)
         tokens = self.vocab.encode(lmx)[: self.max_tokens]
         return (to_tensor(image), staves), torch.tensor(tokens)
 

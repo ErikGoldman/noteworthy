@@ -234,3 +234,8 @@ time:common
 time:cut
 tuplet:hidden
 meter
+voices:1
+voices:2
+voices:3
+voices:4
+backup:bar

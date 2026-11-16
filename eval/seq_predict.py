@@ -35,9 +35,9 @@ from seq.ottava import add_octave_shifts, shifts_of, sounding  # noqa: E402
 from seq.barlines import add_barlines, without_barlines  # noqa: E402
 from seq.time_symbols import add_time_symbols, without_time_symbols  # noqa: E402
 from seq.tuplet_numbers import hide_numbers, without_hidden_numbers  # noqa: E402
-from seq.meter import without_meter  # noqa: E402
+from seq.label_form import LabelForm  # noqa: E402
 from seq.vocab import Vocab  # noqa: E402
-from train_seq import VOCABULARY, comparable, meter_starts  # noqa: E402
+from train_seq import VOCABULARY, as_lmx, comparable, meter_starts  # noqa: E402
 
 
 def rewind_to_measure_start(part: ET.Element) -> None:
@@ -91,7 +91,8 @@ def load_model(checkpoint: Path, device) -> Seq2Seq | StaffSeq2Seq:
                              blocks=args.get("blocks", 1), across_columns=args.get("across_columns", 1),
                              staff_outward=args.get("staff_outward", 0.0),
                              meter_context=args.get("meter_context", False),
-                             staff_cut_between=args.get("staff_cut_between", False)).to(device)
+                             staff_cut_between=args.get("staff_cut_between", False),
+                             label_form=LabelForm.from_options(args)).to(device)
     else:
         model = Seq2Seq(vocab_size, max_tokens=args["max_tokens"], height=args.get("height", 256),
                         row_stride=args.get("row_stride", 32), meter_context=args.get("meter_context", False),
@@ -99,7 +100,8 @@ def load_model(checkpoint: Path, device) -> Seq2Seq | StaffSeq2Seq:
                         row_windows=args.get("row_windows", 0), interline_scaled=args.get("interline_scale", False),
                         staff_anchored=args.get("staff_anchored", False),
                         staff_bands=args.get("staff_bands", False),
-                        staff_windows=args.get("staff_windows", False)).to(device)
+                        staff_windows=args.get("staff_windows", False),
+                        label_form=LabelForm.from_options(args)).to(device)
     model.load_state_dict(state["model"])
     return model.eval()
 
@@ -110,10 +112,13 @@ def reading_dataset(model, pairs: list, vocab: Vocab):
     from seq.staff_data import InterlineSystemDataset, StaffDataset, collate_staves, collate_systems
     if isinstance(model, StaffSeq2Seq):
         return StaffDataset(pairs, vocab, False, model.max_tokens, outward=model.staff_outward,
-                            meter_context=model.meter_context, cut_between=model.staff_cut_between), collate_staves
+                            meter_context=model.meter_context, cut_between=model.staff_cut_between,
+                            form=model.label_form), collate_staves
     if model.interline_scaled:
-        return InterlineSystemDataset(pairs, vocab, False, model.max_tokens, meter_context=model.meter_context), collate_systems
-    return SystemDataset([s for s, _ in pairs], vocab, False, model.max_tokens, model.height, model.meter_context), collate
+        return InterlineSystemDataset(pairs, vocab, False, model.max_tokens, meter_context=model.meter_context,
+                                      form=model.label_form), collate_systems
+    return SystemDataset([s for s, _ in pairs], vocab, False, model.max_tokens, model.height, model.meter_context,
+                         model.label_form), collate
 
 
 def main() -> None:
@@ -130,7 +135,7 @@ def main() -> None:
         sys.exit("seq_predict.py reads whole crops; a StaffSeq2Seq run is scored by train_seq.py's dev check and seq_pages.py")
     names = split_names(SCANNED, args.split)
     loader = torch.utils.data.DataLoader(SystemDataset(samples(SCANNED, names), vocab, False, model.max_tokens, model.height,
-                                                       model.meter_context),
+                                                       model.meter_context, model.label_form),
                                          batch_size=args.batch, num_workers=6, collate_fn=collate)
     errors = total = 0
     done = 0
@@ -138,7 +143,7 @@ def main() -> None:
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths, starts=meter_starts(tokens, vocab))
         for name, p, g in zip(names[done:], predicted, tokens.tolist()):
-            lmx, gold = comparable(without_meter(vocab.decode(p))), comparable(without_meter(vocab.decode(g[1:])))
+            lmx, gold = comparable(as_lmx(model, vocab, p)), comparable(as_lmx(model, vocab, g[1:]))
             errors += Levenshtein.distance(lmx.split(), gold.split())
             total += len(gold.split())
             path = args.out / name

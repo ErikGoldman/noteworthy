@@ -31,10 +31,9 @@ import torch
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
 from seq.data import samples, split_names  # noqa: E402
-from seq.meter import without_meter  # noqa: E402
 from seq.ottava import OCTAVES_OF_TOKEN  # noqa: E402
 from seq.vocab import Vocab  # noqa: E402
-from train_seq import VOCABULARY, meter_starts, with_staves  # noqa: E402
+from train_seq import VOCABULARY, as_lmx, meter_starts, with_staves  # noqa: E402
 from seq_predict import load_model, reading_dataset  # noqa: E402
 
 DATA = Path(os.environ.get("NW_DATA", ROOT / "data")) / "olimpic_written_dev"
@@ -140,7 +139,7 @@ def read(args) -> list[dict]:
                     predicted = model.generate(images.to(device), widths, starts=meter_starts(tokens, vocab))
                 for sample, p, g in zip(items[done:], predicted, tokens.tolist()):
                     rows.append({"source": source, "name": str(sample.image.relative_to(root).with_suffix("")),
-                                 "reading": without_meter(vocab.decode(p)), "label": without_meter(vocab.decode(g[1:]))})
+                                 "reading": as_lmx(model, vocab, p), "label": as_lmx(model, vocab, g[1:])})
                 done += len(predicted)
                 print(f"{source}: {done}/{len(items)}", file=sys.stderr, flush=True)
     return rows

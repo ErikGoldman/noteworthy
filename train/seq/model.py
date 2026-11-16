@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
+from .label_form import LabelForm
 from .staves import STAFF_INTERLINES
 from .vocab import BOS, EOS, PAD
 
@@ -242,7 +243,7 @@ class Seq2Seq(_TokenDecoder):
                  heads: int = 8, max_tokens: int = 1024, height: int = 256, row_stride: int = 32, dropout: float = 0.1,
                  meter_context: bool = False, relative_rows: bool = False, row_windows: int = 0,
                  interline_scaled: bool = False, staff_anchored: bool = False, staff_bands: bool = False,
-                 staff_windows: bool = False, max_staves: int = 8):
+                 staff_windows: bool = False, max_staves: int = 8, label_form: LabelForm = LabelForm()):
         super().__init__()
         if row_windows and not relative_rows:
             raise ValueError("row_windows needs relative_rows: a band's rows have no fixed place in the crop")
@@ -254,6 +255,7 @@ class Seq2Seq(_TokenDecoder):
             raise ValueError("staff_windows replaces staff_bands")
         self.height, self.row_stride = height, row_stride
         self.meter_context = meter_context  # trained to read a seq.meter prefix
+        self.label_form = label_form  # how its labels were written (seq.label_form)
         self.relative_rows, self.row_windows, self.interline_scaled = relative_rows, row_windows, interline_scaled
         self.staff_anchored, self.staff_bands, self.staff_windows = staff_anchored, staff_bands, staff_windows
         self.cnn = _cnn(dim, row_stride)
@@ -427,16 +429,16 @@ class StaffSeq2Seq(_TokenDecoder):
     the top and bottom staves' crops are slid away from the system (seq.staves.staff_crops); not
     a weight, but the crops the model was trained on, so everything that reads it cuts the same;
     staff_cut_between likewise (crops white past the midpoints between staves).
-    meter_context: trained to read a seq.meter prefix, as Seq2Seq's option."""
+    meter_context: trained to read a seq.meter prefix, label_form: its labels' form, as Seq2Seq's options."""
 
     def __init__(self, vocab_size: int, dim: int = 384, blocks: int = 1, decoder_layers: int = 6, heads: int = 8,
                  max_tokens: int = 1024, staff_height: int = 256, row_stride: int = 32, max_staves: int = 8,
                  dropout: float = 0.1, across_columns: int = 1, staff_outward: float = 0.0, meter_context: bool = False,
-                 staff_cut_between: bool = False):
+                 staff_cut_between: bool = False, label_form: LabelForm = LabelForm()):
         super().__init__()
         self.staff_height, self.across_columns, self.staff_outward = staff_height, across_columns, staff_outward
         self.staff_cut_between = staff_cut_between
-        self.meter_context = meter_context
+        self.meter_context, self.label_form = meter_context, label_form
         self.cnn = _cnn(dim, row_stride)
         self.row_embedding = nn.Parameter(torch.zeros(staff_height // row_stride, dim))
         self.staff_embedding = nn.Parameter(torch.zeros(max_staves, dim))

@@ -48,13 +48,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
 from seq.data import collate, scale_to_height, to_tensor  # noqa: E402
 from seq.lmx_tuplets import bar_fill, written_bar  # noqa: E402
-from seq.meter import meter_tokens, without_meter  # noqa: E402
+from seq.meter import meter_tokens  # noqa: E402
 from seq.model import StaffSeq2Seq  # noqa: E402
 from seq.ottava import sounding  # noqa: E402
 from seq.staff_data import at_interline, at_staff_scale, collate_staves, collate_systems, cut_staves  # noqa: E402
 from seq.staves import Staves  # noqa: E402
 from seq.vocab import BOS, EOS, Vocab  # noqa: E402
-from train_seq import VOCABULARY  # noqa: E402
+from train_seq import VOCABULARY, as_lmx  # noqa: E402
 
 MARGIN_INTERLINES = 7.0     # how far from the staves a crop may reach for high notes
 SIDE_MARGIN_INTERLINES = 1.0
@@ -210,7 +210,7 @@ def transcribe(model, vocab: Vocab, crops: list[Crop], device, batch: int,
         with torch.autocast("cuda", dtype=torch.bfloat16):
             predicted = model.generate(images.to(device), widths, starts=starts, beam=beam)
         for i, tokens in zip(chosen, predicted):
-            out[i] = without_meter(vocab.decode(tokens))
+            out[i] = as_lmx(model, vocab, tokens)
     return out
 
 

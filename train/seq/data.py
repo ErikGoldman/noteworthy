@@ -16,6 +16,7 @@ import torch
 
 from omr.augment import capture_degradation, stroke_weight
 
+from .label_form import LabelForm
 from .meter import with_meter
 from .vocab import PAD, Vocab
 
@@ -112,11 +113,17 @@ def to_tensor(image: np.ndarray) -> torch.Tensor:
     return torch.from_numpy(255 - image).float().div(255).unsqueeze(0)
 
 
+def label_of(sample: Sample, form: LabelForm, meter_context: bool, rng: np.random.Generator | None) -> str:
+    """A sample's label as a model with this form reads it; rng: training's, for the meter's spelling."""
+    lmx = form.label(sample.lmx.read_text())
+    return with_meter(lmx, rng) if meter_context else lmx
+
+
 class SystemDataset(torch.utils.data.Dataset):
     def __init__(self, items: list[Sample], vocab: Vocab, train: bool, max_tokens: int, height: int = HEIGHT,
-                 meter_context: bool = False):
+                 meter_context: bool = False, form: LabelForm = LabelForm()):
         self.height = height
-        self.meter_context = meter_context
+        self.meter_context, self.form = meter_context, form
         self.items = items
         self.vocab = vocab
         self.train = train
@@ -131,9 +138,7 @@ class SystemDataset(torch.utils.data.Dataset):
         image = load_scaled(sample.image, self.height)
         if self.train:
             image = augment(self.augmentation_rng(), image)
-        lmx = sample.lmx.read_text()
-        if self.meter_context:
-            lmx = with_meter(lmx, self.augmentation_rng() if self.train else None)
+        lmx = label_of(sample, self.form, self.meter_context, self.augmentation_rng() if self.train else None)
         tokens = self.vocab.encode(lmx)[: self.max_tokens]
         return to_tensor(image), torch.tensor(tokens)
 
