@@ -29,11 +29,13 @@ build_crops round --systems-per-score 2 --thick-beams --round-heads
 build_crops marks --systems-per-score 2 --thick-beams --marks
 # Prints often number the first tuplets of a run and no more: systems with tuplets, numbers hidden.
 build_crops unmarked --systems-per-score 2 --unmarked-tuplets
-(cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-synthetic" "$data/olimpic_written")
+# v2: tuplet numbers drawn as the scores draw them (2026-11-17). The sets before it, olimpic_written
+# and olimpic_written_dev, are built by this script's history (git log scripts/build_seq_data.sh).
+(cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-synthetic" "$olimpic/lieder" "$data/olimpic_written_v2")
 # OLiMPiC's dev systems, synthetic and scanned, labelled the same way: eval/outer_notes.py's set.
-outer_dev="$NW_DATA/olimpic_written_dev"
+outer_dev="$NW_DATA/olimpic_written_dev_v2"
 for source in synthetic scanned; do
-  (cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-$source" "$outer_dev/$source" dev)
+  (cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-$source" "$olimpic/lieder" "$outer_dev/$source" dev)
 done
 (cd "$ROOT/train" && with_display "$PY" rebuild_grandstaff_lmx.py "$olimpic/grandstaff-lmx" "$data/grandstaff_rebuilt")
 (cd "$ROOT/train" && "$PY" build_grandstaff_written.py "$olimpic/grandstaff-lmx" "$data/grandstaff_rebuilt" "$data/grandstaff_written")
@@ -43,7 +45,7 @@ done
   --out "$crops/smashcima" --systems-per-score 1 --workers "$NW_SMASHCIMA_WORKERS")
 (cd "$ROOT/train" && "$PY" build_musicorpus_crops.py "$RAW/musicorpus/musicorpus_v1.0" --out "$data/musicorpus")
 # Each crop's staff positions, for StaffSeq2Seq (train_seq.py --staves), and OLiMPiC scanned dev's.
-(cd "$ROOT/train" && "$PY" find_staff_positions.py "$data/staff_positions" "$data/olimpic_written:train" \
+(cd "$ROOT/train" && "$PY" find_staff_positions.py "$data/staff_positions" "$data/olimpic_written_v2:train" \
   "$data/grandstaff_written:train" "$crops/pdmx:train" "$crops/beams:train" "$crops/round:train" "$crops/marks:train" \
   "$crops/musescore:train" "$crops/unmarked:train" "$crops/smashcima:train" "$data/musicorpus:train" \
   "$olimpic/olimpic-1.0-scanned:dev")

@@ -29,6 +29,7 @@ from .lmx_tuplets import LENGTHS, PITCH, length_at
 VOICE_COUNT_CAP = 4
 VOICE_COUNT_TOKENS = [f"voices:{n}" for n in range(1, VOICE_COUNT_CAP + 1)]
 STAFF = re.compile(r"^staff:(\d+)$")
+STAFF_OR_VOICE = re.compile(r"^(staff|voice):\d+$")
 BACKUP_TO_BAR = "backup:bar"
 PREFIXES = {"print-object:no", "grace", "grace:slash", "chord"}
 SPELLED = sorted(((name, Fraction(value)) for name, value in LENGTHS.items() if value <= 4), key=lambda nv: -nv[1])
@@ -57,7 +58,7 @@ class LabelForm:
     def reading(self, lmx: str) -> str:
         if self.voice_counts:
             lmx = without_voice_counts(lmx)
-        return with_backups_spelled(lmx) if self.canonical_gaps else lmx
+        return with_backups_spelled(with_hidden_bar_rests_restored(lmx)) if self.canonical_gaps else lmx
 
 
 def voices_per_staff(bar: list[str]) -> dict[int, int]:
@@ -239,6 +240,28 @@ def canonical_bar(bar: list[str]) -> list[str]:
                 clock.passes(e)
         k = run_end
     return out
+
+
+def has_rest_head(written: list[str]) -> bool:
+    """Whether the tokens written so far end in a rest's head, with its voice or staff after it."""
+    return written[-1:] == ["rest"] or (written[-2:-1] == ["rest"] and bool(STAFF_OR_VOICE.match(written[-1])))
+
+
+def with_hidden_bar_rests_restored(lmx: str) -> str:
+    """A hidden whole-bar rest (`print-object:no rest voice:N rest:measure`) is a gap, so
+    with_canonical_gaps takes its hidden head away and leaves `rest:measure voice:N`; a drawn one
+    keeps its `rest`. So a `rest:measure` with no `rest` before it is a hidden one, and is written
+    out whole again (without its head it converts to a note with neither pitch nor length)."""
+    tokens, out, k = lmx.split(), [], 0
+    while k < len(tokens):
+        if tokens[k] == "rest:measure" and not has_rest_head(out):
+            voice = tokens[k + 1:k + 2] if tokens[k + 1:k + 2] and tokens[k + 1].startswith("voice:") else []
+            out += ["print-object:no", "rest", *voice, "rest:measure"]
+            k += 1 + len(voice)
+        else:
+            out.append(tokens[k])
+            k += 1
+    return " ".join(out)
 
 
 def with_backups_spelled(lmx: str) -> str:

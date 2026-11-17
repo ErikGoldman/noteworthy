@@ -54,6 +54,7 @@ RAW = Path(os.environ.get("NW_DATA", ROOT / "data")) / "raw"
 OLIMPIC = RAW / "olimpic"
 SCANNED = OLIMPIC / "olimpic-1.0-scanned"
 SOURCES = OLIMPIC / "sources"
+CLEAN_DEV = ROOT / "data" / "olimpic_dev_clean.txt"
 
 
 # --- which songs count -----------------------------------------------------------------
@@ -96,6 +97,11 @@ def split_samples(split: str) -> tuple[list[str], int]:
 
 def song_of(sample: str) -> str:
     return sample.split("/")[1]
+
+
+def clean_dev_songs() -> list[str]:
+    """Dev songs with no copy in a training source: OLiMPiC's page set (docs/EVAL_SETS.md, spec 2)."""
+    return sorted(set(map(song_of, CLEAN_DEV.read_text().split())))
 
 
 def recognize(binary: str, model: str, threads: int, images: list[Path], out: Path) -> str | None:

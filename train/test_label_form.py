@@ -69,6 +69,19 @@ class CanonicalGaps(unittest.TestCase):
         bar = "measure rest voice:1 rest:measure staff:1 backup quarter clef:F4 staff:2 E4 voice:5 quarter staff:2 backup quarter rest voice:6 quarter staff:2"
         self.assertEqual(with_canonical_gaps(bar), bar)
 
+    def test_a_hidden_whole_bar_rest_round_trips(self):
+        """Its hidden head goes as a gap's would; reading writes it back whole (Polish 038, 047:
+        a headless `rest:measure` became a note with neither pitch nor length)."""
+        form = LabelForm(canonical_gaps=True)
+        label = "measure C4 voice:1 half staff:1 D4 half backup whole print-object:no rest voice:5 rest:measure staff:2"
+        self.assertIn("backup:bar rest:measure voice:5", form.label(label))
+        self.assertEqual(form.reading(form.label(label)), label)
+
+    def test_a_drawn_whole_bar_rest_is_left_alone(self):
+        form = LabelForm(canonical_gaps=True)
+        label = "measure C4 voice:1 whole staff:1 backup whole rest voice:5 rest:measure staff:2"
+        self.assertEqual(form.reading(form.label(label)), label)
+
     def test_readings_get_their_backups_spelled_again(self):
         self.assertEqual(with_backups_spelled(with_canonical_gaps(TWO_BASS_VOICES)), TWO_BASS_VOICES)
         self.assertIn("backup half backup quarter forward quarter", with_backups_spelled(with_canonical_gaps(HIDDEN_REST)))

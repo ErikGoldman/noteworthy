@@ -4,7 +4,8 @@ from __future__ import annotations
 import unittest
 from fractions import Fraction
 
-from seq.lmx_tuplets import dots_mended, extra_beams_dropped, imply_tuplets, length_at
+from seq.lmx_tuplets import (ALL_RULES, PageRule, bar_at_end, bars_in_force, dots_mended, extra_beams_dropped, imply_tuplets,
+                              length_at, measures_of, with_page_rules)
 
 THREE_FOUR = Fraction(3)
 
@@ -32,21 +33,78 @@ class Lengths(unittest.TestCase):
         self.assertEqual(length_at("A4 quarter dot dot".split(), 1), (Fraction(7, 4), None))
 
 
+# A second voice that fills a 3/4 bar: it confirms the meter, which implying tuplets needs.
+FILLING = "backup half dot C3 voice:2 half dot"
+
+
 class UnmarkedTuplets(unittest.TestCase):
     def test_overfull_triplet_groups_become_triplets(self):
-        lmx = measure(*[beamed(["C4", "D4", "E4"], "eighth")] * 3)
+        lmx = measure(*[beamed(["C4", "D4", "E4"], "eighth")] * 3, FILLING)
         self.assertEqual(imply_tuplets(lmx, THREE_FOUR).count("3in2"), 9)
 
     def test_three_16ths_under_an_eighths_second_beam_become_a_triplet(self):
         # Polish 055 bar 17: an eighth, then a 16th triplet under the group's second beam
         group = "F5 eighth beam:begin A4 16th beam:begin G5 16th F5 16th beam:end beam:end"
-        tuplets = imply_tuplets(measure("C6 quarter", "C5 quarter", group), THREE_FOUR)
+        tuplets = imply_tuplets(measure("C6 quarter", "C5 quarter", group, FILLING), THREE_FOUR)
         self.assertEqual(tuplets, measure("C6 quarter", "C5 quarter",
-                                          "F5 eighth beam:begin A4 16th 3in2 beam:begin G5 16th 3in2 F5 16th 3in2 beam:end beam:end"))
+                                          "F5 eighth beam:begin A4 16th 3in2 beam:begin G5 16th 3in2 F5 16th 3in2 beam:end beam:end",
+                                          FILLING))
+
+    def test_no_tuplets_where_every_voice_overflows(self):
+        """Polish 051 bar 22, 071: a barline missed or a meter misread, not triplets."""
+        lmx = measure(*[beamed(["C4", "D4", "E4"], "eighth")] * 3, "backup half dot C3 voice:2 whole")
+        self.assertEqual(imply_tuplets(lmx, THREE_FOUR), lmx)
 
     def test_full_bar_of_plain_eighths_stays_plain(self):
         lmx = measure(*[beamed(["C4", "D4"], "eighth")] * 3)
         self.assertEqual(imply_tuplets(lmx, THREE_FOUR), lmx)
+
+
+class RulesChosen(unittest.TestCase):
+    OVERFULL = measure(*[beamed(["C4", "D4", "E4"], "eighth")] * 3, FILLING)
+    RUNAWAY = measure(beamed(["C4", "D4"], "eighth", "3in2"), *[beamed(["E4", "F4", "G4"], "eighth", "3in2")] * 2)
+
+    def test_implied_tuplets_left_out(self):
+        self.assertEqual(imply_tuplets(self.OVERFULL, THREE_FOUR, ALL_RULES - {PageRule.IMPLIED_TUPLETS}), self.OVERFULL)
+
+    def test_wrong_marks_kept_when_clearing_is_left_out(self):
+        self.assertEqual(imply_tuplets(self.RUNAWAY, THREE_FOUR, ALL_RULES - {PageRule.WRONG_MARKS_CLEARED}), self.RUNAWAY)
+
+    def test_no_rules_leaves_a_reading_as_read(self):
+        for lmx in (self.OVERFULL, self.RUNAWAY):
+            self.assertEqual(with_page_rules(lmx, THREE_FOUR, frozenset()), lmx)
+
+    def test_every_rule_is_the_default(self):
+        self.assertEqual(with_page_rules(self.OVERFULL, THREE_FOUR), imply_tuplets(self.OVERFULL, THREE_FOUR))
+
+
+class MeterInForce(unittest.TestCase):
+    """A system can change meter partway (OLiMPiC 6259566 alternates 6/8 and 2/4)."""
+    CHANGING = ("measure time beats:6 beat-type:8 C4 quarter dot D4 quarter dot "
+                "measure E4 quarter dot F4 quarter dot measure time beats:2 beat-type:4 G4 half")
+
+    def bars(self, lmx: str, carried=None):
+        tokens = lmx.split()
+        return bars_in_force(tokens, carried, measures_of(tokens))
+
+    def test_each_measure_takes_the_signature_before_it(self):
+        self.assertEqual(self.bars(self.CHANGING), [3, 3, 2])
+
+    def test_carried_meter_holds_until_one_is_written(self):
+        lmx = "measure C4 half dot measure time beats:2 beat-type:4 D4 half"
+        self.assertEqual(self.bars(lmx, carried=THREE_FOUR), [3, 2])
+
+    def test_the_last_signature_is_carried_on(self):
+        self.assertEqual(bar_at_end(self.CHANGING.split(), None), 2)
+        self.assertEqual(bar_at_end("measure C4 half dot".split(), THREE_FOUR), 3)
+
+    def test_triplets_implied_by_the_measures_own_meter(self):
+        """2/4 after 6/8: two groups of three eighths over a half note are triplets. Judged by the
+        system's first signature (6/8), they fit as written and were left plain."""
+        triplets = " ".join([beamed(["E4", "F4", "G4"], "eighth")] * 2)
+        lmx = ("measure time beats:6 beat-type:8 C4 quarter dot D4 quarter dot "
+               f"measure time beats:2 beat-type:4 {triplets} backup half C3 voice:2 half")
+        self.assertEqual(imply_tuplets(lmx).count("3in2"), 6)
 
 
 class RunawayTuplets(unittest.TestCase):

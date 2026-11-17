@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from enum import Enum
 from fractions import Fraction
 from math import gcd
 
@@ -28,6 +29,17 @@ LENGTHS = {"maxima": 32, "long": 16, "breve": 8, "whole": 4, "half": 2, "quarter
 TUPLET = re.compile(r"(\d+)in(\d+)$")
 PITCH = re.compile(r"[A-G]\d$")
 TUPLET_OF_GROUP = {3: ("3in2", Fraction(2, 3)), 5: ("5in4", Fraction(4, 5)), 6: ("6in4", Fraction(2, 3))}
+
+
+class PageRule(Enum):
+    """The repairs made to a reading before it is written out (with_page_rules)."""
+    IMPLIED_TUPLETS = "implied_tuplets"
+    WRONG_MARKS_CLEARED = "wrong_marks_cleared"
+    EXTRA_BEAMS_DROPPED = "extra_beams_dropped"
+    DOTS_MENDED = "dots_mended"
+
+
+ALL_RULES = frozenset(PageRule)
 
 
 @dataclass
@@ -134,7 +146,8 @@ def measures_of(tokens: list[str]) -> list[list[Voice]]:
 
 
 def written_bar(tokens: list[str]) -> Fraction | None:
-    """The first time signature's bar length, in quarters."""
+    """The first time signature's bar length, in quarters. For the bar a measure is in, see
+    bars_in_force: a system can change meter partway."""
     beats = next((t for t in tokens if t.startswith("beats:")), None)
     kind = next((t for t in tokens if t.startswith("beat-type:")), None)
     if beats is None or kind is None:
@@ -153,6 +166,28 @@ def measure_evidence(measure: list[Voice]) -> Fraction | None:
 def likely_bar(measures: list[list[Voice]]) -> Fraction | None:
     votes = Counter(e for e in map(measure_evidence, measures) if e)
     return min(votes, key=lambda bar: (-votes[bar], bar)) if votes else None
+
+
+def measure_spans(tokens: list[str]) -> list[tuple[int, int]]:
+    starts = [i for i, t in enumerate(tokens) if t == "measure"]
+    return list(zip(starts, starts[1:] + [len(tokens)]))
+
+
+def bars_in_force(tokens: list[str], carried: Fraction | None, measures: list[list[Voice]]) -> list[Fraction | None]:
+    """Each measure's bar length: the time signature written in it, else the one before it, else
+    carried (in force from earlier systems), else what the system's measures suggest (likely_bar).
+    A meter changed partway through a system holds from its measure on (OLiMPiC 6259566)."""
+    out, bar = [], carried
+    for start, end in measure_spans(tokens):
+        bar = written_bar(tokens[start:end]) or bar
+        out.append(bar)
+    guess = likely_bar(measures) if None in out else None
+    return [b or guess for b in out]
+
+
+def bar_at_end(tokens: list[str], carried: Fraction | None) -> Fraction | None:
+    """The bar length in force after a system: its last time signature, else carried."""
+    return next((b for start, end in reversed(measure_spans(tokens)) if (b := written_bar(tokens[start:end]))), carried)
 
 
 def as_tuplet(notes: list[Note]) -> tuple[list[Note], str, Fraction] | None:
@@ -253,16 +288,22 @@ def tuplet_tokens(tokens: list[str], note: Note) -> list[int]:
     return [note.tuplet_at, *brackets]
 
 
-def imply_tuplets(lmx: str, bar: Fraction | None = None) -> str:
-    """The LMX with tuplets the bar's arithmetic implies. bar is the length in force from earlier
-    systems, for one that does not print its own time signature."""
+def imply_tuplets(lmx: str, bar: Fraction | None = None, rules: frozenset[PageRule] = ALL_RULES) -> str:
+    """The LMX with tuplets the bar's arithmetic implies, and wrong tuplet marks cleared (each
+    only if in rules). bar is the length in force from earlier systems (bar_at_end of the last);
+    each measure is judged by its own (bars_in_force)."""
     tokens = lmx.split()
     measures = measures_of(tokens)
-    bar = written_bar(tokens) or bar or likely_bar(measures)
-    if bar is None:
-        return lmx
-    edits = [(at, token) for measure in measures for voice in measure for at, token in insertions_for(voice, bar)]
-    edits += [(at, None) for measure in measures for voice in measure for at in runaway_tuplets(voice, tokens, bar)]
+    timed = [(m, b) for m, b in zip(measures, bars_in_force(tokens, bar, measures)) if b is not None]
+    edits = []
+    if PageRule.IMPLIED_TUPLETS in rules:
+        # Only where another voice fills the bar: one that confirms the meter. Where every voice
+        # overflows, a barline missed (Polish 051 bar 22) or a meter misread (071, 9/8 read as
+        # 6/8) is likelier than tuplets, and triplets made to fit hide the real error.
+        edits += [(at, token) for measure, b in timed if filled(measure, b)
+                  for voice in measure for at, token in insertions_for(voice, b)]
+    if PageRule.WRONG_MARKS_CLEARED in rules:
+        edits += [(at, None) for measure, b in timed for voice in measure for at in runaway_tuplets(voice, tokens, b)]
     for at, token in sorted(edits, key=lambda edit: edit[0], reverse=True):
         if token is None:
             del tokens[at]
@@ -314,10 +355,8 @@ def extra_beams_dropped(lmx: str, bar: Fraction | None = None) -> str:
     many (16ths written as 32nds: Polish 057). bar as for imply_tuplets."""
     tokens = lmx.split()
     measures = measures_of(tokens)
-    bar = written_bar(tokens) or bar or likely_bar(measures)
-    if bar is None:
-        return lmx
-    notes = [n for measure in measures for voice in measure for n in (overbeamed_group(voice, tokens, bar) or [])]
+    notes = [n for measure, b in zip(measures, bars_in_force(tokens, bar, measures)) if b is not None
+             for voice in measure for n in (overbeamed_group(voice, tokens, b) or [])]
     for note in notes:
         tokens[note.duration_at] = ONE_BEAM_FEWER[tokens[note.duration_at]]
     beams = [last_beam_token(tokens, n.duration_at) for n in notes]
@@ -367,13 +406,21 @@ def dots_mended(lmx: str, bar: Fraction | None = None) -> str:
     imply_tuplets."""
     tokens = lmx.split()
     measures = measures_of(tokens)
-    bar = written_bar(tokens) or bar or likely_bar(measures)
-    if bar is None:
-        return lmx
-    events = (dot_read_in(voice, tokens, bar) for measure in measures if filled(measure, bar) for voice in measure)
+    events = (dot_read_in(voice, tokens, b) for measure, b in zip(measures, bars_in_force(tokens, bar, measures))
+              if b is not None and filled(measure, b) for voice in measure)
     for at in sorted((n.duration_at + 1 for event in events if event for n in event), reverse=True):
         del tokens[at]
     return " ".join(tokens)
+
+
+def with_page_rules(lmx: str, bar: Fraction | None = None, rules: frozenset[PageRule] = ALL_RULES) -> str:
+    """A reading with the page rules in rules applied, in the order they were measured in."""
+    lmx = imply_tuplets(lmx, bar, rules)
+    if PageRule.EXTRA_BEAMS_DROPPED in rules:
+        lmx = extra_beams_dropped(lmx, bar)
+    if PageRule.DOTS_MENDED in rules:
+        lmx = dots_mended(lmx, bar)
+    return lmx
 
 
 def bar_fill(lmx: str) -> float:
@@ -381,6 +428,6 @@ def bar_fill(lmx: str) -> float:
     that needs no ground truth, since a misread rhythm rarely still adds up."""
     tokens = imply_tuplets(lmx).split()
     measures = measures_of(tokens)
-    bar = written_bar(tokens) or likely_bar(measures)
-    fills = [v.total() == bar for measure in measures for v in measure if v.notes and not v.measure_rest]
+    fills = [v.total() == b for measure, b in zip(measures, bars_in_force(tokens, None, measures))
+             for v in measure if v.notes and not v.measure_rest]
     return sum(fills) / len(fills) if fills else 0.0

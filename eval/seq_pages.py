@@ -4,6 +4,7 @@ each is cropped and transcribed, and their measures are joined into one score.
 usage: seq_pages.py CHECKPOINT mutopia --binary NOTEWORTHY --model MODEL.onnx --out DIR
                     [--split dev|test] [--batch N]
        seq_pages.py CHECKPOINT olimpic --layouts DIR --out DIR [--split dev|test] [--batch N]
+       seq_pages.py CHECKPOINT olimpic-pages --layouts DIR --out DIR [--batch N]
        seq_pages.py CHECKPOINT pages --pages DIR --binary NOTEWORTHY --model MODEL.onnx --out DIR
        seq_pages.py CHECKPOINT rendered --pages DIR --scores LIST --binary NOTEWORTHY --model MODEL.onnx
                     --out DIR [--count N] [--split dev|test]
@@ -37,7 +38,7 @@ import torch
 from mutopia_benchmark import MUTOPIA, pieces
 from mutopia_truth import midi_events, pickup_quarters
 from note_scoring import report, score
-from olimpic_benchmark import SOURCES, song_document, song_of, song_systems, song_truth, split_samples
+from olimpic_benchmark import SOURCES, clean_dev_songs, song_document, song_of, song_systems, song_truth, split_samples
 from results_file import save_results
 from score_events import NoteEvent, parse_musicxml
 from page_musicxml import finish_score, mark_new_system
@@ -47,7 +48,7 @@ from synthetic_benchmark import f1_counts, held_out_scores, split_scores
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
 from seq.data import collate, scale_to_height, to_tensor  # noqa: E402
-from seq.lmx_tuplets import bar_fill, written_bar  # noqa: E402
+from seq.lmx_tuplets import ALL_RULES, PageRule, bar_at_end, bar_fill, written_bar  # noqa: E402
 from seq.meter import meter_tokens  # noqa: E402
 from seq.model import StaffSeq2Seq  # noqa: E402
 from seq.ottava import sounding  # noqa: E402
@@ -215,11 +216,13 @@ def transcribe(model, vocab: Vocab, crops: list[Crop], device, batch: int,
 
 
 def meters_in_force(lmx_of_systems: list[str]) -> list[Fraction | None]:
-    """Each system's meter: its own time signature, or the last one read before it"""
-    bars, in_force = [], None
+    """Each system's meter: its own first time signature, as a label's meter is given in training
+    (seq.meter.bar_of), or the one in force after the systems before it (their last)."""
+    bars, carried = [], None
     for lmx in lmx_of_systems:
-        in_force = written_bar(lmx.split()) or in_force
-        bars.append(in_force)
+        tokens = lmx.split()
+        bars.append(written_bar(tokens) or carried)
+        carried = bar_at_end(tokens, carried)
     return bars
 
 
@@ -250,8 +253,8 @@ def joined_events(lmx_of_systems: list[str], work: Path) -> list[NoteEvent]:
     for k, lmx in enumerate(lmx_of_systems):
         path = work / f"system{k}.musicxml"
         path.with_suffix(".lmx").write_text(lmx + "\n")
-        bar = written_bar(lmx.split()) or bar
         musicxml = delinearize(lmx, bar)
+        bar = bar_at_end(lmx.split(), bar)
         path.write_text(musicxml)
         events += [NoteEvent(e.measure + offset, e.onset, e.midi, e.duration, e.staff) for e in parse_musicxml(path)]
         offset += measure_count(musicxml)
@@ -272,12 +275,15 @@ def drop_repeated_signatures(part: ET.Element, in_force: dict[tuple, str]) -> No
             in_force[slot] = content
 
 
-def joined_musicxml(lmx_of_systems: list[str]) -> str:
-    """The systems as one score. Each keeps its own <divisions>, which apply until replaced."""
-    joined, in_force, bar = None, {}, None
+def joined_musicxml(lmx_of_systems: list[str], rules: frozenset[PageRule] = ALL_RULES,
+                    carried: Fraction | None = None) -> str:
+    """The systems as one score, the page rules in rules applied to each. Each keeps its own
+    <divisions>, which apply until replaced. carried: the bar in force before the first system
+    (from an earlier page), for the rules."""
+    joined, in_force, bar = None, {}, carried
     for lmx in lmx_of_systems:
-        bar = written_bar(lmx.split()) or bar
-        score = ET.fromstring(delinearize(lmx, bar))
+        score = ET.fromstring(delinearize(lmx, bar, rules))
+        bar = bar_at_end(lmx.split(), bar)
         part = score.find("part")
         drop_repeated_signatures(part, in_force)
         if joined is None:
@@ -296,12 +302,15 @@ def joined_musicxml(lmx_of_systems: list[str]) -> str:
 
 
 def transcribe_pages(args, model, vocab, device) -> None:
-    """<page>.musicxml for each image of a directory, for a scorer outside this environment."""
+    """<page>.musicxml for each image of a directory, for a scorer outside this environment, and
+    <page>.lmx.json, each system's reading before the page rules (seq_predict.delinearize), so a
+    rule can be judged on the CPU without reading the page again."""
     args.out.mkdir(parents=True, exist_ok=True)
     for image in sorted(args.pages.glob("*.png")):
         layout, pages = layout_of(args, [image], args.out / "work" / image.stem)
         systems = piano_systems(layout, page_scales(layout))
         lmx = best_readings(model, vocab, pages, systems, lambda _: True, device, args.batch, args.beam)
+        (args.out / f"{image.stem}.lmx.json").write_text(json.dumps(lmx))
         (args.out / f"{image.stem}.musicxml").write_text(joined_musicxml(lmx))
         print(image.stem, f"{len(systems)} systems", flush=True)
 
@@ -360,32 +369,68 @@ def bench_rendered(args, model, vocab, device) -> dict[str, Counter]:
     return results
 
 
+class OlimpicSong:
+    """A song's IMSLP pages, as read: the images (page_numbers: the IMSLP page of each), the
+    segmenter's systems on them, and which of those lie inside OLiMPiC's annotated boxes (a page
+    may also hold a neighbouring song's)."""
+
+    def __init__(self, song: str, layouts: Path):
+        annotated = song_systems(song)
+        document = song_document(song)
+        self.page_numbers = sorted({page for _, page, _ in annotated})
+        self.pages = [cv2.imread(str(SOURCES / "imslp_pngs" / document[p]["image"]), cv2.IMREAD_GRAYSCALE)
+                      for p in self.page_numbers]
+        self._boxes = [[document[p]["systems"][n - 1]["boundingBox"] for _, page, n in annotated if page == p]
+                       for p in self.page_numbers]
+        self.systems = piano_systems(json.loads((layouts / f"{song}.json").read_text()), defaultdict(lambda: 1.0))
+
+    def annotated(self, system: SystemCrop) -> bool:
+        middle = sum(system.bottom_staff) / 2
+        return any(b["top"] <= middle <= b["top"] + b["height"] for b in self._boxes[system.page - 1])
+
+    def read(self, args, model, vocab, device) -> list[tuple[SystemCrop, str]]:
+        """Each annotated system with its LMX, in reading order."""
+        lmx = best_readings(model, vocab, self.pages, self.systems, self.annotated, device, args.batch, args.beam)
+        return list(zip(filter(self.annotated, self.systems), lmx))
+
+
 def bench_olimpic(args, model, vocab, device) -> dict[str, Counter]:
     samples, _ = split_samples(args.split)
     results = {}
     for song in sorted(set(map(song_of, samples))):
-        annotated = song_systems(song)
-        document = song_document(song)
-        numbers = sorted({page for _, page, _ in annotated})
-        images = [SOURCES / "imslp_pngs" / document[p]["image"] for p in numbers]
-        boxes = [[document[p]["systems"][n - 1]["boundingBox"] for _, page, n in annotated if page == p] for p in numbers]
-        layout = json.loads((args.layouts / f"{song}.json").read_text())
-        pages = [cv2.imread(str(image), cv2.IMREAD_GRAYSCALE) for image in images]
-        inside = lambda s: any(b["top"] <= sum(s.bottom_staff) / 2 <= b["top"] + b["height"] for b in boxes[s.page - 1])
-        all_systems = piano_systems(layout, defaultdict(lambda: 1.0))
-        lmx = best_readings(model, vocab, pages, all_systems, inside, device, args.batch, args.beam)
-        results[song] = score(song_truth(annotated), joined_events(lmx, args.out / "work" / song / "systems"))
+        lmx = [reading for _, reading in OlimpicSong(song, args.layouts).read(args, model, vocab, device)]
+        results[song] = score(song_truth(song_systems(song)), joined_events(lmx, args.out / "work" / song / "systems"))
         print(song, dict(results[song].most_common(3)), flush=True)
     return results
+
+
+def transcribe_olimpic_pages(args, model, vocab, device) -> None:
+    """Spec 2 (docs/EVAL_SETS.md): each IMSLP page of the clean dev songs as <song>-p<page>.musicxml,
+    beside olimpic_pages_gold.py's gold, and <song>-p<page>.lmx.json (as transcribe_pages). A song is
+    read whole and the meter carried from page to page, as a reader would; it is written by page
+    because musicdiff's time and memory grow with the score."""
+    args.out.mkdir(parents=True, exist_ok=True)
+    for song in clean_dev_songs():
+        olimpic = OlimpicSong(song, args.layouts)
+        read = olimpic.read(args, model, vocab, device)
+        bar = None
+        for index, number in enumerate(olimpic.page_numbers, 1):
+            lmx = [reading for system, reading in read if system.page == index]
+            name = f"{song}-p{number}"
+            (args.out / f"{name}.lmx.json").write_text(json.dumps(lmx))
+            (args.out / f"{name}.musicxml").write_text(joined_musicxml(lmx, carried=bar))
+            for reading in lmx:
+                bar = bar_at_end(reading.split(), bar)
+            print(name, f"{len(lmx)} systems", flush=True)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("checkpoint", type=Path)
-    ap.add_argument("source", choices=["mutopia", "olimpic", "pages", "rendered", "score"])
+    ap.add_argument("source", choices=["mutopia", "olimpic", "olimpic-pages", "pages", "rendered", "score"])
     ap.add_argument("--binary", help="mutopia: finds the systems")
     ap.add_argument("--model", help="mutopia: the recognizer's model")
-    ap.add_argument("--layouts", type=Path, help="olimpic: <song>.json from olimpic_benchmark.py pages")
+    ap.add_argument("--layouts", type=Path, help="olimpic, olimpic-pages: <song>.json from olimpic_benchmark.py pages")
     ap.add_argument("--pages", type=Path, help="pages, rendered: a directory of page images")
     ap.add_argument("--inputs", type=Path, nargs="+", help="score: a PDF or page images, in order")
     ap.add_argument("--scores", help="rendered: the list given to synthetic_benchmark.py")
@@ -403,6 +448,9 @@ def main() -> None:
         return
     if args.source == "score":
         transcribe_score(args, model, vocab, device)
+        return
+    if args.source == "olimpic-pages":
+        transcribe_olimpic_pages(args, model, vocab, device)
         return
     bench = {"mutopia": bench_mutopia, "olimpic": bench_olimpic, "rendered": bench_rendered}[args.source]
     results = bench(args, model, vocab, device)

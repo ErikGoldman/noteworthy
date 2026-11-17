@@ -9,7 +9,9 @@
 #   OLiMPiC    synthetic systems (CC BY-SA 4.0) for training the sequence model; scanned
 #              systems (CC BY-SA 4.0), whose dev split monitors training, and the Lieder
 #              corpus metadata (CC0), to leave out dev songs our sources also hold; the
-#              authors' code (MIT), whose linearization turns MusicXML into our labels and back
+#              authors' code (MIT), whose linearization turns MusicXML into our labels and back;
+#              the Lieder scores themselves (CC0, pinned commit), whose MuseScore files say which
+#              tuplet numbers are drawn (train/olimpic_tuplet_display.py)
 #   GrandStaff piano excerpts (images) with GrandStaff-LMX transcriptions (CC BY-SA 4.0),
 #              for training the sequence model
 #   MusiCorpus historical manuscripts, mostly handwritten, with MusicXML transcriptions (CC BY-NC-SA
@@ -29,7 +31,9 @@ ASAP_COMMIT=afc815c75c42e83a79c03feb6da8a35e77d4c6b8
 MUSCIMA_PP=https://github.com/OMR-Research/muscima-pp/releases/download/v2.0/MUSCIMA-pp_v2.0.zip
 CVC_MUSCIMA=https://github.com/apacha/OMR-Datasets/releases/download/datasets/CVCMUSCIMA_SR.zip
 OLIMPIC_RELEASE=https://github.com/ufal/olimpic-icdar24/releases/download/datasets
-LIEDER_SCORES=https://raw.githubusercontent.com/OpenScore/Lieder/38c5db510224d9facdc4b08d741fc788cfb58ea8/data/scores.yaml
+LIEDER_REPO=https://github.com/OpenScore/Lieder.git
+LIEDER_COMMIT=38c5db510224d9facdc4b08d741fc788cfb58ea8
+LIEDER_SCORES=https://raw.githubusercontent.com/OpenScore/Lieder/$LIEDER_COMMIT/data/scores.yaml
 OLIMPIC_REPO=https://github.com/ufal/olimpic-icdar24.git
 OLIMPIC_COMMIT=f4f45ac523ebe09832342270a68b1b4368f63da2
 GRANDSTAFF_IMAGES=https://grfia.dlsi.ua.es/musicdocs/grandstaff.tgz
@@ -62,6 +66,7 @@ if [ ! -d "$RAW/olimpic/olimpic-1.0-scanned" ]; then
 fi
 download "$LIEDER_SCORES" "$RAW/olimpic/lieder_scores.yaml" f9b27916cb7d3ebd5c8d5af50a6ad7d6
 checkout "$OLIMPIC_REPO" "$OLIMPIC_COMMIT" "$RAW/olimpic/code/repo"
+checkout "$LIEDER_REPO" "$LIEDER_COMMIT" "$RAW/olimpic/lieder"
 if [ ! -d "$RAW/olimpic/olimpic-1.0-synthetic" ]; then
   download "$OLIMPIC_RELEASE/olimpic-1.0-synthetic.2024-02-12.tar.gz" "$RAW/olimpic/synthetic.tar.gz" efaeb053fc85a10a74316d32aab13e22
   unpack "$RAW/olimpic/synthetic.tar.gz" "$RAW/olimpic" olimpic-1.0-synthetic

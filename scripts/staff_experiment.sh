@@ -24,13 +24,15 @@ crops="$data/seq2"
 dev="${NW_EXPERIMENT_DEV:-$RAW/olimpic/olimpic-1.0-scanned}"
 dev_samples="${NW_EXPERIMENT_DEV_SAMPLES:-$NW_DATA/olimpic_dev_clean.txt}"
 outer_dev="${NW_EXPERIMENT_OUTER_DEV:-$NW_DATA/olimpic_written_dev}"
+# OLiMPiC's training labels: olimpic_written_v2 draws tuplet numbers as the scores do (TODO 3c (i)).
+olimpic_written="${NW_EXPERIMENT_OLIMPIC:-$data/olimpic_written}"
 run="$NW_RUNS/$name"
 checkpoint="$run/average_$(printf '%06d' "$steps").pt"
 [ -f "$run/scores.txt" ] && { log "$name: already scored"; exit 0; }
 mkdir -p "$run"
 
 if [ ! -f "$checkpoint" ]; then
-  (cd "$ROOT/train" && "$PY" train_seq.py --data "$data/olimpic_written:train:2" "$data/grandstaff_written_v2:train" \
+  (cd "$ROOT/train" && "$PY" train_seq.py --data "$olimpic_written:train:2" "$data/grandstaff_written_v2:train" \
     "$crops/pdmx:train" "$crops/beams:train" "$crops/round:train" "$crops/marks:train" "$crops/musescore:train" \
     "$crops/unmarked:train:$unmarked_weight" "$crops/smashcima:train:2" "$data/musicorpus:train:30" \
     --dev "$dev:dev" --dev-samples "$dev_samples" --dev-count "$(wc -w < "$dev_samples")" \

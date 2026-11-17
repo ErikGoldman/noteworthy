@@ -20,8 +20,9 @@ and one of:
   move_up      {"last_line": n, "notes": {"<gold line>": [i, ...]}}: from `line` to `last_line`, the
                listed notes (by place in the left spine's field, from 0) are drawn on the upper staff
                and go to a new voice there
-  move_down    {"last_line": n}: from `line` to `last_line`, notes of the right spine go to a new
-               voice on the lower staff
+  move_down    {"last_line": n, "notes": {"<gold line>": [i, ...]}}: from `line` to `last_line`, the
+               listed notes of the right spine (every note if "notes" is left out) are drawn on the
+               lower staff and go to a new voice there
   end_after    true: gold stops at `line`; what follows is not on this page
   staff_down   {"last_line": n, "lower_columns": k}: from `line` to `last_line`, with no spine
                changes between, every column of the upper staff (those after the first k) goes to a
@@ -270,15 +271,17 @@ def without_last(text: str, mark: str, count: int) -> str:
     return text
 
 
-def moved_down(lines: list[str]) -> list[str]:
-    """The lines with the last column's notes in a new column before it, on the lower staff."""
+def moved_down(lines: list[str], moves: list[set[int]] | None) -> list[str]:
+    """The lines with the last column's chosen notes (moves, per line; None: all of them) in a new
+    column before it, on the lower staff."""
     width = len(lines[0].split("\t"))
     keep = ["*"] * (width - 2)
     out = ["\t".join([*keep, "*^", "*"])]
     column = [line.split("\t")[-1] for line in lines]
-    everything = [every_note(field) for field in column]
-    kept = beams_kept(column, everything)
-    for line, line_moves, keep_beams in zip(lines, everything, kept):
+    if moves is None:
+        moves = [every_note(field) for field in column]
+    kept = beams_kept(column, moves)
+    for line, line_moves, keep_beams in zip(lines, moves, kept):
         fields = line.split("\t")
         if line.startswith("="):
             out.append("\t".join([*fields, fields[-1]]))
@@ -358,15 +361,24 @@ def one_slur_per_chord(text: str) -> str:
                      for line in text.split("\n"))
 
 
+def listed_moves(notes: dict[str, list[int]], first: int, last: int) -> list[set[int]]:
+    """For each line from first to last (0-based, last excluded), the notes listed by its 1-based number."""
+    return [set(notes.get(str(n + 1), [])) for n in range(first, last)]
+
+
 def order_on_page(override: dict) -> tuple[int, int]:
-    return override["line"], 0 if "tuplet_numbers" in override else 2 if "articulate" in override else 1
+    """Applied highest first: on one line, a replace (the line transcribed afresh, so the marks of
+    other overrides go onto it, not under it), then articulations, then the rest, then a
+    tuplet-number line inserted before the line."""
+    kind = 3 if "replace" in override else 2 if "articulate" in override else 0 if "tuplet_numbers" in override else 1
+    return override["line"], kind
 
 
 def corrected(text: str, overrides: list[dict]) -> str:
     lines = text.split("\n")
     # From the bottom up, so that earlier line numbers still mean the unchanged page. On one
-    # line, articulations come first: a move opens its range by inserting a line there; and a
-    # tuplet-number line, inserted before the line, last, after every edit of the line itself.
+    # line (order_on_page), line edits come before a move, which opens its range by inserting a
+    # line there, and a tuplet-number line, inserted before the line, comes last.
     for override in sorted(overrides, key=order_on_page, reverse=True):
         first = override["line"] - 1
         if "tuplet_numbers" in override:
@@ -403,11 +415,11 @@ def corrected(text: str, overrides: list[dict]) -> str:
             lines[first:last] = [with_rests_hidden(line) for line in lines[first:last]]
         elif "move_down" in override:
             last = override["move_down"]["last_line"]
-            lines[first:last] = moved_down(lines[first:last])
+            notes = override["move_down"].get("notes")
+            lines[first:last] = moved_down(lines[first:last], None if notes is None else listed_moves(notes, first, last))
         else:
             last = override["move_up"]["last_line"]
-            notes = override["move_up"]["notes"]
-            lines[first:last] = moved_up(lines[first:last], [set(notes.get(str(n + 1), [])) for n in range(first, last)])
+            lines[first:last] = moved_up(lines[first:last], listed_moves(override["move_up"]["notes"], first, last))
     if any(o.get("articulate", {}).get("ambiguous") for o in overrides):
         lines = [*[line for line in lines if line], AMBIGUOUS_DECLARATION, ""]
     return "\n".join(lines)

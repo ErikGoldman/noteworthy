@@ -4337,3 +4337,317 @@ to `16th` 153 / 120 times, `32nd 6in4` to `32nd` 264 / 16, `eighth 3in2` to `eig
 value chosen to fit the beat. "Another ratio" is mostly `16th 3in2` written `16th 6in4` (119 / 81):
 the same lengths grouped as a sextuplet, a grouping and number error, not a rhythm one. `half 2in1`
 read as `32nd` or `64th` (30 / 48) is probably two-note tremolos, unchecked.
+
+## Is (p)'s tuplet gain one song? (2026-11-16, TODO step 1a)
+
+Yes, on both sets, so "(p) reads hidden tuplets better" (above) is dropped until step 2's seeds
+say otherwise. Saved readings of (l) and (p) at 100,000 steps, corrected gold, whole-page alignment.
+
+- **OLiMPiC** (`tuplet_values.py`, now split by song; `tuplet_values_l_p_by_song.txt`): `32nd 6in4`
+  read as plain 32nds, 264 / 16, is one song, 6801790, which (p) reads at 512 of 604 tuplet notes
+  kept against (l)'s 248 of 612. Without it, tuplet notes kept are 87.7% / 87.6% (1,988 of 2,268 /
+  2,020 of 2,307): no difference. The other common misreadings sit in two to four songs each
+  (`16th 3in2` to `16th`: 6801790 and 6581327; to `16th 6in4`: 6259566).
+- **Polish** (`tuplet_kinds.py polish`, now split by page; `tuplet_kinds_polish_by_page.txt`):
+  (p)'s tuplet cost is 238 lower in all, and page 003 alone is 411 lower (431 to 20; then 088, 153
+  lower). Without 003, (p) is 173 higher than (l): 096 +90, 110 +89, 087 +82, 077 +66, 069 +42.
+  "Read without a tuplet", 688 to 371, is 003 216 to under 22 and 088 66 to under 18; 081 rose (47
+  to 69).
+
+Both of (p)'s large tuplet gains are a single score whose hidden groups it happened to read.
+Whether that is the label form or seed luck is what step 2's seeds (running) decide.
+
+## Why `unmarked` at weight 3 hurt Polish (2026-11-16, TODO step 1c)
+
+T6 and the two staff baselines at 50,000 read again on Polish dev (their readings had not been
+kept; `reread_1c.sh`, each report identical to the one saved), then `ned_costs.py --whole-page`
+against corrected gold and `tuplet_kinds.py polish` (`tuplet_kinds_polish_t6.txt`).
+
+- **One page holds most of it.** Edit cost T6 14,406 against the baselines' 12,100 / 12,948 (mean
+  12,524): +1,882. Page 071 alone is +1,102 (72 to 1,174). Without it T6 is +780, inside the two
+  baselines' own gap (+848); 18 pages worse and 14 better by more than 20. Next largest: 096 +514
+  (more hidden tuplets read as plain notes: 423 against 150 / 118).
+- **071 is a misread meter, made into tuplets by a page rule.** It is in 9/8. All three models
+  misread the time signature: the baselines as 3/8, T6 as 6/8. T6's raw reading (page re-read
+  with `seq_pages.py`, which now keeps `<page>.lmx.json`) has no tuplet ratio at all; its 119 of
+  281 notes in tuplets are `imply_tuplets`: nine eighths in a bar taken as 6/8 fit as triplets,
+  so the rule writes them over the whole page. In a bar taken as 3/8 nothing fits, and the
+  baselines' pages are left alone. Tuplet notes added where the gold has none: T6 642 (071: 490)
+  against 112 / 177.
+
+So the `unmarked` crops did not teach the model to write tuplets where none are: T6 wrote no
+ratio on 071, and without 071 its loss is seed-sized. What it shows is a weakness of the page rule.
+One misread time signature makes `imply_tuplets` rewrite a whole page, and nothing checks whether
+the meter the bars imply agrees with the one read. That belongs with 1b (the rules, each switched
+off on saved readings). For step 3c: raising hidden numbers is not ruled out by T6. The 096 cost is
+the open part.
+
+## (p)'s invented tuplets: the model or the page rules? (2026-11-16, TODO step 1b)
+
+(l) and (p) at 100,000 read again on Polish dev (`reread_1b.sh`, reports identical to the saved
+ones), now keeping each system's reading before the page rules (`seq_pages.py` writes
+`<page>.lmx.json`). `rule_ablation.py` rebuilds the pages with each rule off in turn (with every
+rule on it matches `seq_pages.py`'s MusicXML byte for byte), `ned_costs.py --whole-page` scores
+them against corrected gold, and `rule_ablation_report.py` compares them
+(`rule_ablation_l_p.txt`). "Added" is the cost of tuplet notes where the gold's bar has none.
+
+| Rule switched off | (l): cost change, pages helped / hurt, added | (p): the same |
+|---|---|---|
+| None (all on) | 8,851, added 224 | 8,403, added 232 |
+| Implied tuplets | +2,277, 15 / 2, 110 | +1,133, 12 / 3, 80 |
+| Wrong tuplet marks cleared | +122, 7 / 2, 273 | +514, 9 / 1, 318 |
+| One beam too many dropped | +286, 6 / 1, 224 | +118, 3 / 1, 232 |
+| A dot too many taken away | +113, 2 / 1, 224 | +138, 8 / 2, 232 |
+
+- **Mostly the rule.** Of (p)'s 232, implied tuplets write 152; the model's own ratios leave 80,
+  fewer than (l)'s 110. The rule writes more on (p) than on (l) (152 against 114), on pages it left
+  alone before: 051 +30, 069 +27, 087 +20, 049 +12 (093 and 065 on both). That fits the TODO's
+  guess that the rule's test (does a voice fill its bar?) misreads (p)'s voices, which leave out
+  the padding to the bar's end. Not yet checked bar by bar.
+- **Every rule still pays on both**, each by more than it costs: implied tuplets by far the most,
+  but half as much on (p) (+1,133 against +2,277), which writes more ratios itself.
+- With 1c (071: a misread 9/8 taken as 6/8, the page filled with triplets), the rule's two
+  weaknesses are what it trusts: a voice's length in (p)'s form, and a meter read once.
+
+Next: the rule taught (p)'s form (a voice that stops early is not short), and a meter the bars
+contradict not used for implying. Both are fixes to the rule, with no training; measured as here.
+
+## Implied tuplets only where another voice fills the bar (2026-11-16, kept)
+
+From 1b and 1c: `imply_tuplets` made tuplets in bars where every voice overflows, which is a
+barline missed (Polish 051 bar 22: a dot dropped and the next bar run on, the bass then made
+triplets) or a meter misread (071, 9/8 read as 6/8), not a tuplet. Where a tuplet was read as
+plain notes, another voice usually fills the bar (087 bar 4: the bass fills 3/4, the upper
+staff's quintuplet read as plain 16ths). Now tuplets are implied only in measures where some voice
+fills the bar (`filled`, as `dots_mended` already asks). Tried once, against a rule fixed before
+(kept if the cost falls on (l) and (p), 003 worsens by no more than 5, and no correct OLiMPiC label
+is newly changed). Saved raw readings at 100,000, corrected gold, whole-page alignment:
+
+| | (l) | (p) |
+|---|---|---|
+| Edit cost | 8,851 to 8,753 (-98) | 8,403 to 8,270 (-133) |
+| Pages better / worse by more than 5 | 2 / 0 | 3 / 0 |
+| 003 | unchanged | unchanged |
+| Tuplet notes added where the gold has none | 224 to 159 | 232 to 167 |
+| Largest | 093 -78, 110 -20 | 051 -59, 093 -46, 110 -28 |
+
+OLiMPiC dev's page gold through every rule: mean 0.454 to 0.021, pages changed 5 to 3 (the three
+left are the beam rule's, 1.34 at most), none newly. 6259566's two pages are mended only because
+their bars hold one voice: the meter bug (TODO 2a) stands. The cost: a bar whose every voice is an
+unmarked tuplet (both hands in triplets, no number) is no longer repaired; none such moved on
+Polish dev. It is a page rule chosen on Polish dev (the TODO's leakage note), small (about 1.5% of
+the cost), and decided by a criterion fixed beforehand. Polish numbers from here on are on it.
+
+## Printed tuplets whose ratio is left out, by eye (2026-11-16, TODO step 1e)
+
+OLiMPiC scanned dev, label bars of kind "printed" read without their ratio: 31 for (p), 34 for
+(l), 42 different (a subagent's look at every system, `scratchpad/look_1e/results.tsv`; six bars
+taken as repeats of a figure already seen; `bar_image.py` fails on a system's last bar and often
+misplaces barlines, so whole crops were used). For (p):
+
+| What the print shows | Bars |
+|---|---|
+| No number at all: song 6801790 (16th groups, a rest then two notes, no 3 or 6 anywhere; 14 bars over both models) | 9 |
+| Number far from its notes or in a slur (6011095's "4" at a long slur's top; 6629763's small "3" under stem-up chords; 6499366's tiny "3", read as grace notes) | 8 |
+| Quarter-plus-eighth triplets, unbeamed, the "3" in a small arc (6656152, 6652787); the beamed group beside them read right; no sextuplets | 5 |
+| Number printed once for a run (6259566; 6249298 p1-s4, treble only) | 3 |
+| Tremolo (6249298 p1-s4 bar 3) | 1 |
+| Other: a clear "3" after a beamed grace figure (6011095 p3-s3, 3 bars), a label error, one chord tone | 5 |
+
+**Label errors.** 6801790's tuplets print no number, yet its MusicXML carries 20 `<tuplet>`
+elements none marked `show-number="none"` and the as-printed labels no `tuplet:hidden` (checked by
+eye here on p3-s4). By the print they are hidden-number bars counted as printed. So the song that
+held all of (p)'s OLiMPiC tuplet gain (1a) is a hidden-number song: (p) wrote the ratio of
+unnumbered 32nd groups there (512 of 604 notes kept, (l) 248 of 612). Also 6249298 p1-s4 bar 3
+(`6in4` on a tremolo chord, nothing printed) and, less sure on a low-resolution scan, 6499366
+p1-s1 bar 1 (bass: rest, A1, B1 labelled triplet eighths; the print looks like an eighth rest, a
+grace note and an eighth).
+
+Most of the rest is how the number is set (far up a slur, a small arc over unbeamed groups, once
+for a run): training data with numbers set so (TODO 3c) rather than a page rule. Whether OLiMPiC's
+*training* labels mark unnumbered groups as printed the same way is 1d(i)'s question.
+
+## The whole bars musicdiff replaces, by eye (2026-11-16, TODO step 1g)
+
+(p) at 100,000, corrected gold, whole-page alignment: 54 whole-bar edits costing 806 of 8,403
+(9.6%). (The TODO's "58 bars, 110, 042 and 093 holding 57%" was the older best_120k model under
+the authors' alignment; for (p) 042 and 093 have none whole-page. Authors' alignment for (p): 74
+bars, 1,390, the extra pages being the repeat-pairing artifact already described.) A subagent's
+look at every one (`scratchpad/look_1g/results.tsv`):
+
+| What happened | Cost | Bars | Pages |
+|---|---|---|---|
+| Cross-staff notes: the reading puts them on the staff they are printed on, the gold on the hand's spine | 376 | 18 | 110 (322), 051, 047, 067 |
+| A clef change missed (treble right after the key signature on the lower staff; every note a 10th low) | 153 | 6 | 081 bars 13-15 |
+| Read badly (083 a repeated bar under 8va written once; 065 a grace merged; 064 a bar read as a whole rest) | 143 | 8 | 083, 065, 064 |
+| A barline missed | 58 | 2 | 051 (handwritten) |
+| Empty staff: the reading's `rest:measure` without its `rest` head (about 22 on dev), which converts to a pitchless zero-length note | 46 | 19 | 038, 047, 057, 062, 076 |
+| Gold error | 30 | 1 | 076 |
+| Segmenter | 0 | 0 | |
+
+110: arpeggio triplets beamed across the staves (bars 23-27); the reading's tokens are right
+(`staff:2` on each triplet's first note), the gold keeps the group in the upper spine. Suspected
+gold errors, not yet checked here: 110 bar 25 (upper `12eeee-`, `12gggg-`, `12eeee-` printed on
+the lower staff outside the 8va: an octave high), 076 bars 14 and 17 (chords in the wrong spine
+for where they are printed), 065 bars 39-40 (printed two-note chords encoded as single notes),
+083 bar 15 (low confidence: GG# may be F#2).
+
+## Do tuplet-number labels match the training images? (2026-11-16, TODO step 1d(i))
+
+A subagent's look at 20 crops a source, 10 with a `tuplet:hidden` group and 10 without
+(`scratchpad/look_1d/results.tsv`, every group judged, none unclear):
+
+| Source | Groups (labelled hidden / printed) | Hidden, number drawn | Printed, no number drawn |
+|---|---|---|---|
+| olimpic_written | 225 (116 / 109) | 0 | **73** (in 6 of the 10 crops without hidden groups) |
+| pdmx, beams, round, marks, unmarked, smashcima | 672 | 0 | 0 |
+| musescore | 123 (all printed, as built) | 0 | 1 (a group with no ratio token) |
+| musicorpus (all 5 crops) | 54 | 0 | 0 |
+| grandstaff_written_v2 | no tuplet in 29,500 labels | | |
+
+Checked here by eye: `olimpic_written` `6012375/p2-s3` draws its right hand's 20 triplet groups
+with no number; the label says all 20 are printed. OLiMPiC's training labels call 74% of their
+20,901 groups printed; if the sample holds, a large share of those draw none, which teaches that
+an unnumbered triplet group has a printed number: a likely cause of the model drawing hidden
+numbers about half the time. Likely origin, to confirm: OpenScore's MusicXML exports do not
+record a hidden number, while the renders (from the scores' own MuseScore files) and the scans
+follow the edition. Song 6801790 in dev is the same (1e). Other oddities: tuplet groups with no
+ratio token (`musescore 000018/s3`, `pdmx 012769/s0`, `smashcima 000443/s0`); Smashcima's
+handwritten quarter rests that look like a 3.
+
+## Two fixes to how readings become pages (2026-11-16)
+
+- **The meter in force, per bar.** `lmx_tuplets.written_bar` gave a system's first time signature
+  and every rule took it for the whole system; the meter carried into the next system was the
+  first, not the last (OLiMPiC 6259566 alternates 6/8 and 2/4). Now `bars_in_force` gives each
+  measure the signature written in it or before it (else carried, else `likely_bar`), and
+  `bar_at_end` carries the last on (`seq_pages`). The three rules and `bar_fill` (which picks a
+  crop's height) judge each measure by its own bar. `meters_in_force` keeps a system's own first
+  signature, as `seq.meter` gives it in training, and carries the last. Tests: a change inside a
+  system, a carried meter, and triplets after 6/8 to 2/4 (none by the old code, six by the new).
+  Correct OLiMPiC labels through every rule: unchanged elsewhere (mean 0.021, the beam rule's three
+  pages). Training: only `--meter-context` runs read the meter ((m), T8, (n)), and it is unchanged.
+- **Hidden whole-bar rests in canonical gaps.** `with_canonical_gaps` took a hidden whole-bar rest
+  (`print-object:no rest voice:N rest:measure`) for a gap and left `rest:measure voice:N` without its
+  head; (p) learned that and writes it (20 times on Polish dev), and without a head it converts to
+  a note with neither pitch nor length (1g's "empty staff", 46 of (p)'s cost). Reading now writes it
+  back whole (`with_hidden_bar_rests_restored`; a drawn whole-bar rest keeps its `rest`, so a
+  headless one is always hidden): an exact inverse, tested on both kinds. Every reading of a
+  canonical-gaps model from here on is affected, OLiMPiC dev SER included.
+
+## OLiMPiC's tuplet labels against the scores' own MuseScore files (2026-11-17, TODO 1h item 1)
+
+Every OLiMPiC tuplet group (train and dev) paired with its group in the OpenScore Lieder `.mscx`
+(commit 38c5db51; by measure number as MuseScore 3 exports it, then by order in the measure over
+both staves; a subagent's measurement, `scratchpad/tuplet_size/`: script, `groups.tsv`, `unpaired.tsv`).
+
+| Split | Groups | Paired | Labelled printed, score hides | Labelled printed, score shows | Labelled hidden, score hides | Labelled hidden, score shows |
+|---|---|---|---|---|---|---|
+| train | 21,089 | 20,912 | 9,771 | 5,908 | 5,233 | 0 |
+| dev (synthetic = scanned labels) | 2,219 | 2,219 | 850 | 569 | 800 | 0 |
+
+**The cause, confirmed:** the MusicXML export (which the labels come from) records a hidden number
+only when MuseScore's `numberType` is 2 (on the tuplet or as the score's style default); a tuplet
+made invisible (`<visible>0</visible>`, which hides number and bracket) exports as printed, often with
+`bracket="yes"` (2,304 train groups). No exception in the paired groups. So 46% of all groups
+(10,622 of 23,308) and about 60% of those labelled printed are wrong, in 152 of 351 train songs with
+tuplets (5911190 alone 732) and 15 of 39 dev songs (4985990, 348 of 350). Unpaired, listed: 177
+train groups pair by place with another ratio (nested or odd tuplets, 7 songs); one score group
+with no OLiMPiC counterpart (6766045, edited since). The repo is newer than OLiMPiC: 37 songs
+moved directory, 4 are MuseScore 4 files only (one with tuplets).
+
+This is the label fault 1d(i) sampled (73 of 109), now sized: the model was taught, on its one
+real-scan source, that most unnumbered groups have a printed number.
+
+### The relabel, and the songs it leaves out (2026-11-17, decided with the user)
+
+Built: `train/olimpic_tuplet_display.py` (pairing as above, the score deciding every paired group:
+hidden means `show-number="none"` and `bracket="no"`, as `hide_tuplet_numbers` writes them), called
+by `build_olimpic_written.py`, which now takes the Lieder repository (pinned in
+`scripts/fetch_training_data.sh`, `$RAW/olimpic/lieder`, commit 38c5db51, the one OLiMPiC was made
+from). New sets, the old ones kept: `seq516g_data/olimpic_written_v2` (train) and
+`olimpic_written_dev_v2/{synthetic,scanned}`. Training keeps `olimpic_written` by default;
+`NW_EXPERIMENT_OLIMPIC` points `staff_experiment.sh` at v2 for step 3c (i), so the baseline and the
+relabel run differ by this one change.
+
+Result: train 9,658 groups relabelled, 14,758 systems kept (14,907 before); dev 850 relabelled,
+none left out, all 1,422 kept. Dev's labels differ from the old ones only by the 850 added
+`tuplet:hidden` tokens (checked token by token).
+
+**Why some songs are left out, not handled.** Asked how much work it was to handle every case
+(the user wanted as much hidden-tuplet data as possible, since we read hidden tuplets badly):
+the renamed directories and section-break numbering every song needs anyway, and they are built
+in; the rest, a parser for MuseScore 4 files (one song with tuplets, 202 groups) and checking
+nested or odd tuplets whose ratios differ by eye, was 2-3 hours for about 380 groups, under 2% of
+the gain (hidden-number groups in train go from 5,233 to about 15,000 with the relabel itself).
+So a song with any group that does not pair is left out whole, never relabelled in part, and named
+with its reason in `left_out.<split>.tsv` and the build's output. Left out of train: 9 songs, 153
+systems (1%):
+
+| Song | Why |
+|---|---|
+| 5016466 | MuseScore 4 file only (Der Lindenbaum) |
+| 5001945, 5052823, 5639135 | ratios differ (nested or odd tuplets: 35in16 against 5in4, 16in8 against 8in8, 9in4 against 3in2) |
+| 5988112, 5989459, 6199572, 6451773, 6587611 | a group of n in n (4in4, 2in2, 3in3): it changes no durations, so its notes carry no time-modification and the label's ratio reads as none |
+
+The last five could be kept by one rule (a label group without a ratio matches a score group of
+n in n); not done, as it was not part of what was decided. Worth it only if the songs are missed.
+
+By eye (docs/TRAINING_DATA_CHECKS.md; a subagent, seed 20261117, `scratchpad/look_relabel/results.tsv`):
+30 crops, 318 groups, every one as the image draws it, none unclear: 20 train crops that gained
+`tuplet:hidden` (20 songs, 261 groups, 13 of them still drawn), 5 train crops whose groups all
+claim a drawn number (11), 5 scanned dev crops that gained tokens (46). Crops that mix the two put
+the drawn number exactly where the new label does (6573780 p7-s1: the first triplet of each bar;
+dev 6259566 p2-s2: the first three of twelve). Staff positions for v2 are those of the old set,
+sample for sample. Ready for step 3c (i).
+
+## Step 2: (l) and (p) over three seeds, on two sets (2026-11-17)
+
+Every reading on the code of 2026-11-16 (meter in force per bar, implied tuplets only where another
+voice fills the bar, hidden whole-bar rests restored): Polish dev read again overnight
+(`runs/overnight_2026-11-14/overnight_fixed.sh`, 26 readings), scored on the Print standard as
+corrected on 2026-11-17 (gold commit of that day: 110's cross-staff triplets and an octave in bar 25,
+051, 047 bar 15, 076 bars 14 and 17, 065 bars 39-40, 083 bar 15; `rescore_polish.sh
+gold_2026-11-17`); OLiMPiC's scanned dev pages (spec 2, first readings, `olimpic_at.sh`,
+`--either-display` until dev is relabelled). Every Polish number before 2026-11-16 is on the old
+code; 1a, 1b and 1c's pages hold no change of meter, so they stand.
+
+Two-staff mean OMR-NED, whole-page alignment (authors' in brackets for OLiMPiC):
+
+| | seed 0 | seed 1 | seed 2 | mean |
+|---|---|---|---|---|
+| (l) Polish, 100k | 6.48 | 7.12 | 6.33 | 6.64 |
+| (p) Polish, 100k | 6.05 | 6.94 | 6.55 | 6.51 |
+| (l) OLiMPiC pages, 100k | 5.51 (6.22) | 5.16 (5.70) | 4.67 (5.36) | 5.11 |
+| (p) OLiMPiC pages, 100k | 5.11 (5.65) | 5.57 (6.62) | 5.27 (5.58) | 5.32 |
+
+(p) − (l), seeds averaged per page, 95% range by resampling (Polish by page, OLiMPiC by song):
+Polish -0.13 [-0.62, +0.36] at 100k, -0.28 [-0.83, +0.30] at 80k, +0.24 [-0.33, +0.78] at 60k;
+OLiMPiC +0.20 [-0.08, +0.51] at 100k, +0.02 [-0.27, +0.30] at 80k, -0.17 [-0.72, +0.28] at 60k
+(seed means: (l) 6.52, 5.37, 5.11 at 60k, 80k, 100k; (p) 6.35, 5.39, 5.32). On the 150,000-step schedule (seed 0) (p) is 5.87 at 120k against
+(l)'s 5.75, and 6.05 against 6.28 at 150k.
+
+**Verdict: (p) does not stand.** The rule (TODO step 2) asked for (p) below (l) at 100k with the
+range clear of zero on both sets; it is inside the noise on both, and the other way on OLiMPiC.
+Step 3 builds on (l). (p)'s single-seed leads of last week (1.26, 0.99, 0.33) were seed 0's: with
+seeds 1 and 2 it is behind at 60k (+0.93 [+0.36, +1.53]). The tuplet gain was already one song and
+one page (1a). OLiMPiC SER (crops) favoured (p) on every seed; page OMR-NED does not.
+
+**The noise (spec 1, `eval/seed_noise.py`).** One seed's mean scatters, on Polish (49 pages, 100k),
+by 0.42 (0.61 at 80k, 0.68 at 60k), more than page-by-page variation explains (variance ratio 1.85
+pooled, chance 0.12; at 60k 3.25, 0.01: some runs are better on every page early on); on OLiMPiC
+(158 pages) by 0.34, about what page-by-page variation explains (ratio 1.23; 0.26 at 80k, ratio
+0.71; 0.65 at 60k, ratio 3.26, chance 0.01, nearly all of it (p)'s seeds, 5.59 to 7.26). A single-seed A/B
+must clear about 0.6 on Polish (two seeds' difference) and 0.5 on OLiMPiC to mean anything at
+100k, more earlier; three seeds a side bring a mean's noise to 0.24 and 0.20. Polish's noise sits
+in 003 (36% of (l)'s), 110, 088, 093, 056; OLiMPiC's in 6801790 (whose tuplet labels are wrong)
+and 6581327. Seed 0 ran on an older commit and on Runpod: at 60k and 80k (p)'s seed 0 is 1.6
+better than its seeds 1 and 2, which agree with each other.
+
+**Spec 2's checks** (OLiMPiC scanned dev pages: 158 pages of the 46 clean songs, five left out for
+systems with no as-printed label): gold against itself 0; gold through the page rules 0.021 (the
+beam rule's three pages); 20 pages by eye (a subagent, 15 songs, seed 20261117), each page's piano
+systems exactly, in order; page OMR-NED against crop SER over songs, Spearman 0.87 ((l)) and 0.82
+((p)). The songs out of rank are page effects, not gold: 6218737 p2-s2 read from the page at 20%
+SER against about 3% for the song's crops; 6010916 p97, 5% SER on every system, costs 12.7. A
+reading takes 9 minutes on the local GPU, not 50: only the clean songs need layouts.

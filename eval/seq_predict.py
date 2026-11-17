@@ -22,7 +22,7 @@ import torch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
-from seq.lmx_tuplets import dots_mended, extra_beams_dropped, imply_tuplets  # noqa: E402
+from seq.lmx_tuplets import ALL_RULES, PageRule, with_page_rules  # noqa: E402
 OLIMPIC = Path(os.environ.get("NW_DATA", ROOT / "data")) / "raw" / "olimpic"
 SCANNED = OLIMPIC / "olimpic-1.0-scanned"
 sys.path.insert(0, str(OLIMPIC / "code" / "repo"))
@@ -55,18 +55,18 @@ def rewind_to_measure_start(part: ET.Element) -> None:
                 position = 0
 
 
-def delinearize(lmx: str, bar: Fraction | None = None) -> str:
-    """MusicXML of an LMX string, unmarked tuplets and overbeamed groups restored (bar: see
-    imply_tuplets) and ottava tokens drawn as signs over sounding pitches. Tokens OLiMPiC's
-    delinearizer does not know are taken out and drawn afterwards: barlines and time symbols
-    first, hidden tuplet numbers after the tuplet repairs, which drop one with a group they
-    clear. A sequence the
-    delinearizer cannot parse becomes an empty part, as OLiMPiC's TEDn evaluation treats it (its
-    error reporting itself can crash)."""
+def delinearize(lmx: str, bar: Fraction | None = None, rules: frozenset[PageRule] = ALL_RULES) -> str:
+    """MusicXML of an LMX string, the page rules in rules applied (seq.lmx_tuplets.with_page_rules:
+    unmarked tuplets and overbeamed groups restored; bar: see imply_tuplets) and ottava tokens
+    drawn as signs over sounding pitches. Tokens OLiMPiC's delinearizer does not know are taken
+    out and drawn afterwards: barlines and time symbols first, hidden tuplet numbers after the
+    tuplet repairs, which drop one with a group they clear. A sequence the delinearizer cannot
+    parse becomes an empty part, as OLiMPiC's TEDn evaluation treats it (its error reporting
+    itself can crash)."""
     delinearizer = Delinearizer(errout=None)
     numbered, barlines = without_barlines(sounding(lmx))
     plain, time_symbols = without_time_symbols(numbered)
-    restored, hidden_numbers = without_hidden_numbers(dots_mended(extra_beams_dropped(imply_tuplets(plain, bar), bar), bar))
+    restored, hidden_numbers = without_hidden_numbers(with_page_rules(plain, bar, rules))
     try:
         delinearizer.process_text(restored)
         part = delinearizer.part_element

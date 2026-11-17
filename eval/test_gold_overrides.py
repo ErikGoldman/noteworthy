@@ -46,6 +46,12 @@ class LineLocalOps(unittest.TestCase):
         self.assertEqual(line(text, 4), "4C'i\t16qqccL")
         self.assertIn(AMBIGUOUS_DECLARATION, text)
 
+    def test_a_mark_lands_on_the_line_a_replace_writes(self):
+        # 065 bars 39-40: chords transcribed afresh where marks were already reviewed
+        text = corrected(PAGE, [override(6, articulate={"column": 1, "mark": "'"}),
+                                override(6, replace={"last_line": 6, "lines": ["4E\t8cc 8eeL"]})])
+        self.assertEqual(line(text, 6), "4E\t8cc 8eeL'")
+
     def test_ops_on_one_line_all_apply(self):
         text = corrected(PAGE, [override(6, articulate={"column": 0, "mark": "^"}),
                                 override(6, slur={"column": 1, "marks": ")"})])
@@ -149,6 +155,14 @@ class StaffMoves(unittest.TestCase):
         self.assertTrue(spines_consistent(text))
         self.assertEqual(columns(text, 5), ["8C 8cL", "4e", "4ryy"])
         self.assertEqual(columns(text, 7), ["4E 4e", "4f", "4ryy"])
+
+    def test_move_down_takes_only_the_listed_notes(self):
+        # 110 bars 23-27: each triplet's first note is drawn on the lower staff, the rest above
+        page = MOVES.replace("4E 4e\t4f", "4E 4e\t4f\n4E\t4g 4a")
+        text = corrected(page, [override(4, move_down={"last_line": 7, "notes": {"7": [1]}})])
+        self.assertTrue(spines_consistent(text))
+        self.assertEqual(columns(text, 7), ["4E 4e", "4ryy", "4f"])
+        self.assertEqual(columns(text, 8), ["4E", "4a", "4g"])
 
     def test_staff_down_leaves_the_upper_staff_blank_and_its_clef_on_it(self):
         page = MOVES.replace("8D 8dJ\t.", "*\t*clefG2\n8D 8dJ\t.")
