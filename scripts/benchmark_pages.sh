@@ -57,6 +57,8 @@ score() {
       [ "$alignment" = whole-page ] && flags+=(--whole-page-alignment)
       [ "$standard" != published ] && flags+=(--ambiguous-marks --either-ottava)
       [ "$standard" = corrected ] && flags+=(--either-display)
+      # what the print draws and Print gold's kern cannot say (omr_ned.py --gold-print-fixes)
+      [ "$standard" = print ] && flags+=(--gold-print-fixes "$ROOT/eval/polish_print_fixes.jsonl")
       (cd "$ROOT/eval" && "$MUSICDIFF_PY" omr_ned.py "$predictions" "$out/gold/$standard" --pred-format "$format" \
         --out "$out/scores/$system.$standard.$alignment.json" --jobs "$NW_RENDER_WORKERS" "${flags[@]}") >/dev/null
     done

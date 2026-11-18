@@ -17,6 +17,18 @@ wrong ten times as often as a note's length, and labels spell one gap several wa
 a forward, two forwards); 98% of backups go to the bar's start, so their length is arithmetic the
 model need not do. Readings need only `backup:bar` spelled out again, from the time its voice has
 reached; a backup after a whole-bar rest (whose length the tokens do not give) is left as written.
+
+positions: every run of backups and of gaps (forwards, rests not drawn) becomes one `at:P`, the
+position in the bar, in quarters, where the next event starts (TODO step 3a): an onset the decoder
+already knows from the other voices, where a forward's length is a sum it must work out and gets
+wrong ten times as often as a note's (EXPERIMENTS.md, "Is the entry gap itself hard?"). Reading,
+`at:P` is a backup when P is behind where the voice stands and the next event names another voice,
+a forward when ahead. A position behind its voice with no change of voice cannot be placed, nor one
+in a bar whose time is not known: it is read as no gap and reported (UnplacedPosition), never
+dropped silently. A run left as written: where
+the bar's time is not known (after a whole-bar rest) or falls before its start (a label backing up
+past it), where a backup carries more than its length,
+or where the way to P cannot be spelled again.
 """
 from __future__ import annotations
 
@@ -35,6 +47,7 @@ PREFIXES = {"print-object:no", "grace", "grace:slash", "chord"}
 SPELLED = sorted(((name, Fraction(value)) for name, value in LENGTHS.items() if value <= 4), key=lambda nv: -nv[1])
 SPELLED_TRIPLETS = [(name, value * Fraction(2, 3)) for name, value in SPELLED]
 HEADS = re.compile(r"^([A-G]-?\d|rest|rest:measure|forward)$")
+POSITION = re.compile(r"^at:(\d+(?:/\d+)?)$")
 
 
 @dataclass(frozen=True)
@@ -104,7 +117,7 @@ def elements_of(bar: list[str]) -> list[list[str]]:
     out: list[list[str]] = [[]]
     for k, token in enumerate(bar):
         heads_here = token in PREFIXES or token in ("rest", "rest:measure", "forward", "backup", BACKUP_TO_BAR) \
-            or PITCH.match(token)
+            or PITCH.match(token) or POSITION.match(token)
         if heads_here and not (k and bar[k - 1] in PREFIXES):
             out.append([])
         out[-1].append(token)
@@ -123,10 +136,16 @@ def advances(element: list[str]) -> bool:
     return not ({"chord", "grace", "grace:slash"} & set(element)) and element[0] not in ("backup", BACKUP_TO_BAR)
 
 
-def is_gap(element: list[str]) -> bool:
-    """A forward, or a rest not drawn, carrying nothing but its voice, length and staff."""
-    plain = [t for t in element if not (t.startswith(("voice:", "staff:")) or t in LENGTHS or re.match(r"^\d+in\d+$", t))]
+def draws_nothing(element: list[str]) -> bool:
+    """A forward, or a rest not drawn, carrying nothing but its voice, length (dotted or not) and staff."""
+    plain = [t for t in element if not (t.startswith(("voice:", "staff:")) or t in LENGTHS or t == "dot"
+                                        or re.match(r"^\d+in\d+$", t))]
     return plain in (["forward"], ["print-object:no", "rest"])
+
+
+def is_gap(element: list[str]) -> bool:
+    """A gap canonical_gaps respells: forwards take no dot, so a dotted one is left as written."""
+    return draws_nothing(element) and "dot" not in element
 
 
 def spelled(length: Fraction, head: str) -> list[str] | None:
@@ -276,3 +295,97 @@ def with_backups_spelled(lmx: str) -> str:
             out += (clock.backup_to_bar() or []) + element[1:] if element[0] == BACKUP_TO_BAR else element
             clock.passes(element)
     return " ".join(out)
+
+
+@dataclass(frozen=True)
+class UnplacedPosition:
+    """An `at:` read as no gap: behind where its voice stands with the voice going on, or in a bar
+    whose time is not known (reached None, after a whole-bar rest)."""
+    bar: int                    # the bar's `measure`, counted from 0
+    voice: str                  # the voice token in force ("" before any)
+    position: Fraction
+    reached: Fraction | None
+
+
+def moves_in_time(element: list[str]) -> bool:
+    """A backup, or a gap with a length: a hidden whole-bar rest's head (`print-object:no rest
+    voice:N`, its `rest:measure` an element of its own) has none, and stays with its rest."""
+    return bool(element) and (element[0] == "backup" or (draws_nothing(element) and any(t in LENGTHS for t in element)))
+
+
+def names_another_voice(element: list[str], voice: str) -> bool:
+    return any(t.startswith("voice:") and t != voice for t in element)
+
+
+def placeable(position: Fraction, reached: Fraction, following: list[str], voice: str) -> bool:
+    """Whether a reading can place `at:position`: a way there is spelled, and going back starts
+    another voice (a voice that backs up into itself, as some GrandStaff labels do, cannot be told
+    from a misread position)."""
+    return way_to(position, reached) is not None and (position >= reached or names_another_voice(following, voice))
+
+
+def way_to(position: Fraction, reached: Fraction) -> list[str] | None:
+    """The backups or forwards that take a voice standing at reached to position."""
+    if position < reached:
+        return spelled(reached - position, "backup")
+    return spelled(position - reached, "forward") if position > reached else []
+
+
+def with_positions(lmx: str) -> str:
+    return " ".join(token for bar in bars_of(lmx.split()) for token in positioned_bar(bar))
+
+
+def positioned_bar(bar: list[str]) -> list[str]:
+    elements = elements_of(bar)
+    out, clock, k, voice = [], BarClock(), 0, ""
+    while k < len(elements):
+        if not moves_in_time(elements[k]):
+            out += elements[k]
+            clock.passes(elements[k])
+            voice = next((t for t in elements[k] if t.startswith("voice:")), voice)
+            k += 1
+            continue
+        run_end = k
+        while run_end < len(elements) and moves_in_time(elements[run_end]):
+            run_end += 1
+        run, before = elements[k:run_end], clock.time
+        for element in run:
+            clock.passes(element)
+        plain_backups = all(len(e) <= 3 for e in run if e[0] == "backup")   # `backup VALUE [RATIO]`
+        following = with_voice_and_staff(elements[run_end], run) if run_end < len(elements) else []
+        if clock.known and clock.time >= 0 and plain_backups and placeable(clock.time, before, following, voice):
+            out.append(f"at:{clock.time}")
+            if following:
+                elements[run_end] = following
+        else:
+            out += [t for e in run for t in e]
+            voice = next((t for e in reversed(run) for t in reversed(e) if t.startswith("voice:")), voice)
+        k = run_end
+    return out
+
+
+def with_gaps_from_positions(lmx: str) -> tuple[str, list[UnplacedPosition]]:
+    """Each `at:P` written out as the backups or forwards that reach P, and the positions that
+    could not be placed."""
+    out, unplaced, number = [], [], -1
+    for bar in bars_of(lmx.split()):
+        number += bar[:1] == ["measure"]
+        elements = [e for e in elements_of(bar) if e]
+        clock, voice = BarClock(), ""
+        for k, element in enumerate(elements):
+            position = POSITION.match(element[0])
+            if not position:
+                out += element
+                clock.passes(element)
+                voice = next((t for t in element if t.startswith("voice:")), voice)
+                continue
+            target = Fraction(position[1])
+            following = elements[k + 1] if k + 1 < len(elements) else []
+            if not (clock.known and placeable(target, clock.time, following, voice)):
+                unplaced.append(UnplacedPosition(number, voice, target, clock.time if clock.known else None))
+                continue
+            way = way_to(target, clock.time)
+            out += way + element[1:]
+            for move in elements_of(way)[1:]:
+                clock.passes(move)
+    return " ".join(out), unplaced

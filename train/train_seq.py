@@ -32,7 +32,7 @@ import torch
 from torch.nn import functional as F
 
 from seq.data import SystemDataset, collate, samples, split_names
-from seq.label_form import LabelForm
+from seq.label_form import LabelForm, bars_of, voices_per_staff
 from seq.meter import METER, PREFIX_LENGTH, without_meter
 from seq.model import Seq2Seq, StaffSeq2Seq
 from seq.ottava import sounding
@@ -58,11 +58,28 @@ def rhythm_heavy(sample) -> bool:
     return RHYTHM_HEAVY.search(sample.lmx.read_text()) is not None
 
 
-def dataset_items(spec: str):
+def has_two_voices(sample) -> bool:
+    """A staff holds two or more voices in some bar."""
+    return any(count >= 2 for bar in bars_of(sample.lmx.read_text().split()) for count in voices_per_staff(bar).values())
+
+
+def dataset_items(spec: str, two_voice_repeat: int = 1):
     root, split, *weight = spec.split(":")
     items = samples(Path(root), split_names(Path(root), split))
     items += [s for s in items if rhythm_heavy(s)] * (RHYTHM_HEAVY_REPEAT - 1)
+    if two_voice_repeat > 1:
+        items += [s for s in items if has_two_voices(s)] * (two_voice_repeat - 1)
     return items * int(weight[0] if weight else 1)
+
+
+def training_items(specs: list[str], two_voice_repeat: int, positions: Path | None) -> list:
+    """Each --data set's samples as the mix weights them; with positions, each paired with its staff
+    positions (samples without any left out). Built in one place, so every path gets the same mix:
+    the staff paths once rebuilt it without the two-voice repeat (l_system_two_voice_100k, 2026-11-18)."""
+    weighted = [(Path(spec.split(":")[0]), dataset_items(spec, two_voice_repeat)) for spec in specs]
+    if positions is None:
+        return [s for _, items in weighted for s in items]
+    return [pair for root, items in weighted for pair in with_staves(items, root, positions)]
 
 
 def with_staves(items: list, root: Path, positions: Path) -> list:
@@ -200,6 +217,9 @@ def main() -> None:
                     help="labels say how many voices each staff holds after each measure (seq.label_form)")
     ap.add_argument("--canonical-gaps", action="store_true",
                     help="labels write each gap and each return to the bar's start one way (seq.label_form)")
+    ap.add_argument("--two-voice-repeat", type=int, default=1,
+                    help="systems with a two-voice staff-bar repeated in the mix: 4 brings two-voice "
+                         "staff-bars from 16% of the mix to about Polish's 28% (TODO 3b)")
     ap.add_argument("--own-readings", type=float, default=0.0,
                     help="share of the decoder's input tokens replaced by ones sampled from its own reading "
                          "of the batch (scheduled sampling), rising from 0 over the first half of training")
@@ -262,13 +282,12 @@ def main() -> None:
     # cached blocks instead.
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY_FRACTION)
     vocab = Vocab.load(VOCABULARY)
-    train_items = [s for spec in args.data for s in dataset_items(spec)]
+    positions = args.staves or args.staff_samples_only
+    train_items = training_items(args.data, args.two_voice_repeat, positions)
     dev_root, dev_split = args.dev.split(":")
     dev_names = args.dev_samples.read_text().split() if args.dev_samples else split_names(Path(dev_root), dev_split)
     dev_items = samples(Path(dev_root), dev_names[: args.dev_count])
-    if args.staves or args.staff_samples_only:
-        positions = args.staves or args.staff_samples_only
-        train_items = [pair for spec in args.data for pair in with_staves(dataset_items(spec), Path(spec.split(":")[0]), positions)]
+    if positions:
         dev_items = with_staves(dev_items, Path(dev_root), positions)
     if args.staff_samples_only and not args.interline_scale:
         train_items, dev_items = [s for s, _ in train_items], [s for s, _ in dev_items]

@@ -1,7 +1,8 @@
 """Gold for OLiMPiC scanned dev by page (docs/EVAL_SETS.md, spec 2): one MusicXML for each IMSLP
 page of the clean dev songs (data/olimpic_dev_clean.txt, songs with no copy in a training
 source), its annotated piano systems in reading order, from their labels with pitches as
-printed and ottava signs (olimpic_written_dev). The labels are joined as a reading's systems are
+printed and ottava signs, tuplet numbers drawn or hidden as the song's score draws them
+(olimpic_written_dev_v2, train/olimpic_tuplet_display.py). The labels are joined as a reading's systems are
 (seq_pages.joined_musicxml), with no page rule: gold is what the label says. A page holding a
 system with no as-printed label (one opening inside a sign) is left out and named.
 
@@ -24,7 +25,7 @@ from seq_predict import ROOT
 sys.path.insert(0, str(ROOT / "train"))
 from seq.lmx_tuplets import ALL_RULES, PageRule  # noqa: E402
 
-LABELS = ROOT / "data" / "olimpic_written_dev" / "scanned"
+LABELS = ROOT / "data" / "olimpic_written_dev_v2" / "scanned"
 
 
 def pages_of(song: str) -> dict[int, list[str]]:

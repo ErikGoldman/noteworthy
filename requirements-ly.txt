@@ -1,0 +1,1 @@
+python-ly==0.9.10  # Mutopia's LilyPond sources to MusicXML, the first gold of spec 5's pages

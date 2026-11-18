@@ -1,0 +1,36 @@
+# Spec 5's scans (docs/EVAL_SETS.md): route, path under $RAW/spec5_scans, md5, source, work.
+# archive: fetched by scripts/fetch_benchmark_data.sh. imslp: IMSLP's bot check needs a person;
+# the script lists any that are missing. All are public domain as IMSLP or the Archive records them.
+archive	archive/160kurzeubungeno00czer.pdf	9c136a8782465c0576160f8193ecae83	https://archive.org/download/160kurzeubungeno00czer/160kurzeubungeno00czer.pdf	Czerny, 160 kurze Übungen Op.821
+archive	archive/31761034220046.pdf	836910e49db38df62b37789f921e381b	https://archive.org/download/31761034220046/31761034220046.pdf	Mendelssohn, Lieder ohne Worte (complete)
+archive	archive/31761040752289.pdf	bf94635b422bc84cbbf2c81e5a7b3183	https://archive.org/download/31761040752289/31761040752289.pdf	Grieg, Lyrische Stücke
+archive	archive/BSG_4SCSUP5003_7_1NOR.pdf	01276a8af009f61fa8c5de5376bbe7b5	https://archive.org/download/BSG_4SCSUP5003_7_1NOR/BSG_4SC_SUP5003_7_1NOR.pdf	Grieg, Lyrische Stücke Op.62
+archive	archive/BSG_4SCSUP5003_8NOR.pdf	c1cba2458398cf9cde954bf3294b7dd7	https://archive.org/download/BSG_4SCSUP5003_8NOR/BSG_4SC_SUP5003_8NOR.pdf	Grieg, Lyrische Stücke Op.65
+archive	archive/albumleavesforyo00gurl.pdf	68c49f58a7f1e705f3c16fa56dafde6c	https://archive.org/download/albumleavesforyo00gurl/albumleavesforyo00gurl.pdf	Gurlitt, Albumleaves for the Young Op.101
+archive	archive/b1019485x.pdf	5ae2efa08618ca31e9e0d6a4075b4d58	https://archive.org/download/b1019485x/b1019485x.pdf	Heller, 30 Etudes progressives Op.46
+archive	archive/imslp-humoresques-op101-dvok-antonn.pdf	e7f8dcc6b0165f76b416a1505653b47d	https://archive.org/download/imslp-humoresques-op101-dvok-antonn/WIMA.c100-Dvorak_Humoresque.pdf	Dvořák, 8 Humoresques Op.101
+archive	archive/imslp-nocturnes-field-john.pdf	1055a4e0b54c97d60f12c203d66789b9	https://archive.org/download/imslp-nocturnes-field-john/PMLP24011-field_nocturne_no5_sibley.1802.2379.pdf	Field, 18 Nocturnes
+archive	archive/imslp-pieces-op43-grieg-edvard.pdf	24c29d5ebdffe75507a08a7168f2421c	https://archive.org/download/imslp-pieces-op43-grieg-edvard/Godowsky_APS_33_Grieg_Schmetterling_Op.43_No.1.pdf	Grieg, Lyric Pieces Op.43
+archive	archive/romancesansparol00faur.pdf	62bfd58328e1d60b52da65bc0a31047f	https://archive.org/download/romancesansparol00faur/romancesansparol00faur.pdf	Fauré, Romance sans paroles Op.17 No.3
+archive	archive/woodlandsketches00macd.pdf	dbb5a06a592c4e8b187a67747889a9cf	https://archive.org/download/woodlandsketches00macd/woodlandsketches00macd.pdf	MacDowell, Woodland Sketches Op.51
+imslp	imslp/IMSLP14789-Stanchinsky_-_Prelude_in_Lydian_Mode.pdf	b95fba2cd01cbe640fa067bdca0fa47c	https://imslp.org/wiki/Special:ImagefromIndex/14789	Stanchinsky_-_Prelude_in_Lydian_Mode
+imslp	imslp/IMSLP181374-PMLP02674-Mendelssohn,_Felix,_6_Lieder_ohne_Worte,_Op.53,_FE,_colour.pdf	cd4cecbe990c94ccaf3c2aa70c7cd118	https://imslp.org/wiki/Special:ImagefromIndex/181374	PMLP02674-Mendelssohn,_Felix,_6_Lieder_ohne_Worte,_Op.53,_FE,_colour
+imslp	imslp/IMSLP19990-PMLP04739-Musorgsky_Night_Rimsky_pnosolo.pdf	ef5c412dd0ead1cdaf5a89557a6dfe8a	https://imslp.org/wiki/Special:ImagefromIndex/19990	PMLP04739-Musorgsky_Night_Rimsky_pnosolo
+imslp	imslp/IMSLP202239-SIBLEY1802.17775.1d35-39087008533186score.pdf	8f29a07b35b424ecdca54431ec9ae3ad	https://imslp.org/wiki/Special:ImagefromIndex/202239	SIBLEY1802.17775.1d35-39087008533186score
+imslp	imslp/IMSLP227748-SIBLEY1802.19420.034b-39087012742260score.pdf	e59a6f932b581eb55cda317d74e1dcdd	https://imslp.org/wiki/Special:ImagefromIndex/227748	SIBLEY1802.19420.034b-39087012742260score
+imslp	imslp/IMSLP232248-SIBLEY1802.19998.aec1-39087012347250op._38.pdf	c3c264ca50c0a7622d0c5fb0c91681ae	https://imslp.org/wiki/Special:ImagefromIndex/232248	SIBLEY1802.19998.aec1-39087012347250op._38
+imslp	imslp/IMSLP240161-SIBLEY1802.22769.41c9-39087012867802score.pdf	e639bb82971213a99258ddef6a423552	https://imslp.org/wiki/Special:ImagefromIndex/240161	SIBLEY1802.22769.41c9-39087012867802score
+imslp	imslp/IMSLP242438-PMLP27118-Czerny,_Carl-160_Kurze_Uebungen_Op_821_Peters_6990-93_scan.pdf	5e3606c0f99d62114fc17eea9335c4d8	https://imslp.org/wiki/Special:ImagefromIndex/242438	PMLP27118-Czerny,_Carl-160_Kurze_Uebungen_Op_821_Peters_6990-93_scan
+imslp	imslp/IMSLP253722-PMLP25002-SHeller_25_Etudes,_Op.45_Lemoine_BNE.pdf	58ec5c5332daff2b3a1a410e797072ba	https://imslp.org/wiki/Special:ImagefromIndex/253722	PMLP25002-SHeller_25_Etudes,_Op.45_Lemoine_BNE
+imslp	imslp/IMSLP267140-PMLP08342-b10311786.pdf	726c94b0f330de9e4a3e255f3cf345af	https://imslp.org/wiki/Special:ImagefromIndex/267140	PMLP08342-b10311786
+imslp	imslp/IMSLP292188-PMLP02671-Mendelssohn,_F,_Lieder_ohne_Worte,_Op.19b,_FE,_mono.pdf	d36801db0d178230b2bd3e6274d93599	https://imslp.org/wiki/Special:ImagefromIndex/292188	PMLP02671-Mendelssohn,_F,_Lieder_ohne_Worte,_Op.19b,_FE,_mono
+imslp	imslp/IMSLP336077-SIBLEY1802.22702.a5d2-39087012637973score.pdf	7f5a3122e4cb959bafcb615b424ba456	https://imslp.org/wiki/Special:ImagefromIndex/336077	SIBLEY1802.22702.a5d2-39087012637973score
+imslp	imslp/IMSLP53944-PMLP02672-Mendelssohn_-_6_Songs_Without_Words,_Op.30.pdf	60f84108f667fee33bd38c1a93905254	https://imslp.org/wiki/Special:ImagefromIndex/53944	PMLP02672-Mendelssohn_-_6_Songs_Without_Words,_Op.30
+imslp	imslp/IMSLP53945-PMLP02673-Mendelssohn_-_6_Songs_Without_Words,_Op.38.pdf	32e851c3e1b189b43853e32b63abbac2	https://imslp.org/wiki/Special:ImagefromIndex/53945	PMLP02673-Mendelssohn_-_6_Songs_Without_Words,_Op.38
+imslp	imslp/IMSLP53948-PMLP02676-Mendelssohn_-_6_Songs_Without_Words,_Op.67.pdf	68d124517eafb92873b6a4459db2b1ca	https://imslp.org/wiki/Special:ImagefromIndex/53948	PMLP02676-Mendelssohn_-_6_Songs_Without_Words,_Op.67
+imslp	imslp/IMSLP53949-PMLP02677-Mendelssohn_-_6_Songs_Without_Words,_Op.85.pdf	20e248f4bac428c607b84d04ee4f6ae6	https://imslp.org/wiki/Special:ImagefromIndex/53949	PMLP02677-Mendelssohn_-_6_Songs_Without_Words,_Op.85
+imslp	imslp/IMSLP53950-PMLP02678-Mendelssohn_-_6_Songs_Without_Words,_Op.102.pdf	441cc362bfe6333f624c538c25a49197	https://imslp.org/wiki/Special:ImagefromIndex/53950	PMLP02678-Mendelssohn_-_6_Songs_Without_Words,_Op.102
+imslp	imslp/IMSLP55541-PMLP107840-Heller_op.047_25_Etueden_Ruthardt_EP.pdf	61ad990f6aa1788a5018f41e25f81800	https://imslp.org/wiki/Special:ImagefromIndex/55541	PMLP107840-Heller_op.047_25_Etueden_Ruthardt_EP
+imslp	imslp/IMSLP71866-PMLP144083-GurlittOp.101AlbumleavesForTheYoung.pdf	3ff8875fac8041d0d3a8f293a3c97d04	https://imslp.org/wiki/Special:ImagefromIndex/71866	PMLP144083-GurlittOp.101AlbumleavesForTheYoung
+imslp	imslp/IMSLP853965-PMLP2675-138300.pdf	75acf16b84abbbbb0f6ce1ee6315f117	https://imslp.org/wiki/Special:ImagefromIndex/853965	PMLP2675-138300
+imslp	imslp/IMSLP985038-PMLP25007-Trentetudesprogressivesendeuxlivresop.46.pdf	40eecf27ca7b6ea8f11746e14f9456b9	https://imslp.org/wiki/Special:ImagefromIndex/985038	PMLP25007-Trentetudesprogressivesendeuxlivresop.46

@@ -86,6 +86,11 @@ fragments stay on one side; the dataset names no pieces, so this may miss some.
     alike. The rule: a note belongs to the staff it is drawn on. Rests gold pads with that the
     print does not draw are hidden, one slur per chord as drawn, printed slurs gold leaves open
     are added, and accidentals the print restates are shown.
+- Print standard gold also holds what the print draws and kern cannot write: beams across the
+  staves, and signs the print leaves off where the parser would draw them.
+  `eval/polish_print_fixes.jsonl`, set on the parsed gold by `omr_ned.py --gold-print-fixes`
+  (a listed note not found fails the page). Added 2026-11-17, before any test run; so far dev
+  pages only.
 - Print standard gold records staccatos, accents and wedges from the print. Where a mark is
   clearly there but a reviewer cannot tell a dot from a wedge, the note is flagged, and
   `omr_ned.py --ambiguous-marks` accepts either; a missing mark is still charged. Each flag is an

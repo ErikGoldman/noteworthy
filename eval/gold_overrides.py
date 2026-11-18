@@ -20,16 +20,22 @@ and one of:
   move_up      {"last_line": n, "notes": {"<gold line>": [i, ...]}}: from `line` to `last_line`, the
                listed notes (by place in the left spine's field, from 0) are drawn on the upper staff
                and go to a new voice there
-  move_down    {"last_line": n, "notes": {"<gold line>": [i, ...]}}: from `line` to `last_line`, the
-               listed notes of the right spine (every note if "notes" is left out) are drawn on the
-               lower staff and go to a new voice there
+  move_down    {"last_line": n, "notes": {"<gold line>": [i, ...]}, "column": c}: from `line` to
+               `last_line`, the listed notes (every note if "notes" is left out) of column c (the
+               last if left out; columns as on `line`) are drawn on the staff below its own and go
+               to a new last voice of that staff; an upper staff already in two voices is fine
   end_after    true: gold stops at `line`; what follows is not on this page
   staff_down   {"last_line": n, "lower_columns": k}: from `line` to `last_line`, with no spine
                changes between, every column of the upper staff (those after the first k) goes to a
                new voice on the lower staff, the upper staff left blank
   slash_grace  {"column": c}: the grace notes of the field at `line`, column c, are slashed
+  beams        {"column": c, "marks": m}: the field's beam marks become m, as the print groups the
+               notes: one L (opens) or J (closes) per beam, K or k for a partial beam right or left,
+               "" for none; kern reads a chord's on any note, so they go on its last
   show_accidental {"column": c, "note": i}: the i-th note (from 0) of the field at `line`, column c,
-               shows an accidental the key or bar already gives, as the print does (kern's `X`)
+               shows an accidental the key or bar already gives, as the print does (kern's `X`;
+               a natural on a note gold writes with none, kern's `n`). No op hides one: the
+               scorer's parser ignores kern's `y`, and draws what the key and bar call for
   hide_rests   {"last_line": n}: from `line` to `last_line`, rests become rests not drawn: gold
                pads its voices with rests the print does not have
   hide_rest    {"column": c}: the rest of the field at `line`, column c, is not drawn: one voice's
@@ -271,26 +277,70 @@ def without_last(text: str, mark: str, count: int) -> str:
     return text
 
 
-def moved_down(lines: list[str], moves: list[set[int]] | None) -> list[str]:
-    """The lines with the last column's chosen notes (moves, per line; None: all of them) in a new
-    column before it, on the lower staff."""
-    width = len(lines[0].split("\t"))
-    keep = ["*"] * (width - 2)
-    out = ["\t".join([*keep, "*^", "*"])]
-    column = [line.split("\t")[-1] for line in lines]
-    if moves is None:
-        moves = [every_note(field) for field in column]
-    kept = beams_kept(column, moves)
-    for line, line_moves, keep_beams in zip(lines, moves, kept):
+def staves_of_columns(lines: list[str]) -> list[int]:
+    """Each column's staff after these lines, 0 the lowest (kern's spines run from the bottom staff
+    up): one column a staff from the header, then through every split and merge of voices."""
+    staves: list[int] = []
+    for line in lines:
         fields = line.split("\t")
-        if line.startswith("="):
-            out.append("\t".join([*fields, fields[-1]]))
-        elif line.startswith("*"):
-            out.append("\t".join([*fields, "*"]))
+        if line.startswith("**"):
+            staves = list(range(len(fields)))
+        elif line.startswith("*") and ("*^" in fields or "*v" in fields):
+            staves = staves_after_spine_operations(fields, staves)
+    return staves
+
+
+def staves_after_spine_operations(fields: list[str], staves: list[int]) -> list[int]:
+    out, i = [], 0
+    while i < len(fields):
+        if fields[i] == "*^":
+            out += [staves[i], staves[i]]
+            i += 1
+        elif fields[i] == "*v":
+            out.append(staves[i])
+            i = next((j for j in range(i, len(fields)) if fields[j] != "*v"), len(fields))
         else:
-            staying, moving = divided(fields[-1], line_moves, keep_beams)
-            out.append("\t".join([*fields[:-1], moving, staying]))
-    out.append("\t".join([*keep, "*v", "*v", "*"]))
+            out.append(staves[i])
+            i += 1
+    return out
+
+
+def is_data(line: str) -> bool:
+    return bool(line) and not line.startswith(("*", "!", "="))
+
+
+def held_over(lines: list[str], start: int, column: int) -> bool:
+    """Whether the first note line from `start` continues a note in that column (`.`): a voice
+    split there would cut a sounding note, and the scorer's parser then reads no parts at all
+    (030, 056). A merge across a held note it reads (051)."""
+    following = next((line for line in lines[start:] if is_data(line)), None)
+    return following is not None and following.split("\t")[column] == "."
+
+
+def moved_down(lines: list[str], first: int, last: int, moves: list[set[int]] | None, source: int | None) -> list[str]:
+    """Lines first to last with column `source`'s chosen notes (moves, per line; None: all of
+    them) in a new column after the last of the staff below, opened and closed around them."""
+    staves = staves_of_columns(lines[:first])
+    source = len(staves) - 1 if source is None else source
+    split = max(i for i, staff in enumerate(staves) if staff == staves[source] - 1)
+    if held_over(lines, first, split):
+        raise ValueError(f"move_down from line {first + 1}: column {split} holds a note across the split")
+    column_fields = [line.split("\t")[source] for line in lines[first:last]]
+    if moves is None:
+        moves = [every_note(field) for field in column_fields]
+    kept = beams_kept(column_fields, moves)
+    opened = ["*^" if i == split else "*" for i in range(len(staves))]
+    out = ["\t".join(opened)]
+    for line, line_moves, keep_beams in zip(lines[first:last], moves, kept):
+        fields = line.split("\t")
+        if not is_data(line):
+            if "*^" in fields or "*v" in fields:
+                raise ValueError(f"move_down from line {first + 1}: voices split or merged inside the range")
+            added = fields[split] if line.startswith("=") else line[0]
+        else:
+            fields[source], added = divided(fields[source], line_moves, keep_beams)
+        out.append("\t".join([*fields[:split + 1], added, *fields[split + 1:]]))
+    out.append("\t".join("*v" if i in (split, split + 1) else "*" for i in range(len(staves) + 1)))
     return out
 
 
@@ -318,9 +368,18 @@ def staff_moved_down(lines: list[str], lower: int) -> list[str]:
 
 
 def with_accidental_shown(note: str) -> str:
-    """The note with `X` after its pitch and accidental, which makes the accidental drawn."""
+    """The note with `X` after its accidental, which makes it drawn. A note with none takes an
+    explicit natural, `n`, which the scorer's parser always draws; `X` alone it ignores."""
     found = NOTE.search(note)
-    return note[:found.end()] + "X" + note[found.end():]
+    return note[:found.end()] + ("X" if found[2] else "n") + note[found.end():]
+
+
+def with_accidental_display(line: str, column: int, note: int, display) -> str:
+    fields = line.split("\t")
+    notes = fields[column].split(" ")
+    notes[note] = display(notes[note])
+    fields[column] = " ".join(notes)
+    return "\t".join(fields)
 
 
 TUPLET_NUMBERS = {"hidden": "*Xtuplet", "shown": "*tuplet"}
@@ -329,6 +388,14 @@ TUPLET_NUMBERS = {"hidden": "*Xtuplet", "shown": "*tuplet"}
 def tuplet_numbers_line(before: str, display: str) -> str:
     """An interpretation for every spine of the line it goes before."""
     return "\t".join([TUPLET_NUMBERS[display]] * len(before.split("\t")))
+
+
+def with_beams(line: str, column: int, marks: str) -> str:
+    fields = line.split("\t")
+    notes = [BEAM_MARKS.sub("", note) for note in fields[column].split(" ")]
+    notes[-1] += marks
+    fields[column] = " ".join(notes)
+    return "\t".join(fields)
 
 
 def with_graces_slashed(line: str, column: int) -> str:
@@ -388,6 +455,8 @@ def corrected(text: str, overrides: list[dict]) -> str:
             lines[first] = with_marks(lines[first], mark["column"], mark["mark"] + (AMBIGUOUS_SIGNIFIER if mark.get("ambiguous") else ""))
         elif "slur" in override:
             lines[first] = with_marks(lines[first], override["slur"]["column"], override["slur"]["marks"])
+        elif "beams" in override:
+            lines[first] = with_beams(lines[first], override["beams"]["column"], override["beams"]["marks"])
         elif "slash_grace" in override:
             lines[first] = with_graces_slashed(lines[first], override["slash_grace"]["column"])
         elif "hide_rest" in override:
@@ -395,12 +464,8 @@ def corrected(text: str, overrides: list[dict]) -> str:
             fields[override["hide_rest"]["column"]] = rest_hidden(fields[override["hide_rest"]["column"]])
             lines[first] = "\t".join(fields)
         elif "show_accidental" in override:
-            shown = override["show_accidental"]
-            fields = lines[first].split("\t")
-            notes = fields[shown["column"]].split(" ")
-            notes[shown["note"]] = with_accidental_shown(notes[shown["note"]])
-            fields[shown["column"]] = " ".join(notes)
-            lines[first] = "\t".join(fields)
+            at = override["show_accidental"]
+            lines[first] = with_accidental_display(lines[first], at["column"], at["note"], with_accidental_shown)
         elif "insert_after" in override:
             lines[first + 1:first + 1] = override["insert_after"]
         elif "replace" in override:
@@ -416,7 +481,8 @@ def corrected(text: str, overrides: list[dict]) -> str:
         elif "move_down" in override:
             last = override["move_down"]["last_line"]
             notes = override["move_down"].get("notes")
-            lines[first:last] = moved_down(lines[first:last], None if notes is None else listed_moves(notes, first, last))
+            moves = None if notes is None else listed_moves(notes, first, last)
+            lines[first:last] = moved_down(lines, first, last, moves, override["move_down"].get("column"))
         else:
             last = override["move_up"]["last_line"]
             lines[first:last] = moved_up(lines[first:last], listed_moves(override["move_up"]["notes"], first, last))

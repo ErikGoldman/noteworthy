@@ -12,6 +12,9 @@ from pathlib import Path
 HELD_OUT_PER_MILLE = 50
 
 
+def score_key(source: Path) -> str:
+    return f"{source.name}:{source.stat().st_size}"
+
+
 def is_held_out(source: Path) -> bool:
-    key = f"{source.name}:{source.stat().st_size}"
-    return zlib.crc32(key.encode()) % 1000 < HELD_OUT_PER_MILLE
+    return zlib.crc32(score_key(source).encode()) % 1000 < HELD_OUT_PER_MILLE

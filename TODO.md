@@ -22,6 +22,16 @@ bars replaced" is cross-staff notes the Corrected gold files by hand and the rea
 12.9; (p) seeds 0 and 2: 2.2, 17.7; Print standard, whole-page), and (p)'s seed 2 is the worst
 of the five, so "a third less than (l)'s" is one seed's figure.
 
+## Voices: to revisit (decided 2026-11-17, not now)
+
+The Polish gold groups voices by musical line, our readings (and most training labels) by stem and
+layout; every training source splits chordable notes across voices (16-20%), and the gold writes a
+shared note in both voices 2-6 times as often (EXPERIMENTS.md, "How OMR-NED charges errors"). For
+now four Polish measures are reported (`print`, `print_voicing`, and each with `--either-voices`),
+and runs are judged as before. Later: decide the convention (print or line) and whether voices the
+print leaves open are taught (labels made consistent first) or left uncharged; an unpenalised
+statistic of agreement on open splits; stems against the image for the 10 most open pages.
+
 ## How every run is judged
 
 - **Two sets, one metric.** Polish dev and, once step 1f has it, OLiMPiC's scanned pages, both by
@@ -40,7 +50,8 @@ of the five, so "a third less than (l)'s" is one seed's figure.
   the wider count (`tuplet_kinds.py`), voices by `voice_metrics.py`, the rest by `note_causes.py`.
 - **By page and by song** before a gain is believed: one song or page often holds it.
 - The gold's commit and the alignment stated with every number; a new training path's tests run
-  on the pods' torch first.
+  on the pods' torch first. Polish from 2026-11-17 on: gold tag `gold_2026-11-17e` (`f` from 3b and 3d on, with 030) (overrides
+  plus `polish_print_fixes.jsonl`), the baselines' seeds rescored on it (EXPERIMENTS.md, "Print fixes").
 
 ## Next steps, in order
 
@@ -117,10 +128,13 @@ h. **What 1a to 1g leave to do** (2026-11-16), in this order; none needs a pod.
       "a hidden number drawn 44% / 55%" (1d), "printed bars right half the time" (1e), the 98.6%
       with labels fed ("Hide tuplet numbers", below), and `tuplet_kinds.py`'s printed and hidden
       columns on OLiMPiC. Until then each is read as unsure which way.
-   3. *`rest:measure` without its `rest` head* (1g: about 22 on dev, 19 bars, 46 of (p)'s cost)
+   3. **Closed 2026-11-17:** only (p)'s form wrote it (23 of 63 on OLiMPiC dev; (l) 0 of 66), and
+      `with_hidden_bar_rests_restored` (2026-11-16) mends (p)'s readings. Was: *`rest:measure` without its `rest` head* (1g: about 22 on dev, 19 bars, 46 of (p)'s cost)
       converts to a pitchless zero-length note. Mend the conversion (`seq_predict.delinearize`),
       with a test; measured on saved raw readings, as the implied-tuplets rule was.
-   4. *The cost shares again, on the Print standard* (`ned_costs.py --whole-page`,
+   4. **Done 2026-11-17** (EXPERIMENTS.md, "Baselines for step 3c (i), and the cost shares"): (l), three
+      seeds; tuplets 21.3%, notes at another onset 19.1%, later voice 13.1%; step 3's order holds.
+      Was: *The cost shares again, on the Print standard* (`ned_costs.py --whole-page`,
       `note_causes.py`, `tuplet_kinds.py`), for the form step 2 keeps, on the code of step 2a.
       Expect the cross-staff bars (376 of 806, page 110 holding 322) to go; "Where the cost is"
       is rewritten from it, and step 3's order checked against it.
@@ -208,19 +222,26 @@ The week's single-seed verdicts were undecided, and three came apart into one pa
   seeds of one form, the page resampling's error against the spread seen, where the spread sits
   by page. `eval/seed_noise.py`; its figure replaces the 0.7 above. Seed 0 ran on another commit
   and host: seeds 1 against 2 is the clean pair.
-- **The page rules as a parameter** of `seq_predict.delinearize` and `joined_musicxml` (spec 2,
+- **Done (found 2026-11-18: `delinearize(..., rules)`, `joined_musicxml(labels, rules)`,
+  `olimpic_pages_gold.py --rules`).** **The page rules as a parameter** of `seq_predict.delinearize` and `joined_musicxml` (spec 2,
   "Gold"): step 1f's gold, `rule_ablation.py` and the mending of `imply_tuplets` (1b, 1c) all
   need it. Then 1f, at 100,000 first (6 checkpoints, about 5 hours of the local GPU).
-- **Bars read right, beside OMR-NED** (spec 3): a measure one collapsed page cannot move, by what
+- **Done 2026-11-18, dropped on Polish** (signal/noise 1.11 against OMR-NED's 2.89; EXPERIMENTS.md;
+  OLiMPiC's half needs 60k readings). **Bars read right, beside OMR-NED** (spec 3): a measure one collapsed page cannot move, by what
   the bar holds. From saved readings and cost files. First the edits that name no bar (7.4% of
   (p)'s cost) placed or reported apart, and the bar numbering shown on pickups and repeats. Kept
   only if its signal against the seeds' noise beats OMR-NED's; `eval/bars_right.py`.
-- **Sets by cause** (spec 4): two voices and chords on OLiMPiC's 46 clean songs, averaged by
+- **Sets by cause** (spec 4): **two voices and chords done 2026-11-18** (`cause_bars.py`; signal/noise
+  2.97 and 4.16, EXPERIMENTS.md); held-out PDMX leak fixed (`eval/held_out_copies.py`, 92 copies);
+  printed-tuplet renders still to build. Was: two voices and chords on OLiMPiC's 46 clean songs, averaged by
   song; tuplets, printed and hidden, on rendered held-out PDMX scores (40 or more a class),
   numbers shown or hidden as each score's author set them and never by our rule, since OLiMPiC's
   clean songs hold hidden numbers in 8 songs and three of those hold 85%.
   `eval/build_cause_sets.py`, the lists committed.
-- **More real print pages** (spec 5): held until the three above size it. The source (outside
+- **More real print pages** (spec 5): **decided 2026-11-18 (user):** IMSLP scans, from Mutopia's
+  transcriptions and transcribed afresh; Claude reviews, then Transcoda's and our disagreements are
+  settled from the print; all validation, no sealed half (docs/EVAL_SETS.md). About 150-200 pages
+  (EXPERIMENTS.md noise: pages help to about there). Building. Was: held until the three above size it. The source (outside
   GrandStaff's and ASAP's repertoire, or pieces taken out of training) and the gold's reviewer
   are the user's to decide (below, "Held for the user").
 
@@ -230,7 +251,11 @@ Each run is judged first on its own cause's set (step 2b), then on the two whole
 
 In this order if pods are short; (a) and (b) can run with step 2.
 
-a. **Defaults decided 2026-11-16 (user):** one `at:` token per position if the labels hold under
+a. **Set aside 2026-11-17** (EXPERIMENTS.md, "How OMR-NED charges errors"): an early error's aftermath is
+   the metric's charge, not a model problem, and the small form would mostly repeat (p). Was:
+   **No-GPU checks done 2026-11-17** (EXPERIMENTS.md, "Step 3a's checks"): round trip clean, 4.2% shorter;
+   389 distinct positions, 125 on a 1/16-and-1/12 grid covering 97%: grid or not is the user's call.
+   **Defaults decided 2026-11-16 (user):** one `at:` token per position if the labels hold under
    about 200 (else ask); a position earlier than its voice has reached is read as no gap for
    scoring, but never silently: each one is logged where it happens (page, system, bar, voice) and
    counted in every report beside the score; the small form first, kern-like interleaving only if it
@@ -246,10 +271,17 @@ a. **Defaults decided 2026-11-16 (user):** one `at:` token per position if the l
    moved-onset rows of `ned_causes.py`, `entry_probe.py`. If it helps, the larger form follows:
    a staff's voices written together in time order, as kern does (Copisteria had half our
    moved-onset cost early on, 1,689 against 3,676).
-b. **Two-voice systems weighted up,** to Polish's share (27.9% of staff-bars; training 14-20%,
-   the same textures). One run; `voice_metrics.py` and the two-voice rows.
+b. **Rerunning 2026-11-18** as `l_system_two_voice_100k_r3` (r2 got no SSH and was destroyed): the first run's repeat never reached
+   the mix (EXPERIMENTS.md, "Step 3b's first run"). (`l_system_two_voice_100k`, Vast, seed 0, (l), 100k, OLiMPiC labels v1
+   as (l)'s seeds; `train_seq.py --two-voice-repeat 4`: each system with a two-voice staff-bar
+   four times in the mix, two-voice staff-bars 16.4% of the mix to 28.2%). **Two-voice systems
+   weighted up,** to Polish's share (27.9% of staff-bars; training 14-20%, the same textures). One
+   run; `voice_metrics.py` and the two-voice rows.
 c. **Tuplet data: step 1 has decided,** three runs, one change each, in this order.
-   (i) **Running 2026-11-17** (`l_system_relabel_100k`, Vast, seed 0, (l), 100k; baseline (l)'s three
+   (i) **Verdict withdrawn 2026-11-18** (EXPERIMENTS.md, "Correction: step 3c (i)"): a repeat of (l)
+   seed 0 shows the same tuplet drop, so it was run-to-run noise; the relabel marks hidden numbers
+   far better and reads rhythm alike. Undecided; needs more runs a side (the user's call).
+   (`l_system_relabel_100k`, Vast, seed 0, (l), 100k; baseline (l)'s three
    seeds): OLiMPiC's tuplets relabelled (1h items 1 and 2): the only source whose labels disagree
    with its images, and the real-scan one. (ii) "Hide tuplet numbers as engravers do" (below)
    across the synthetic sets, `unmarked` at weight 1: 1c cleared hidden numbers of teaching false
@@ -257,7 +289,14 @@ c. **Tuplet data: step 1 has decided,** three runs, one change each, in this ord
    arc over unbeamed quarter-plus-eighth groups, once for a run. Measures: tuplet bars printed
    and hidden on the tuplet set of step 2b, a hidden number drawn, tuplets added where none are;
    Polish 003 and 096 shown apart.
-d. **seq516's data changes, each left out once** (Smashcima, MusiCorpus, `unmarked`, the
+d. **`unmarked` left out: done 2026-11-18, no effect seen** (EXPERIMENTS.md, "Correction: step 3c (i)").
+   Was: **`unmarked` left out: running 2026-11-17** (`l_system_no_unmarked_100k`, Vast, seed 0, (l), 100k,
+   `NW_UNMARKED_WEIGHT=0`; against (l)'s three seeds). **Smashcima and MusiCorpus left out: done 2026-11-18, no headline effect** (tuplets pending the
+   seed-1 repeat, EXPERIMENTS.md "Leave-outs of Smashcima and MusiCorpus"). Was: **running 2026-11-18**
+   (`l_system_no_smashcima_100k`, `l_system_no_musicorpus_100k`; `NW_EXPERIMENT_SMASHCIMA_WEIGHT=0`,
+   `NW_EXPERIMENT_MUSICORPUS_WEIGHT=0`). The GrandStaff cleaning's run needs the release's labels
+   with staff positions on R2 first, and a choice: the cleaning mended signatures and also left out
+   systems (grace notes, tuplets, unlike their source), so which "uncleaned" set is the user's call. **seq516's data changes, each left out once** (Smashcima, MusiCorpus, `unmarked`, the
    GrandStaff cleaning; 4 runs): they went in together, worth about 2 points, and the handwriting
    share and `unmarked`'s weight rest on guesses until they are apart. `unmarked` first.
 
@@ -312,6 +351,13 @@ staves can be read. The meter stays off by default: on Polish it read worse ((m)
   Run on the race arms and baseline seed 0; T4 and T10 when they land.
 
 ## Pods: lessons of the first night (2026-11-14)
+
+- **Vast credit ran out 2026-11-18 about 8:48 AM ET** (balance −$0.05): Vast stops every instance,
+  which `pod_watch.sh` reports as "gone", not as credit. Two runs died at once (3b's rerun at 95k,
+  its 90k weights home; the seed-1 repeat at 12k), and new rentals fail with "Your account lacks
+  credit". Check `vastai show user` (credit) before a night of runs, and when several pods go at once.
+  Nothing is left on the account. To finish: 3b resumes from R2 (`NW_RESUME=1`, same name), and the
+  seed-1 repeat starts again from scratch.
 
 - **A pod now removes itself when its run ends** (`runs/overnight_2026-11-14/pod_side.sh`): exit
   status into the run, pushed to R2 (three tries), the push pulled back and checked, then
@@ -400,7 +446,14 @@ from saved readings). Built by `scripts/build_seq_data.sh` with the rest (always
   after the review is finished. Add dot-or-wedge and the sealed results of the review as needed.
 - SMB application, which must come from the user.
 - Gold reviews: sample of about 20 cases for the user to check; the hardest calls were 067 bars 5-8
-  and 12, and 062 bar 6.
+  and 12, and 062 bar 6. Also the beams-and-accidentals review of 2026-11-17
+  (`runs/overnight_2026-11-14/gold_review_2026-11-17/`): 064/5, 083/5 and 095/9 were checked here.
+- Beams across staves: **decided 2026-11-17 (user): a scorer flag**, done (`omr_ned.py
+  --gold-print-fixes`, `eval/polish_print_fixes.jsonl`, also signs the print leaves off). Left:
+  030 done (`move_down` from a two-voice upper staff, 2026-11-17). 056 bar 17 wants a fresh
+  transcription (bass notes in an upper-staff voice, notes doubled across voices); 076 bar 18 (one
+  notehead with two stems, in two voices).
+  Sealed test pages not yet reviewed for these.
 - C++ port: off plan until there is a good model.
 - More real print pages for dev (docs/EVAL_SETS.md, spec 5): which collection pairs scans with
   open transcriptions of piano music outside OpenScore Lieder, Polish, MusiCorpus and the

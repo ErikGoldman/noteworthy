@@ -8,7 +8,8 @@
 #   staff_experiment.sh t4_system --staff-samples-only "$NW_SEQ_DATA/staff_positions_v2" --height 512
 # A run that stopped goes on from its last.pt; one already scored is left alone.
 # NW_EXPERIMENT_STEPS sets the length (20,000), NW_UNMARKED_WEIGHT the weight of the crops whose
-# tuplet numbers are hidden (1). NW_EXPERIMENT_DEV and NW_EXPERIMENT_DEV_SAMPLES set the dev crops
+# tuplet numbers are hidden (1), NW_EXPERIMENT_SMASHCIMA_WEIGHT and NW_EXPERIMENT_MUSICORPUS_WEIGHT
+# those of the handwritten crops (2) and MusiCorpus's scans (30); 0 leaves a set out (TODO 3d). NW_EXPERIMENT_DEV and NW_EXPERIMENT_DEV_SAMPLES set the dev crops
 # and which of them are scored (OLiMPiC scanned, its 615 systems with no copy in PDMX), and
 # NW_EXPERIMENT_OUTER_DEV outer_notes.py's set (OLiMPiC dev with pitches as printed): the one-staff
 # runs take each from build_onestaff_data.sh's output.
@@ -19,6 +20,8 @@ source "$(dirname "$0")/common.sh"
 name=$1; shift
 steps=${NW_EXPERIMENT_STEPS:-20000}
 unmarked_weight=${NW_UNMARKED_WEIGHT:-1}
+smashcima_weight=${NW_EXPERIMENT_SMASHCIMA_WEIGHT:-2}
+musicorpus_weight=${NW_EXPERIMENT_MUSICORPUS_WEIGHT:-30}
 data="${NW_SEQ_DATA:-$NW_DATA/seq516g_data}"
 crops="$data/seq2"
 dev="${NW_EXPERIMENT_DEV:-$RAW/olimpic/olimpic-1.0-scanned}"
@@ -34,7 +37,7 @@ mkdir -p "$run"
 if [ ! -f "$checkpoint" ]; then
   (cd "$ROOT/train" && "$PY" train_seq.py --data "$olimpic_written:train:2" "$data/grandstaff_written_v2:train" \
     "$crops/pdmx:train" "$crops/beams:train" "$crops/round:train" "$crops/marks:train" "$crops/musescore:train" \
-    "$crops/unmarked:train:$unmarked_weight" "$crops/smashcima:train:2" "$data/musicorpus:train:30" \
+    "$crops/unmarked:train:$unmarked_weight" "$crops/smashcima:train:$smashcima_weight" "$data/musicorpus:train:$musicorpus_weight" \
     --dev "$dev:dev" --dev-samples "$dev_samples" --dev-count "$(wc -w < "$dev_samples")" \
     --out "$run" --batch 10 --lr 3e-4 --warmup 4800 --steps "$steps" --eval-every 5000 \
     --workers "$NW_TRAIN_WORKERS" --seed 0 "$@") 2>&1 | tee -a "$run/train.log"

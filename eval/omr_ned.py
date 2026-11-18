@@ -2,7 +2,8 @@
 
 usage: omr_ned.py PREDICTIONS GOLD --out RESULTS.json [--pred-format kern|musicxml]
                   [--gold-format kern|musicxml] [--jobs N] [--ambiguous-marks] [--either-ottava]
-                  [--either-display] [--whole-page-alignment]
+                  [--either-display] [--whole-page-alignment] [--voicing] [--either-voices]
+                  [--gold-print-fixes FILE]
 
 Runs in .venv-musicdiff (requirements-omr-ned.txt). PREDICTIONS and GOLD are directories of
 <sample>.krn or <sample>.musicxml. A page that cannot be parsed or compared scores 100, the
@@ -28,6 +29,38 @@ those pins. That maximises identical bars, not the lowest cost: on a page of rep
 pin a bar to the wrong copy, and every bar between then counts as deleted and inserted. A correct
 change that makes one more bar identical can then raise the score (Polish 017: 452 to 1,063 where
 the whole-page alignment goes 376 to 352). Never higher than the authors' number; slower.
+
+--voicing is not OMR-NED: a diagnostic beside it (decided with the user, 2026-11-17). musicdiff's
+Voicing detail compares each bar voice by voice, each voice's notes as a sequence (voices paired
+at least cost, their numbers ignored), and a chord as one object. The authors' default pools a
+bar's notes and pairs them by pitch and onset, so it charges a note in the wrong voice nothing,
+and one early error in a bar again for every later note it shifts (each deleted and inserted);
+Voicing charges the wrong voice and the first error once (a voice's entry moved costs 1).
+
+--either-voices allows the voice choices the print leaves open (2026-11-17, with the user; to be
+revisited): notes of one onset and length split across voices, which the print can draw as one
+chord (Polish 110 bar 8), and a shared note written in both voices (060 bar 25). Wherever either
+page splits notes of one onset and length across voices, both pages move all their notes at that
+place into one pooled voice, as one chord, each pitch once; so neither the split nor which voice
+the chord continues is charged. With --voicing, voices elsewhere are still compared; without it,
+what remains is a doubled note counted once. Undercharges two voices the print does draw with
+opposite stems in one rhythm: the kern gold records no stems to tell them apart.
+
+--gold-print-fixes FILE sets on the parsed gold what the print draws and kern cannot say
+(2026-11-17, with the user), before it is compared. One JSON object per line
+(eval/polish_print_fixes.jsonl): page, bar (from 0, as the scorer counts), kind, reason, and
+notes, each {"staff": "upper" or "lower", "onset": quarters into the bar (a string such as
+"1/3"), "pitch": one it holds, as "B-3", and, where another note shares onset and pitch (a
+tied note's second voice, a grace note), "length" in quarters, "0" for a grace}. Kinds:
+  beams            a beam joining notes on both staves, which music21 keeps as each note's beam
+                   types on its own staff (lower: start, continue; upper: continue, stop): each
+                   note also has "types", its beam per level, from "start", "continue", "stop",
+                   "partial-right", "partial-left"
+  hide_accidental  the listed pitch's sign not drawn, where music21 draws one the print leaves
+                   off (a note tied into a new system, a chord repeated in the bar); its parser
+                   ignores kern's `y`, and musicdiff charges a sign only where it is drawn
+A listed note found nowhere, or twice, or a hidden sign on a pitch with none, fails the page: a
+correction never silently does nothing.
 """
 from __future__ import annotations
 
@@ -42,6 +75,8 @@ import resource
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+from collections import defaultdict
+from fractions import Fraction
 from pathlib import Path
 
 from gold_overrides import AMBIGUOUS_COLOR
@@ -59,6 +94,13 @@ class Options:
     ambiguous_marks: bool = False
     whole_page_alignment: bool = False
     either_display: bool = False
+    voicing: bool = False
+    either_voices: bool = False
+    gold_print_fixes: Path | None = None
+
+    def detail(self) -> int:
+        from musicdiff import DetailLevel  # polish_report.py imports this module from the training venv, which lacks musicdiff
+        return DetailLevel.Default | DetailLevel.Voicing if self.voicing else DetailLevel.Default
 
 
 def one_block_of_bars(original, compare_to):
@@ -108,16 +150,121 @@ def draw_display_alike(score) -> None:
         time.symbol = ""
 
 
+Place = tuple[int, int, "Fraction", "Fraction"]   # part, measure, onset, length
+
+
+def timed_notes(score):
+    """Each voiced note's place, with the note and its voice (grace notes take no place)."""
+    for p, part in enumerate(score.parts):
+        for m, measure in enumerate(part.getElementsByClass("Measure")):
+            for voice in measure.voices:
+                for note in voice.notes:
+                    if not note.duration.isGrace:
+                        yield (p, m, Fraction(note.getOffsetInHierarchy(measure)), Fraction(note.quarterLength)), note, voice
+
+
+def split_places(score) -> set[Place]:
+    """Where notes of one onset and length stand in more than one voice of a staff."""
+    voices_at = defaultdict(set)
+    for place, _, voice in timed_notes(score):
+        voices_at[place].add(id(voice))
+    return {place for place, voices in voices_at.items() if len(voices) > 1}
+
+
+def all_in_voices(score, m21) -> None:
+    """A measure's notes and rests outside any voice put into one, so a pooled voice beside them
+    leaves them compared (musicdiff reads only a measure's voices once it has any)."""
+    for measure in score.recurse().getElementsByClass("Measure"):
+        loose = list(measure.getElementsByClass("GeneralNote"))
+        if loose and not measure.voices:
+            voice = m21.stream.Voice(id="1")
+            for element in loose:
+                offset = element.getOffsetBySite(measure)
+                measure.remove(element)
+                voice.insert(offset, element)
+            measure.insert(0, voice)
+
+
+def with_places_pooled(score, places: set[Place], m21) -> None:
+    pooled = defaultdict(set)
+    for place, note, voice in list(timed_notes(score)):
+        if place in places:
+            pooled[place].update(p.nameWithOctave for p in note.pitches)
+            voice.remove(note)
+    measures = {(p, m): measure for p, part in enumerate(score.parts) for m, measure in enumerate(part.getElementsByClass("Measure"))}
+    pools = {}
+    for (p, m, onset, length), pitches in sorted(pooled.items()):
+        pool = pools.get((p, m))
+        if pool is None:
+            pool = pools[(p, m)] = m21.stream.Voice(id="pooled")
+            measures[(p, m)].insert(0, pool)
+        pool.insert(float(onset), m21.chord.Chord(sorted(pitches, key=lambda name: m21.pitch.Pitch(name).ps),
+                                                    quarterLength=length))
+
+
+def with_open_voice_choices_alike(pred_score, gold_score, m21) -> None:
+    for score in (pred_score, gold_score):
+        all_in_voices(score, m21)
+    places = split_places(pred_score) | split_places(gold_score)
+    for score in (pred_score, gold_score):
+        with_places_pooled(score, places, m21)
+
+
+STAVES = {"upper": 0, "lower": 1}
+
+
+def print_fixes(path: Path, page: str) -> list[dict]:
+    return [c for c in map(json.loads, filter(str.strip, path.read_text().splitlines())) if c["page"] == page]
+
+
+def listed_note(score, bar: int, note: dict):
+    measure = list(score.parts[STAVES[note["staff"]]].getElementsByClass("Measure"))[bar]
+    onset = Fraction(note["onset"])
+    found = [n for n in measure.recurse().notes
+             if Fraction(n.getOffsetInHierarchy(measure)) == onset and note["pitch"] in (p.nameWithOctave for p in n.pitches)
+             and ("length" not in note or Fraction(n.quarterLength) == Fraction(note["length"]))]
+    if len(found) != 1:
+        raise ValueError(f"bar {bar}, {note['staff']} staff, {note['pitch']} at {note['onset']}: {len(found)} notes, not 1")
+    return found[0]
+
+
+def with_beams_set(found, note: dict, m21) -> None:
+    beams = m21.beam.Beams()
+    for kind in note["types"]:
+        beams.append(*kind.split("-"))
+    found.beams = beams
+
+
+def with_accidental_hidden(found, note: dict, m21) -> None:
+    pitch = next(p for p in found.pitches if p.nameWithOctave == note["pitch"])
+    if pitch.accidental is None:
+        raise ValueError(f"{note['pitch']} at {note['onset']}: no accidental to hide")
+    pitch.accidental.displayStatus = False
+
+
+PRINT_FIXES = {"beams": with_beams_set, "hide_accidental": with_accidental_hidden}
+
+
+def with_print_fixes(score, fixes: list[dict], m21) -> None:
+    for fix in fixes:
+        for note in fix["notes"]:
+            PRINT_FIXES[fix["kind"]](listed_note(score, fix["bar"], note), note, m21)
+
+
 def compare_parsed(metric, pred: Path, gold: Path, options: Options) -> tuple[float | None, str | None]:
     """The authors' formula on scores parsed here, also for two files of different formats, which
     they never compare."""
     gold_score = parsed_as_authors_do(metric, gold, prediction=False)
     pred_score = parsed_as_authors_do(metric, pred, prediction=True)
+    if options.gold_print_fixes:
+        with_print_fixes(gold_score, print_fixes(options.gold_print_fixes, gold.stem), metric.m21)
     if options.either_display:
         draw_display_alike(gold_score)
         draw_display_alike(pred_score)
-    pred_ann = metric.AnnScore(pred_score)
-    gold_ann = metric.AnnScore(gold_score)
+    if options.either_voices:
+        with_open_voice_choices_alike(pred_score, gold_score, metric.m21)
+    pred_ann = metric.AnnScore(pred_score, options.detail())
+    gold_ann = metric.AnnScore(gold_score, options.detail())
     operations, distance = metric.Comparison.annotated_scores_diff(pred_ann, gold_ann)
     if options.ambiguous_marks:
         distance -= wedge_refund(operations, ambiguous_notes(gold_score))
@@ -131,7 +278,8 @@ def score_page(pred: Path, gold: Path, pred_format: str, gold_format: str, optio
         metric = authors_metric()
         if options.whole_page_alignment:
             metric.Comparison._non_common_subsequences_of_measures = staticmethod(one_block_of_bars)
-        if pred_format != gold_format or options.ambiguous_marks or options.either_display:
+        if pred_format != gold_format or options.ambiguous_marks or options.either_display or options.voicing or options.either_voices \
+                or options.gold_print_fixes:
             answer.send(compare_parsed(metric, pred, gold, options))
             return
         compute = metric.compute_omr_ned if pred_format == "kern" else metric.compute_omr_ned_from_musicxml
@@ -197,10 +345,17 @@ def main() -> None:
                     help="tuplet numbers shown or hidden, and C or 4/4, cost the same")
     ap.add_argument("--whole-page-alignment", action="store_true",
                     help="align bars by edit cost over the whole page, not between runs of identical bars")
+    ap.add_argument("--voicing", action="store_true",
+                    help="not OMR-NED: compare voice by voice (musicdiff's Voicing detail), a diagnostic")
+    ap.add_argument("--either-voices", action="store_true",
+                    help="notes of one onset and length split across voices or not, and a shared note once or twice, cost the same")
+    ap.add_argument("--gold-print-fixes", type=Path,
+                    help="what the print draws and kern cannot say (beams across the staves, signs left off), set on the parsed gold")
     ap.add_argument("--jobs", type=int, default=4)
     args = ap.parse_args()
     golds = sorted(args.gold.glob("*" + SUFFIX[args.gold_format]))
-    options = Options(args.ambiguous_marks, args.whole_page_alignment, args.either_display)
+    options = Options(args.ambiguous_marks, args.whole_page_alignment, args.either_display, args.voicing, args.either_voices,
+                      args.gold_print_fixes)
     jobs = [(args.predictions / (g.stem + SUFFIX[args.pred_format]), g, args.pred_format, args.gold_format, options) for g in golds]
     from multiprocessing.pool import ThreadPool
     with ThreadPool(args.jobs) as pool, tempfile.TemporaryDirectory() as folder:

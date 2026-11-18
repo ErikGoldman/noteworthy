@@ -13,6 +13,9 @@
 #   Copista    copisteria's trained weights (Apache-2.0), to compare against (the code is
 #              checked out by setup_compare_env.sh)
 #   Audiveris  5.11.0 (AGPL-3.0), to compare against
+#   Spec 5     scans of engraved piano editions (public domain) for the real-print dev set
+#              (eval/spec5_scans.tsv): the Internet Archive's are fetched; IMSLP's need a person
+#              (its bot check), so any missing are listed with their links and the script stops
 #
 # A source already in place is not fetched again. Archives are deleted once unpacked.
 set -euo pipefail
@@ -72,5 +75,20 @@ while read -r _ piece pdf_md5 midi_md5; do
   download "$MUTOPIA_FILES/$piece/$name-a4.pdf" "$RAW/mutopia/pieces/$name-a4.pdf" "$pdf_md5"
   download "$MUTOPIA_FILES/$piece/$name.mid" "$RAW/mutopia/pieces/$name.mid" "$midi_md5"
 done < "$ROOT/eval/mutopia_pieces.txt"
+
+# Spec 5's scans: the Archive's fetched and checked; IMSLP's checked, the missing ones listed.
+missing=()
+while IFS=$'\t' read -r route path md5 url _; do
+  case "$route" in
+    archive) download "$url" "$RAW/spec5_scans/$path" "$md5" ;;
+    imslp) echo "$md5  $RAW/spec5_scans/$path" | md5sum -c --quiet - >/dev/null 2>&1 || missing+=("$url -> $RAW/spec5_scans/$path") ;;
+  esac
+done < <(grep -v '^#' "$ROOT/eval/spec5_scans.tsv")
+if [ ${#missing[@]} -gt 0 ]; then
+  echo "Spec 5: ${#missing[@]} IMSLP scans are missing or changed. IMSLP's bot check needs a person: open each link" >&2
+  echo "in a browser, download the PDF, and save it under the path shown (its name as IMSLP gives it)." >&2
+  printf '  %s\n' "${missing[@]}" >&2
+  exit 1
+fi
 
 log "benchmark data ready"

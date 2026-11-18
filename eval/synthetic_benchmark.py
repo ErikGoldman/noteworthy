@@ -4,9 +4,10 @@ usage: synthetic_benchmark.py --scores LIST.txt --binary NOTEWORTHY --model MODE
                               [--count N] [--degrade] [--renderer verovio|musescore]
                               [--split dev|test]
 
-Scores are restricted to held-out ones (omr.held_out), which the network never trained
-on; copies of the same pieces are kept out of training too (see train/list_scores.py). Page 1 of each score is rendered, recognized by the C++
-tool, and compared with the source MusicXML on the measures of that page.
+Scores are restricted to unseen ones (held_out_copies.is_unseen): held out (omr.held_out), so
+the network never trained on them, and with no copy found in a training set. Page 1 of each
+score is rendered, recognized by the C++ tool, and compared with the source MusicXML on the
+measures of that page.
 
 Training pages all come from Verovio, so the musescore renderer (a different engraver
 and default font) is the better proxy for real-world printed music.
@@ -15,8 +16,10 @@ dev is the first N held-out scores, the pages developed against. test is the nex
 that share no piece with them, held out like Night Album (look at its number, never at
 its errors), so give it its own output directory.
 
-Renders are cached in the output directory (NNN.png plus NNN.measures), so re-running
-after a recognizer change only re-runs recognition; delete the directory to re-render.
+Renders are cached in the output directory (NNN.png, NNN.measures, and NNN.score, the key of
+the score it was rendered from), so re-running after a recognizer change only re-runs
+recognition; delete the directory to re-render. A cached page whose score is not the one now
+at its index stops the run: render into a fresh directory.
 """
 from __future__ import annotations
 
@@ -35,6 +38,7 @@ import numpy as np
 from lxml import etree
 from PIL import Image
 
+from held_out_copies import is_unseen
 from results_file import save_results
 from score_events import parse_musicxml
 
@@ -42,7 +46,7 @@ import musescore
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "train"))
 from omr.augment import capture_degradation  # noqa: E402
-from omr.held_out import is_held_out  # noqa: E402
+from omr.held_out import score_key  # noqa: E402
 from omr.pieces import PieceIndex, pdmx_pieces  # noqa: E402
 from omr.render import seeded_toolkit  # noqa: E402
 
@@ -53,9 +57,9 @@ MUSESCORE_SPATIUM_MM = 1.75  # default interline
 MUSESCORE_DPI = round(INTERLINE_PX * 25.4 / MUSESCORE_SPATIUM_MM)
 
 
-def held_out_scores(score_list: str | Path) -> list[Path]:
-    """Held-out scores of a list, in list order."""
-    return [Path(line) for line in Path(score_list).read_text().split("\n") if line and is_held_out(Path(line))]
+def unseen_scores(score_list: str | Path) -> list[Path]:
+    """Unseen held-out scores of a list, in list order."""
+    return [Path(line) for line in Path(score_list).read_text().split("\n") if line and is_unseen(Path(line))]
 
 
 def split_scores(scores: list[Path], count: int, split: str) -> list[Path]:
@@ -102,16 +106,29 @@ def render_musescore(scores: dict[int, Path], work: Path) -> dict[int, tuple[np.
     return out
 
 
+def cached_measures(out: Path, i: int, score: Path) -> int | None:
+    """Measures on page i's cached render, None if there is none; raises if it is another score's."""
+    count_file = out / f"{i:03d}.measures"
+    if not count_file.exists():
+        return None
+    key_file = out / f"{i:03d}.score"
+    cached = key_file.read_text() if key_file.exists() else "an unrecorded score"
+    if cached != score_key(score):
+        raise RuntimeError(f"{count_file.parent}: page {i:03d} was rendered from {cached}, not {score_key(score)}; "
+                           "render into a fresh directory")
+    return int(count_file.read_text())
+
+
 def prepare_pages(scores: list[Path], count: int, out: Path, renderer: str, degrade: bool) -> dict[int, int | str]:
     """Renders (or reuses) NNN.png per score; returns measures on the page, or why it was skipped."""
     counts: dict[int, int | str] = {}
     todo: dict[int, Path] = {}
     for i in range(min(count, len(scores))):
-        count_file = out / f"{i:03d}.measures"
-        if count_file.exists():
-            counts[i] = int(count_file.read_text())
-        else:
+        measures = cached_measures(out, i, scores[i])
+        if measures is None:
             todo[i] = scores[i]
+        else:
+            counts[i] = measures
     if renderer == "musescore":
         with tempfile.TemporaryDirectory(dir=out) as work:
             rendered = render_musescore(todo, Path(work))
@@ -130,6 +147,7 @@ def prepare_pages(scores: list[Path], count: int, out: Path, renderer: str, degr
         if degrade:
             image = capture_degradation(np.random.default_rng(i), image, INTERLINE_PX)
         Image.fromarray(image).save(out / f"{i:03d}.png")
+        (out / f"{i:03d}.score").write_text(score_key(scores[i]))
         (out / f"{i:03d}.measures").write_text(str(measures))
         counts[i] = measures
     return dict(sorted(counts.items()))
@@ -157,7 +175,7 @@ def main() -> None:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    scores = split_scores(held_out_scores(args.scores), args.count, args.split)
+    scores = split_scores(unseen_scores(args.scores), args.count, args.split)
 
     measure_counts = prepare_pages(scores, args.count, out, args.renderer, args.degrade)
 

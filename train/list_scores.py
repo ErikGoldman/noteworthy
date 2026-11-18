@@ -9,8 +9,11 @@ Writes to OUT_DIR:
   dropped_copies.txt  scores left out because they are another copy of a held-out piece
 
 Held-out scores (omr.held_out) stay in render_scores.txt; training splits them off as
-validation pages. Other copies of the same pieces (omr.pieces) are dropped, so neither
-validation nor the benchmarks measure memorized music.
+validation pages. Other copies of the same pieces in this list, matched by their metadata
+(omr.pieces), are dropped. That misses copies under other titles and in the other training
+sets (GrandStaff, OLiMPiC, MusiCorpus): eval/held_out_copies.py shortlists those by melody and
+title for review by eye, and the benchmarks leave out the held-out scores that have one
+(held_out_copies.is_unseen). Validation keeps them, so it can measure some memorized music.
 """
 from __future__ import annotations
 

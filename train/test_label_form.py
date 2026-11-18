@@ -5,8 +5,9 @@ import unittest
 
 from fractions import Fraction
 
-from seq.label_form import (BACKUP_TO_BAR, LabelForm, spelled, voices_per_staff, with_backups_spelled,
-                             with_canonical_gaps, with_voice_counts, without_voice_counts)
+from seq.label_form import (BACKUP_TO_BAR, LabelForm, UnplacedPosition, spelled, voices_per_staff,
+                             with_backups_spelled, with_canonical_gaps, with_gaps_from_positions, with_positions,
+                             with_voice_counts, without_voice_counts)
 from seq.vocab import UNK, Vocab
 from train_seq import VOCABULARY
 
@@ -115,6 +116,39 @@ class Form(unittest.TestCase):
     def test_reading_takes_the_counts_out(self):
         form = LabelForm(voice_counts=True)
         self.assertEqual(form.reading(form.label(TWO_BASS_VOICES)), TWO_BASS_VOICES)
+
+
+
+class Positions(unittest.TestCase):
+    def test_each_backup_and_closing_gap_becomes_where_the_next_event_starts(self):
+        self.assertEqual(with_positions(TWO_BASS_VOICES),
+                         "measure D4 voice:1 quarter stem:up staff:1 chord F4 quarter E4 eighth G4 eighth "
+                         "at:0 B3 voice:5 quarter stem:up staff:2 G3 eighth E3 eighth "
+                         "at:0 A3 voice:6 quarter stem:down staff:2 at:2")
+
+    def test_written_out_again_as_backups_and_forwards(self):
+        self.assertEqual(with_gaps_from_positions(with_positions(TWO_BASS_VOICES)), (TWO_BASS_VOICES, []))
+
+    def test_backups_and_a_hidden_rest_are_one_position_that_hands_on_voice_and_staff(self):
+        positioned = with_positions(HIDDEN_REST)
+        self.assertIn("C6 half at:1 C3 voice:5 half staff:2", positioned)
+        self.assertIn("C6 half backup half C3 voice:5 half staff:2", with_gaps_from_positions(positioned)[0])
+
+    def test_a_position_behind_its_voice_going_on_is_no_gap_and_reported(self):
+        self.assertEqual(with_gaps_from_positions("measure C4 voice:1 half at:0 D4 quarter"),
+                         ("measure C4 voice:1 half D4 quarter", [UnplacedPosition(0, "voice:1", Fraction(0), Fraction(2))]))
+
+    def test_a_voice_backing_up_into_itself_keeps_its_backup(self):
+        bar = "measure C4 voice:1 half backup quarter D4 quarter"
+        self.assertEqual(with_positions(bar), bar)
+
+    def test_a_bar_of_unknown_time_keeps_its_backup(self):
+        bar = "measure print-object:no rest voice:1 rest:measure backup whole C3 voice:5 whole"
+        self.assertEqual(with_positions(bar), bar)
+
+    def test_a_dotted_hidden_rest_is_a_gap_too(self):
+        self.assertEqual(with_positions("measure print-object:no rest voice:1 quarter dot C4 eighth"),
+                         "measure at:3/2 C4 voice:1 eighth")
 
 
 if __name__ == "__main__":

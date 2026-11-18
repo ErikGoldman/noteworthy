@@ -43,7 +43,7 @@ from results_file import save_results
 from score_events import NoteEvent, parse_musicxml
 from page_musicxml import finish_score, mark_new_system
 from seq_predict import delinearize, load_model
-from synthetic_benchmark import f1_counts, held_out_scores, split_scores
+from synthetic_benchmark import f1_counts, unseen_scores, split_scores
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "train"))
@@ -353,7 +353,7 @@ def bench_mutopia(args, model, vocab, device) -> dict[str, Counter]:
 
 def bench_rendered(args, model, vocab, device) -> dict[str, Counter]:
     """synthetic_benchmark.py's pages, truth and matching, so its row compares with the recognizer's."""
-    scores = split_scores(held_out_scores(args.scores), args.count, args.split)
+    scores = split_scores(unseen_scores(args.scores), args.count, args.split)
     results = {}
     for i, score_path in enumerate(scores):
         page, measures = args.pages / f"{i:03d}.png", args.pages / f"{i:03d}.measures"

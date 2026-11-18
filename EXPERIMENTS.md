@@ -4651,3 +4651,646 @@ systems exactly, in order; page OMR-NED against crop SER over songs, Spearman 0.
 ((p)). The songs out of rank are page effects, not gold: 6218737 p2-s2 read from the page at 20%
 SER against about 3% for the song's crops; 6010916 p97, 5% SER on every system, costs 12.7. A
 reading takes 9 minutes on the local GPU, not 50: only the clean songs need layouts.
+
+## Baselines for step 3c (i), and the cost shares on the Print standard (2026-11-17, 1h item 4)
+
+**OLiMPiC pages against the relabelled gold.** `eval/olimpic_pages_gold.py` now builds from
+`olimpic_written_dev_v2` (tuplet numbers drawn or hidden as each song's score draws them);
+`runs/overnight_2026-11-14/olimpic_pages_gold_v2`, scored with no `--either-display`
+(`olimpic_rescore_v2.sh`, `olimpic_steps/RUN_100000/scores_v2`). Only 12 of the 158 pages change,
+6 of them 6801790's: the clean songs hold few hidden groups (the relabel's dev groups sit mostly in
+songs with a copy in a training source). Whole-page, 100k: (l) 5.55, 5.22, 4.73 (mean 5.17, was
+5.11); (p) 5.16, 5.61, 5.32 (5.36, was 5.32). So OLiMPiC's pages barely measure a hidden number;
+the relabel run is judged on it by headline, and on hidden numbers by Polish and by OLiMPiC's crops
+(`tuplet_kinds.py`'s hidden column).
+
+**OMR-NED cost by root cause, (l), three seeds pooled** (`ned_costs.py --whole-page`,
+`note_causes.py`, `ned_causes.py`, `tuplet_kinds.py`; readings on the code of step 2a, Print gold
+as corrected 2026-11-17, 49 two-staff pages a seed; `runs/overnight_2026-11-14/cost_shares_print/`).
+Total 26,158 over 147 page readings (8,633, 9,216, 8,309 a seed).
+
+| Root cause | Cost | Share |
+|---|---|---|
+| Tuplets, the wider count (`tuplet_kinds.py`) | 5,576 | 21.3% |
+| Notes at another onset ("same note, other onset", 1 voice 2,933, 2+ voices 2,065) | 4,998 | 19.1% |
+| A staff's later voice (`note_causes.py`) | 3,418 | 13.1% |
+| A chord's note | 2,511 | 9.6% |
+| Whole bar replaced | 1,712 | 6.5% |
+| Off the staff | 1,593 | 6.1% |
+
+(The rows overlap: a tuplet note at another onset counts in both.) Tuplets: hidden numbers carry
+2,966 of the 5,576 (read without a tuplet 942, left out 925, length 599); 096, 003, 056 and 087
+hold most of it. Whole bars replaced fell from 856 to 761 on seed 0 (corrected to Print gold), less
+than expected: page 110 still costs about 350 a seed in whole bars, bars 22-27, the cross-staff
+triplets the gold now places as printed. The readings do not, so it is now the model's cost, not the
+gold's. **Step 3's order holds:** tuplets lead (3c, the relabel running), then notes at another
+onset (3a, positions in the bar), then a staff's later voice (3b).
+
+## Step 3a's checks with no GPU: positions in the bar (2026-11-17)
+
+`seq.label_form.with_positions` / `with_gaps_from_positions` (tests in `train/test_label_form.py`):
+every run of backups and gaps (forwards, rests not drawn, dotted or not) becomes one `at:P`, the
+position in quarters where the next event starts; read back, a backup when P is behind and the next
+event names another voice, a forward when ahead. A run is left as written where it cannot be read
+back for sure: the bar's time unknown (after a whole-bar rest) or before its start, a backup
+carrying more than its length, a voice backing up into itself (some GrandStaff labels, e.g.
+Beethoven op. 27/2 ii bars 20-24), no way to spell the move. A position that cannot be placed in a
+reading is read as no gap and returned (`UnplacedPosition`: bar, voice, position, where the voice
+stood) for the caller to log and count. Over every training label of the mix (259,058, (l)'s form;
+`runs/overnight_2026-11-14/positions_check.py`, `positions_check3/report.txt`):
+
+- **Round trip:** every drawn event (bar, onset, voice, staff, tokens) the same in 259,057 labels;
+  the one other is a PDMX hidden whole-bar rest (011186/s2), not looked into further. No position
+  in a label goes unplaced.
+- **Length:** 4.2% fewer tokens (59.1M to 56.6M); labels over 1,023 tokens 8 before, 6 after.
+- **Vocabulary: 389 distinct positions, above the 200 agreed (so the user decides).** `at:0` is
+  1,262,000 of the 1,299,000 (backups to the bar's start). Of the 37,000 others, on a grid of
+  sixteenths and twelfths of a quarter under 16 quarters, 125 positions take 97%; the 256
+  positions off it (1,008 occurrences) are PDMX's rounded durations (`at:2051/768`), and would stay
+  written as backups and forwards. Eighths and twelfths: 94 positions, 96.4%.
+- 127,000 backup and forward tokens stay as written.
+
+## How OMR-NED charges errors, and what we steer by (2026-11-17, decided with the user)
+
+**What the metric does.** OMR-NED, as the Sheet Music Benchmark paper defines it and as Transcoda's
+code runs it (musicdiff 5.0.2, default detail, our installed version), pools each bar's notes and
+pairs a reading's note with a gold note only at the same pitch and the same onset ("MusicDiff only
+directly compares notes/rests that have the same pitch and are on the same exact offset within the
+measure"). A note at another onset is deleted and inserted at full size. So one early rhythm error
+is charged again for every later note it shifts. Built bars, through the authors' code
+(`scratchpad` tests, 2026-11-17): a missing quarter rest before six eighths costs 38; the first
+eighth read as a quarter 31; an isolated wrong pitch at the end 6. With musicdiff's Voicing detail
+(each voice compared as a sequence) the same cost 2, 1 and 1. One quirk the other way: a bar whose
+notes match one for one except in onset compares as equal before onsets are looked at, so a voice
+entering a beat early, nothing else wrong, costs 0.
+
+**Decision: the cost of an early error's aftermath is not treated as a model problem.** Edit
+distance should mean "repair this one note and everything falls into place: cost 1". Notes that are
+only shifted by an earlier misread say nothing about the model beyond that first misread, which is
+bad luck of where in the bar it fell. So "notes at another onset" (19% of (l)'s cost) is not a
+target in itself, and step 3a's positions form, chosen to stop that spread, is set aside: its
+small form would mostly be (p)'s `backup:bar` again (`at:0` is 97% of its positions) and would not
+touch shifts inside a running voice anyway. The code stays in `seq.label_form` (`with_positions`)
+with its checks above. (Separate from the metric: `compounding.py` found the model also makes more
+first errors after its own earlier ones, 92% of plain bars right fed against 80% reading on its own;
+that is model behaviour, and is not what this decision sets aside.)
+
+**The headline stays OMR-NED** (default detail, Print standard, whole-page and authors' alignment),
+to stay comparable with published numbers. Paired page differences are read knowing that where in
+a bar errors fall moves it. Diagnostics count first errors: `ned_causes.py`'s pairing, and a
+Voicing column.
+
+**Voices: a note in the wrong voice is an error, even where it renders the same** (the user; the
+print decides what is drawn, such as hidden tuplet numbers, not how notes are grouped into voices).
+OMR-NED charges none of it: a note swapped between voices 0, two voices in one rhythm read as
+chords 0 (Voicing: 2 and 6). `eval/omr_ned.py --voicing` scores with musicdiff's Voicing detail
+(not OMR-NED; the print-standard options checked to work with it). (l) at 100k, 49 two-staff Polish
+pages, whole-page: 4.19, 4.31, 3.98 against OMR-NED 6.48, 7.12, 6.33
+(`polish_steps/RUN_100k_fixed_100000/scores_voicing`).
+
+**Not yet decisive: what "the right voice" is.** Bars where reading and gold hold exactly the same
+notes but group them otherwise (`runs/overnight_2026-11-14/voice_disagreements.py`,
+`voice_disagreements.tsv`): 98 of 4,650 staff-bars over the three seeds, many in all three. Ten
+looked at (`voice_audit/`): the Polish gold groups by musical line (110 bar 8 splits E-flat 2 and 3
+on one stem into two voices; 026 bar 7 puts up-stemmed D2-G2 with the down-stemmed D3 of the bass
+line; a notehead two voices share is written in both), the readings by stem and layout; 003 and 067
+are reading errors (a voice written twice). Until the definition is settled the Voicing column
+is shown, not used to decide runs.
+
+**How much voice writing the print leaves open, by page and by source**
+(`runs/overnight_2026-11-14/voice_ambiguity.py`; `voice_ambiguity_polish.tsv`/`.txt`,
+`voice_ambiguity_training.tsv`, training sources sampled 3,000 labels each). Of the notes in
+staff-bars with 2+ voices: an "optional split" is a note sharing onset and length with a note of
+another voice (drawable as one chord: 110 bar 8's kind); "doubled", one pitch at one onset in two
+voices. Polish gold: optional 12.3%, doubled 6.1% (kern records no stems, so whether the print
+draws one stem or two is not known from the gold). Most open pages: 051 (4 bars), 067, 083 (45-67%),
+108, 060, 087, 110, 076, 022, 062, 096 (19-29%); none on 13 pages with multi-voice bars (105, 095,
+070, 066, 005, 010, 064...), and 7 have no multi-voice bars. Training: optional 16-20% in every
+source (OLiMPiC 20.0, GrandStaff 17.8, MuseScore 17.8, PDMX 16.7, Smashcima 15.5), 10-13% with both
+notes' stems the same way; doubled 0.9-3.1%. So every source splits chordable notes across voices
+about as often as the Polish gold; what the Polish gold does more is write a shared note in both
+voices (2-6 times as often). Not measured: grouping by line where rhythms differ (026 bar 7), which
+needs stems against the image.
+
+**Decision (with the user): four Polish measures reported, voices revisited later.** Each Polish
+reading is scored, Print standard, both alignments, by
+`runs/overnight_2026-11-14/rescore_polish.sh` into `scores_GOLD/ours.MEASURE.ALIGNMENT.json`
+(report `report_GOLD_measures.txt`):
+
+| Measure | What it is |
+|---|---|
+| `print` | OMR-NED as published (the headline) |
+| `print_voicing` | voice by voice (`--voicing`): wrong voices charged, an early error once; not OMR-NED |
+| `print_either-voices` | OMR-NED with the voice choices the print leaves open allowed (`--either-voices`) |
+| `print_voicing_either-voices` | voice by voice, open choices allowed: what the print decides about voices, charged |
+
+`--either-voices`: wherever either page splits notes of one onset and length across voices, both
+pages move all their notes there into one pooled voice, a chord with each pitch once. Neither the
+split (110 bar 8) nor a shared note in both voices (060) is then charged, nor which voice such a
+chord continues; voices elsewhere are. Tests: `eval/test_omr_ned.py` (110's bar and 060's cost 0;
+a note filed in the wrong one of two voices of different rhythms still costs 4; a dropped voice 3).
+Known undercharge: two voices the print draws with opposite stems in one rhythm (the kern gold has
+no stems). Short-term these are reported, not steered by; the headline and `voice_metrics.py` still
+decide runs. To revisit: which convention a voice follows (print or line), the training sources'
+disagreement on writing shared notes, and an unpenalised statistic of agreement on open splits.
+
+## What (l) and (p) get wrong, on the voice-aware measure (2026-11-17)
+
+`runs/overnight_2026-11-14/causes_voicing/` (`ned_costs.py --whole-page --voicing --either-voices`,
+then `categorize.py`; `categories.txt`): the 49 two-staff Polish dev pages, Print gold of 2026-11-17,
+both forms' three seeds at 100k pooled, every edit by family. Totals 13,077 (l) and 13,011 (p): the
+measure in `print_voicing_either-voices`, so an early error is charged once and the voice choices
+the print leaves open are not charged.
+
+| Family | (l) | Share | (p) | (p) − (l) |
+|---|---|---|---|---|
+| Notes missing (grace 457, in a tuplet 368, 2+ voices 332, rests 327, off the staff 228) | 1,935 | 14.8% | 2,030 | +95 |
+| Markings (slurs 1,391; clefs, ottavas, key and time signatures, barlines) | 1,780 | 13.6% | 1,807 | +27 |
+| Beams | 1,228 | 9.4% | 1,184 | −44 |
+| A whole voice missing | 1,035 | 7.9% | 948 | −87 |
+| Notes extra (rests 310, 2+ voices 293) | 909 | 7.0% | 1,017 | +108 |
+| Tuplet missing on notes read otherwise right (hidden-number bars 522 of 756), or extra | 836 | 6.4% | 796 | −40 |
+| Pitch wrong | 754 | 5.8% | 764 | +10 |
+| Accidentals (402 written where the gold has none) | 718 | 5.5% | 724 | +6 |
+| A whole voice extra | 692 | 5.3% | 590 | −102 |
+| Chord tones missing or extra | 649 | 5.0% | 672 | +23 |
+| Articulations and ornaments | 642 | 4.9% | 656 | +14 |
+| Tuplet drawn otherwise (number shown against hidden 305) | 363 | 2.8% | 331 | −32 |
+| Grace note kind (graceedit, slash) | 344 | 2.6% | 285 | −59 |
+| Note value (head or dot) | 341 | 2.6% | 328 | −13 |
+| Ties | 310 | 2.4% | 317 | +7 |
+| Voice timing (the gap before a note) | 306 | 2.3% | 300 | −6 |
+| Whole bar replaced | 235 | 1.8% | 262 | +27 |
+
+- Charged once, rhythm proper is small: note values 2.6%, voice timing 2.3%. Most of what OMR-NED
+  calls "notes at another onset" was aftermath.
+- The largest model problems are notes left out (graces, tuplet notes, notes on two-voice staves,
+  rests), voices left out or invented whole (13.2% together; 077, 056, 030, 051, 096, 069 most),
+  and tuplets (9.2% with the drawn ones; the missing ones mostly where the number is hidden,
+  096 and 003 most: the relabel run's target).
+- Not notes: slurs alone 10.6%, beams 9.4%, accidentals the gold lacks 3.1%.
+- Grace notes together (missing, extra, kind, pitch) about 7%.
+- (p) against (l): fewer whole voices dropped or invented (−189), more single notes missing or extra
+  (+203); the totals are the same.
+- Caveat: rests are compared without visibility (Style is off), so a hidden rest against a drawn
+  one, or a hidden rest the reading writes as a gap, may be charged as a rest missing or extra; not
+  checked.
+
+**The same on OLiMPiC's scanned dev pages** (158 pages, gold `olimpic_pages_gold_v2`;
+`runs/overnight_2026-11-14/causes_voicing_olimpic/categories.txt`; totals (l) 19,450, (p) 20,862).
+Agree with Polish (share of (l)'s cost, Polish then OLiMPiC): notes missing 14.8/13.4%, markings
+13.6/11.2% (slurs most of both), a whole voice missing 7.9/8.2%, notes extra 7.0/8.4%, chord tones
+5.0/6.1%, tuplets drawn otherwise 2.8/3.4%, note values 2.6/3.3%, voice timing 2.3/2.3%. Disagree:
+tuplets missing or extra 6.4/11.7% (the lieder hide many triplets), articulations 4.9/9.0%, beams
+9.4/3.9%, accidentals 5.5/2.7%, whole bars replaced 1.8/5.6%, grace note kind 2.6/1.2%. (p) against
+(l): fewer whole voices dropped on both (−87, −191), but on OLiMPiC more of nearly everything else
+(notes missing +517, tuplets +226, beams +201, pitch +145, note values +130), 7% more in all.
+Polish's larger beam and accidental shares may be its gold's conventions (kern beams, accidentals
+the print shows that the gold omits); not checked.
+
+**Polish's beam and accidental edits, by eye** (`runs/overnight_2026-11-14/beam_acc_audit/`, (l)
+seed 0; `show.py` prints a bar's notes with displayed accidentals and beams, gold and reading). Both
+are spread thin (135 bars with beam edits, 156 with accidental edits), and both mix gold and model:
+- Beams. 065 bar 0: the print beams the first three chords (two beams); the gold has no beam on them,
+  and the same edit recurs in bars 4, 10, 11, 18: gold. 076 bar 19: one beam runs over the whole
+  32nd run; the gold beams its first half only: gold. 093 bar 4 (a manuscript page): the reading
+  writes 32nds where the print has 16ths: model, and a rhythm error, since musicdiff tells a
+  beamed note's value by its beams, not its head. So "note value (head or dot)" undercounts misread
+  values: for beamed notes they are charged as beams.
+- Accidentals. 012 bar 0 (sharps printed on F#, C# and A# in a key that has F# and C#) and 003 bar 10
+  (a natural printed on B2): the gold leaves out accidentals the print shows: gold. 060 bar 24 (no
+  accidentals printed on the bass chords) and 087 bar 10 (a natural read as a sharp): model.
+Not yet counted; a sample of each by eye would size the gold's share.
+
+**Sized: 50 bars by eye** (a subagent; `beam_acc_audit/sample/verdicts.tsv`, 25 bars with beam
+edits and 25 with accidental edits drawn at random, seed 20261117, from (l) seed 0; two verdicts
+checked by eye here, 069 bar 23 and 105 bar 13, both right). Gold wrong (reading right) 13 of 25 in
+each family; model wrong 8 of 25 in each; both wrong 2 and 3; no real difference 2 and 1.
+- Beams, gold: mostly beams across the staves left out (062 bars 1, 4, 5, 11, 12; 110 bars 23, 26):
+  kern holds no beam across spines, and the move_up/move_down corrections drop such beams on
+  purpose. Also groups the print breaks run together under one primary beam (062/5, 069/23,
+  064/5), and runs left unbeamed (065/4, 076/19). Beams, model: mostly a different note value
+  (017/24, 017/25, 065/7, 110/7, 081/13, 042/5), one real grouping error (093/4), one group dropped.
+- Accidentals, gold: 9 of 13 are courtesy accidentals the print shows and the gold leaves hidden
+  (062/11, 110/20, 25, 26, 103/3, 105/13, 039/22, 049/5, 037/17); others on the wrong note or chord
+  (022/8, 030/20), one printed natural missing (066/4), one sign on a grace note with none (103/7).
+  Accidentals, model: mostly naturals read as sharps (022 three times, 042/3, 055/18, 093/4).
+- So about half of Polish's beam and accidental cost (1,946 of (l)'s 13,077 over three seeds) is
+  the gold's: about 7% of the voice-aware total. This is why Polish carries twice OLiMPiC's share.
+- Tooling: `polish_bar.py` cut the wrong bar for 6 of the 50 (062 bars 11, 12; 081/7; 039/22;
+  055/18; 022/22); the subagent found them on the full page. The voice audit used the same tool.
+
+## Polish dev gold reviewed whole, for beams and accidentals (2026-11-17)
+
+The 50-bar sample (above) put about half of Polish's beam and accidental cost on the gold. Every
+earlier correction started from a bar where a reading disagreed, so gold errors a reading shares
+were never looked at. This pass reviewed every bar of the 56 dev pages against the print, for those
+two families only (eight subagents, about 155 bars each; brief, tools, every finding and proposal in
+`runs/overnight_2026-11-14/gold_review_2026-11-17/`; three fixes checked by eye here: 064 bar 5,
+083 bar 5, 095 bar 9, all right).
+
+Tooling:
+- `eval/gold_listing.py`: a page bar by bar, with the kern lines as `polish_overrides.jsonl` numbers
+  them, then what the scorer reads (accidentals drawn or hidden, beams per level).
+- `gold_overrides.py`:
+  - New `beams` op: sets one field's beam marks.
+  - `show_accidental` on a note written without an accidental now writes kern's `n`. `X` alone is
+    ignored by the scorer's parser, which before this silently did nothing. No existing override
+    hit that case: the print gold is byte-identical.
+  - No op can hide an accidental. The parser ignores kern's `y` and draws whatever the key and bar
+    call for. music21 also reads `k` and `K` both as a right-pointing hook. Both are recorded in
+    findings, not fixed.
+- `polish_bar.py` now cuts the whole system rather than finding barlines from dark columns, which
+  failed on faded or skewed scans. It warns when the reading's bar count differs from the gold's.
+
+Corrections added: 185 for beams and accidentals, plus 12 from a pass over the other errors found:
+- **Accidentals:** 94 `show_accidental`, mostly courtesy accidentals printed and left hidden.
+- **Beams:** 90 `beams`. Groups run together (25 bar-staffs) and runs left unbeamed (9).
+- **054:** one `end_after`. Gold's last bar opens the next page.
+- **Wrong pitches, fixed with `replace`:** 038/10, 065/1, 065/25, 083/10, 088/5, 108/11 and 076/2,
+  all on the corrected standard.
+- **Rhythm:** 095/9, as in bar 5.
+- **Grace notes:** 070/16 added; 071/6 as a grace, not a 16th (print standard).
+
+Left alone: 098/14, where the claimed dotted rhythm isn't on the print, and pitch claims too
+blurred to read (066/15, 069/24, 093/1, 108/5, 110/19).
+
+Not fixable in kern: 38 beam groups that join notes on both staves, on 11 pages (062: 11, 110: 7,
+067: 6). See below.
+
+Two-staff mean, whole-page alignment, (l) and (p) over three seeds at 100k (`compare_golds.py`).
+The gold tags are 2026-11-17 (before), b (beams and accidentals) and c (plus the pitch fixes):
+
+| gold | model | OMR-NED | voice by voice | either voices | voice by voice, either voices |
+|---|---|---|---|---|---|
+| before | (l) | 6.64 | 4.16 | 6.46 | 3.94 |
+| before | (p) | 6.51 | 4.11 | 6.37 | 3.94 |
+| c | (l) | 6.50 | 3.99 | 6.32 | 3.77 |
+| c | (p) | 6.37 | 3.94 | 6.22 | 3.77 |
+
+Every measure falls by 0.14 to 0.17 for both models, and (l) against (p) does not move. On the
+voice-aware measure that is 4% of the total, short of the 7% the sample suggested.
+
+Recall: the whole-page pass caught only about 7 of the sample's 13 accidental gold errors. It missed
+110 bars 20, 25 and 26 (courtesy flats on bass chords under an 8va), 030/20 and 066/4. So a second
+pass looks only at staff-bars where a seed of (l) disagrees with the gold on beams or accidentals and
+the first pass recorded nothing: 194 staff-bars (`runs/overnight_2026-11-14/second_pass/`).
+
+**Beams across staves need more than kern.** music21 keeps such a beam as per-note beam types on
+each staff (lower: start, continue; upper: continue, stop), so a gold would need exactly those. Kern
+can't write them: a lone J without its L makes the parser drop the bar's beams. A MusicXML stage
+(kern, then music21, then MusicXML with the beams set) fails on its first test. Writing the
+corrected gold to MusicXML and scoring it against the kern costs 0.07 on average, nonzero on 19
+of 56 pages. music21's writer adds key, time and clef signs (51 of 96 cost units) and changes some
+slurs, beams and arpeggios. So the stage would shift scores on pages with no cross-staff beam. The
+other way is a scorer flag that patches beams into the parsed gold. Set aside for the user to
+decide (TODO).
+
+**Second pass, and the gold as it now stands (2026-11-17d).** Four subagents checked the 194
+staff-bars (`second_pass/bars.tsv`, `gold_review_2026-11-17/pass2/`). The gold was right in 179;
+the reading there was wrong.
+
+Fixed:
+- 12 courtesy accidentals.
+- 3 beam runs (two grace pairs, among them 081/7; one unbeamed).
+- 3 pitches: 066/13, where the sharp under the turn is the turn's own, so the note is B-flat by
+  the key; 083/21; 103/7.
+- Here, by eye: 110 bars 25-26, the 8va bass chords' G-flats and A-flat, which pass one had logged
+  only for their cross-staff beams.
+
+Left as recorded:
+- 030/20: which note the sharp belongs to.
+- 022/8, second chord.
+- Beam levels and hook directions music21 sets from note lengths: 030/19, 087/13, 065/7, 065/12,
+  065/13. A `beams` op cannot remove a hook a 16th's length implies.
+- 096/14: a beam across the barline.
+
+polish_overrides.jsonl now holds 3,459 lines. Two-staff whole-page means on 2026-11-17d:
+
+| Run | OMR-NED | Voice by voice | Either voices | Voice by voice, either voices |
+|---|---|---|---|---|
+| (l), seeds 6.32 / 6.97 / 6.17 | 6.49 | 3.97 | 6.31 | 3.75 |
+| (p), seeds 5.88 / 6.77 / 6.40 | 6.35 | 3.92 | 6.21 | 3.76 |
+
+## Step 3c (i): OLiMPiC's tuplets relabelled from the scores (2026-11-17)
+
+`l_system_relabel_100k`: (l), seed 0, 100k on Vast, with OLiMPiC train labelled v2, so tuplet
+numbers are drawn or hidden as each song's score draws them. Judged against (l)'s three seeds. The
+seeds were read again on `olimpic_written_dev_v2` (`tuplet_baseline_v2.sh`, `runs/l_system*_100k/dev_v2/`),
+so both sides use the same labels.
+
+**Headline, inside the seeds' noise.**
+
+| Measure | Relabel | (l) mean | (l) seeds |
+|---|---|---|---|
+| Polish, gold d, OMR-NED | 6.71 | 6.49 | 6.17-6.97 |
+| Polish, gold d, voice by voice | 3.95 | 3.97 | 3.79-4.12 |
+| OLiMPiC pages against v2 gold, whole-page | 5.34 | 5.17 | 4.73-5.55 |
+
+**Tuplets, scanned OLiMPiC dev crops** (`tuplet_bars.py`):
+
+| Bars, read with the right rhythm | Relabel | (l) seeds |
+|---|---|---|
+| A number hidden | 44.5% | 53.0, 51.1, 52.0 |
+| Numbers shown | 43.8% | 45.9, 43.8, 45.0 |
+| No tuplets | 77.7% | 79.9, 78.1, 78.7 |
+| Tuplet-ratio tokens read | 59.6% | 65.3, 65.9, 65.7 |
+
+On the synthetic crops, hidden-number bars are 53.4% against 57.3, 53.9 and 48.2. The run marks
+hidden numbers far better: `tuplet:hidden` is written for 1,176 of 1,650 hidden groups, against
+503 for seed 0. But it writes fewer tuplets at all: 8,104 ratio tokens against 8,828, out of
+11,710.
+
+On Polish (`tuplets_polish_d/`, `tuplet_kinds.py`), tuplet cost is 2,215, against 2,077, 1,997 and
+1,526. The hidden-number share is 1,243, against 1,451, 993 and 929. The "drawn" cost for hidden
+numbers falls to 0, against 36, 107 and 33. Printed groups read without a tuplet rise to 365,
+against 184, 213 and 162.
+
+**Verdict: the relabel does not stand.** It teaches the display and loses the tuplets: on the
+real-scan set it reads 7 to 9 points fewer hidden-number bars right, outside the seeds' 2-point
+spread. One seed only, so the drop could be smaller, but it is not a gain. v2 stays out of the
+default.
+
+A guess at why, not tested: v1's labels called many unnumbered groups printed, which told the
+model a tuplet is there whatever the image shows. With v2 an unnumbered group looks like plain
+notes plus a hidden marker, and the model writes no tuplet more often. So 3c (ii), hiding numbers
+in the synthetic sets as engravers do, risks the same, and should be measured on this
+tuplets-written rate, not on display.
+
+## Print fixes: what the print draws and kern cannot say (2026-11-17, decided with the user)
+
+Kern cannot hold beams across the staves, and music21's kern reader ignores `y`, so the gold cannot
+leave off a sign the print leaves off. A MusicXML stage would change scores elsewhere (above), so
+the user chose a scorer flag, `omr_ned.py --gold-print-fixes FILE`. It sets corrections on the
+parsed gold before comparing. The corrections are in `eval/polish_print_fixes.jsonl`, each naming
+its notes by bar, staff, onset, pitch and, where needed, length.
+
+There are two kinds:
+- `beams`: each note's beam types per level.
+- `hide_accidental`: the sign set to not drawn.
+
+A note the file names that is not found, or found twice, fails the page. `ned_costs.py` and
+`gold_listing.py` apply the same function. In `rescore_polish.sh`, each gold tag keeps the copy of
+the file it was built with, so scores on older tags (17d and before) do not move.
+
+Tested (`test_omr_ned.py`):
+- A reading with a beam across the staves costs 0 against beamless gold with its fix applied.
+- A reading that leaves off a sign the gold would draw costs 0 once the sign is hidden. musicdiff
+  charges a sign only where its display is "drawn", and music21 reads a MusicXML note with no
+  `<accidental>` as not drawn.
+
+What the file holds:
+- 71 beam groups on 12 pages (062: 26, 067: 14, 110: 15, and others), transcribed by two subagents
+  from the print (`gold_review_2026-11-17/print_fixes_work/`).
+- 12 hidden signs that the reviewers had already checked by eye.
+- 12 kern staff moves that put the beamed notes on their printed staff (051, 060, 076, 081, 083,
+  093, 110).
+
+Not yet expressible:
+- 030 bars 29 and 37, and 056 bar 17: `moved_down` cannot move notes out of an upper staff already
+  split in two voices.
+- 076 bar 18: one notehead with two stems.
+
+Two-staff whole-page means, gold 2026-11-17e (17d plus the print fixes and moves):
+
+| | OMR-NED | voice by voice | either voices | both |
+|---|---|---|---|---|
+| (l), seeds 6.02 / 6.70 / 5.91 | 6.21 | 3.70 | 6.04 | 3.51 |
+| (p), seeds 5.64 / 6.50 / 6.15 | 6.10 | 3.72 | 5.96 | 3.57 |
+| relabel run (3c i) | 6.49 | 3.74 | 6.36 | 3.66 |
+
+Every measure falls by about 0.27, more than my estimate of under 2%. The models already read
+these beams: (l) seed 0's 062 goes from 6.66 to 2.81. Every changed page falls except (p)'s 093
+(+0.37). Neither (l) against (p) nor the relabel verdict moves. From here, runs are judged on 17e.
+
+**`move_down` out of a two-voice upper staff (2026-11-17, with the user).** `gold_overrides.moved_down`
+assumed the upper staff was one column, the last. It split the column left of that and took notes
+from the last. With the upper staff split in two voices, the new voice opened inside the upper
+staff and nothing moved. It now:
+- finds each column's staff from the header through every split and merge (`staves_of_columns`);
+- opens the new voice after the lower staff's last column;
+- takes the notes from a column the override names (`"column"`), the last by default.
+
+Interpretation lines in the range now leave an upper-staff clef on the upper staff. Before, the
+new column took it; no existing override hit that, and the print gold is byte-identical. It fails
+loudly on a voice split inside the range, and on a note held across the split, which makes the
+scorer's parser read no parts at all (a merge across a held note it reads: 051).
+
+Tests (`test_gold_overrides.py`) cover:
+- staff tracking through splits and merges;
+- a named and a default source column;
+- a lower staff already in two voices;
+- clef and barline lines in the range;
+- both failures;
+- an end-to-end parse with the moved notes on the lower staff.
+
+With it, 030 bars 29 and 37 get their staff move and their six-note beam across the staves:
+(l) seed 0's page 030 goes 7.91 to 6.75. 056 bar 17 is left: its gold files bass notes in an
+upper-staff voice and treble notes in a lower one, and doubles notes across voices, so it wants a
+fresh transcription, not moves. Gold for later runs: tag `gold_2026-11-17f` (17e plus 030).
+
+## Bars read right (spec 3): it fails its check on Polish and is dropped (2026-11-18)
+
+`eval/bars_right.py`, on (l) and (p)'s three seeds at 60k, 80k and 100k and on `l_system_150k`,
+against Print gold 2026-11-17e with its print fixes (`runs/overnight_2026-11-14/bars_right2/`:
+`table.txt`, `results.json`, `signal_noise.txt`). A gold staff-bar is right when the whole-page
+alignment charges it nothing. An edit naming only the reading's bar charges the gold bar it is
+aligned to; the alignment is walked from the whole-bar edits and checked against every edit that
+names both sides (0 disagreements). OMR-NED comes from the same cost files, so both measures rest
+on one scoring.
+
+What had to be fixed first:
+- **musicdiff leaves out bars with nothing it compares** (a staff of hidden rests: 051's upper
+  staff has two). Its bar indices and music21's then drift apart, and the first walk disagreed 26
+  times. `ned_costs.py` now records musicdiff's own bar index ("bar") on each edit and each page's
+  compared gold bars ("gold_bars"). Its totals do not move.
+- **Edits that name no bar** (the spec's 7.4%) are now all placed: `ned_costs.py` already placed
+  extras at their element's bar.
+
+**The check: signal against noise.** Signal is each seed's change from 60k to 100k, a real
+difference, averaged over six runs. Noise is the spread of a form's three seeds at 100k, pooled.
+
+| Measure | Signal | Noise | Ratio |
+|---|---|---|---|
+| Bars right | +1.83 points | 1.65 (per form 2.29, 0.45) | 1.11 |
+| OMR-NED | −1.19 | 0.41 (per form 0.40, 0.42) | **2.89** |
+
+The seed spread rests on two degrees of freedom a form, but both measures share it, so the
+comparison holds. Bars right follows training: (l) seed 0 goes 60.1 → 61.5 → 61.8%, and
+`l_system_150k` reaches 63.8-64.4%. Its noise, though, is about four times its share of the
+signal: (l) seed 1 reads 58.4% against 61.8 and 62.7. Most bars hold a cost somewhere, and about
+40% are charged, so one misread note flips a whole bar.
+
+**Verdict, as the spec required: not used to decide A/Bs on Polish.** OMR-NED stays the decider.
+The per-class table still shows where bars go wrong (100k means: hidden tuplet bars 24-41% right,
+printed 11-21%, two voices 37-47%, plain 68-73%), so `bars_right.py` stays as a diagnostic.
+
+Not done: OLiMPiC's half. It needs the seeds' readings at 60k on OLiMPiC dev, about 2.5 GPU hours.
+
+## Step 3b's first run trained without its change (2026-11-18)
+
+`l_system_two_voice_100k` finished with 318,975 training samples, exactly (l)'s. `--two-voice-repeat 4`
+never reached the mix: with staff positions (every system run), `train_seq.py` rebuilt the items
+with `dataset_items(spec)` and no repeat. The unit test covered `dataset_items` alone, not the path
+the runs take. Now one function, `training_items`, builds the mix for every path. Its tests
+(`train/test_two_voice_repeat.py`) cover the plain path, the staff-position path and a set weight
+on top; the training suite passes (251 tests). The runs that set weights in the `--data` specs
+(unmarked, Smashcima and MusiCorpus left out) were not affected: the old path read the spec's
+weight.
+
+Rerun as `l_system_two_voice_100k_r2`. The first run is kept as what it is: (l), seed 0, the same
+code and data on another Vast host, one more look at run-to-run noise at a fixed seed.
+
+**The repeat of (l) seed 0, scored (2026-11-18).** `l_system_two_voice_100k` is (l) seed 0 again,
+on another Vast host (above). Whole-page, two staves, on the 17d gold:
+
+| | Polish OMR-NED | OLiMPiC pages, v2 gold |
+|---|---|---|
+| Original seed 0 | 6.32 | 5.55 |
+| Repeat | 6.34 | 5.34 |
+
+At a fixed seed Polish barely moves. The run-to-run spread between seeds (0.5-0.6) is the seed's:
+its initial weights, batches and augmentation. OLiMPiC pages move by 0.2 even here, so they are the
+noisier set.
+
+## Correction: step 3c (i)'s verdict was noise, not the relabel (2026-11-18)
+
+The repeat of (l) seed 0 (`l_system_two_voice_100k`, the same code, data and seed as the original,
+on another host, without the relabel) was read on `olimpic_written_dev_v2` as the seeds were
+(`runs/l_system_two_voice_100k/dev_v2/`). Scanned crops:
+
+| Run | Hidden-number bars right | Shown-number bars | Tuplet ratios read | `tuplet:hidden` written |
+|---|---|---|---|---|
+| (l) seeds 0 / 1 / 2 (trained 11-15/16) | 53.0 / 51.1 / 52.0% | 45.9 / 43.8 / 45.0% | 65.3 / 65.9 / 65.7% | 503 (seed 0) |
+| (l) seed 0 repeated (trained 11-18) | **43.9%** | 44.7% | **59.4%** | 464 |
+| Relabel (3c i) | 44.5% | 43.8% | 59.6% | **1,176** |
+
+The repeat loses what I blamed on the relabel. The mix is identical to the seeds' (sample counts
+match line by line), but the losses differ from the first logged step: training is not
+reproducible across hosts at a fixed seed. The three seeds' tight spread (51-53%) understated
+this measure's run-to-run noise; at least 9 points separate two runs of one configuration. On
+Polish the repeat landed close to its original (6.34 against 6.32), which was luck.
+
+**3c (i), revised: undecided on rhythm, and better on display.** Against the repeat, the
+relabel reads tuplets alike: 44.5% against 43.9% hidden-number bars, 59.6% against 59.4% ratios.
+It writes `tuplet:hidden` for 1,176 of 1,650 hidden groups, against 464. Its Polish "drawn" cost
+for hidden numbers is 0. The earlier verdict ("does not stand") is withdrawn. Hidden-tuplet rhythm
+on OLiMPiC crops needs several runs a side before any single-run claim.
+
+The guess about why v2 makes the model write fewer tuplets is withdrawn with it.
+
+**Also: 3d, `unmarked` left out** (`l_system_no_unmarked_100k`, 311,001 samples, no unmarked):
+
+| Measure | 3d | (l) seeds | Repeat |
+|---|---|---|---|
+| Polish, 17f, OMR-NED | 6.16 | 6.00 / 6.68 / 5.89 (mean 6.19) | 6.00 |
+| Polish, voice by voice | 3.59 | 3.68 mean | 3.49 |
+| OLiMPiC pages (v2 gold) | 5.19 | 5.17 mean | 5.34 |
+| Polish tuplet cost (17d) | 2,349 | 2,077 / 1,997 / 1,526 | - |
+
+No headline effect. Polish's tuplet cost is above every seed, mostly hidden tuplets read without
+one (685, against 504 / 168 / 272), which fits what `unmarked` teaches. Given the noise above,
+this is not a verdict. Its v2 crop reading is queued.
+3d on `olimpic_written_dev_v2` (scanned crops; `runs/l_system_no_unmarked_100k/dev_v2/`): hidden-number
+bars 51.8%, shown 42.2%, ratios read 63.0%. Inside the seeds' range and above the repeat. Leaving
+`unmarked` out shows no measurable effect on any measure here. Its Polish tuplet cost is the only
+sign, and it sits inside the noise this section measured. **Verdict: no effect seen.**
+`unmarked` costs 2.5% of the mix and stays until a cheaper test can see it, or the user drops it.
+
+## Leave-outs of Smashcima and MusiCorpus, and the tuplet drop since 11-17 (2026-11-18)
+
+`l_system_no_smashcima_100k` (289,217 samples, no Smashcima) and `l_system_no_musicorpus_100k`
+(317,085, no MusiCorpus): (l), seed 0, 100k, Vast. Polish whole-page, two staves, gold 2026-11-17f:
+
+| Run | OMR-NED | Voice by voice | Either voices | Both | OLiMPiC pages | Manuscripts 051 / 093 (17d) |
+|---|---|---|---|---|---|---|
+| (l) seeds 0/1/2 | 6.00 / 6.68 / 5.89 | 3.71 / 3.83 / 3.49 | | | 5.55 / 5.22 / 4.73 | 13.7, 13.5 / 18.8, 19.4 / 13.2, 15.3 |
+| Smashcima left out | 6.17 | 3.85 | 5.99 | 3.66 | 5.11 | 20.5, 18.3 |
+| MusiCorpus left out | 6.00 | 3.61 | 5.84 | 3.42 | 4.74 | 19.3, 15.3 |
+
+**Neither moves the headline.** Without Smashcima, the two handwritten pages read worse than
+two of the three seeds. Seed 1 is as bad, so this is a hint at most. Under the noise below it is
+no verdict.
+
+**Hidden-number tuplet bars right, scanned OLiMPiC crops, v2 labels, every (l)-form run at 100k:**
+
+| Run | Trained | Hidden-number bars | Ratios read |
+|---|---|---|---|
+| (l) seeds 0 / 1 / 2 | 11-15, 11-16 | 53.0 / 51.1 / 52.0% | 65.3 / 65.9 / 65.7% |
+| relabel | 11-17 | 44.5% | 59.6% |
+| seed 0 repeated | 11-18 | 43.9% | 59.4% |
+| Smashcima left out | 11-18 | 43.6% | 58.1% |
+| MusiCorpus left out | 11-18 | 38.2% | 58.2% |
+| `unmarked` left out | 11-18 | 51.8% | 63.0% |
+
+Four of the five runs trained since 11-17 sit 7-14 points below all three seeds. That looks less
+like chance than the correction above assumed. Nothing in the training path differs for (l)
+(`git diff 4513248`: label_form's changes touch only canonical gaps and the unwired positions;
+`lmx_tuplets` is not on (l)'s training path). The training data on disk is unchanged since 11-13.
+The pods pin their packages and take torch from the image, and seed 2 ran on the same offer as
+the seed-0 repeat. Either hidden-tuplet rhythm on these crops swings this much by chance (440
+bars, most from a few songs), or the pod environment changed between 11-16 and 11-17.
+
+**Test, launched 2026-11-18:** `l_system_seed1_100k_repeat`, seed 1 run again exactly. Near 51%,
+the low runs were chance. Near 44%, something changed, and every run since 11-17 is compared
+against a fresh baseline, not the old seeds. Until then, no tuplet verdict on 3c (i), 3d or the
+leave-outs.
+
+## Spec 4 on OLiMPiC: two voices and chords, per song (2026-11-18)
+
+`runs/overnight_2026-11-14/cause_bars.py` scores label bars read right, by class, per song, mean
+over songs, on the 46 clean scanned songs. A bar is right by compare_bars.py's test. Songs with
+fewer than 5 bars of a class are left out; a class needs 20 songs. Readings are on
+`olimpic_written_dev_v2`.
+
+**The check (spec 4): signal against noise**, as spec 3 measured it. Signal is each seed's change
+from 60k to 100k; noise is the three seeds' spread at 100k.
+
+| Class (songs) | 60k, three seeds | 100k | Signal | Noise | Ratio |
+|---|---|---|---|---|---|
+| Two voices on a staff (38) | 59.0 / 55.4 / 55.6% | 62.4 / 59.9 / 60.1% | +4.1 | 1.4 | **2.97** |
+| Chord of 3+ (39) | 77.5 / 76.5 / 74.0% | 79.6 / 78.6 / 78.3% | +2.9 | 0.7 | **4.16** |
+| None of these (28) | | 88.6 / 86.5 / 87.7% | +0.2 | 1.1 | 0.21 |
+| Tuplet, shown / hidden | | | | | too few (5 songs each) |
+
+Both cause classes are at least as reliable as Polish OMR-NED (2.89) and aim at one cause. They
+are used for changes aimed at voices or chords. Plain bars barely move with training, so they
+cannot judge anything. Tuplets need spec 5.
+
+The step-3 runs on these classes, all read on v2 at 100k:
+
+| Run | Two voices | Chords |
+|---|---|---|
+| seeds | 62.4 / 59.9 / 60.1% | 79.6 / 78.6 / 78.3% |
+| seed 0 repeated | 61.7% | 78.0% |
+| relabel | 61.6% | 79.8% |
+| no `unmarked` | 63.4% | 80.3% |
+| no Smashcima | 61.8% | 80.1% |
+| no MusiCorpus | 62.3% | 78.7% |
+
+No run stands out. 3b's 90k reading on these classes is still to do.
+
+**Step 3b at 90k, by class** (`l_system_two_voice_100k_r3`, read on v2 at 90k; its pod stopped at 95k).
+Two voices 63.6%, chords 80.7%. On two voices that is +2.8 over the seeds' mean (62.4 / 59.9 /
+60.1), about two seed standard deviations, and the highest of nine runs. But `unmarked` left out,
+which changes nothing about voices, reads 63.4%, and the per-page two-voice rows earlier showed no
+gap. **A hint, not a verdict:** two more seeds of 3b would decide it.
+
+## Spec 5's first 50 gold pages through the scorer (2026-11-18)
+
+The 50 pages with checked gold (pairs 00–23 and the two pilots; the two Op. 30 drafts from pairs 25
+and 26 left out), in `runs/spec5/score_check_2026-11-18/`. No print fixes yet; `--either-ottava`.
+
+- **Gold against itself: 0.00 on every page.** All parse as the scorer reads kern.
+- **The "meter change one bar late" flags were the checker's, not the scorer's.** music21's own
+  kern reader drops every clef, key and meter change after an unnumbered barline (`=`; `=9` keeps
+  them). converter21, which OMR-NED uses, keeps them all in the right bar. `runs/spec5/tools/check_gold.py`
+  now checks bar lengths with the scorer's parse (`bar_lengths.py`, musicdiff venv).
+- **The best model (`l_system_150k` at 120k): 9.13 authors' alignment, 8.16 whole page**; Polish dev
+  print is 6.73. Median page about 3. Missed and extra notes are 74% of the cost, beams 6%, tuplets 7%.
+- **The four worst pages are model errors; gold held up on every bar checked against the print:**
+  Czerny 038 (67; cadenza runs of 11–23, and bars running over system breaks without a barline,
+  where the model ends a bar), Czerny 046 (55; three voices on one staff in sextuplet 16ths),
+  Op. 53 p. 017 (39; hands alternating 16ths under cross-staff beams, read as a chord on every 16th),
+  Op. 53 p. 007 (31; hidden-number triplets read as plain eighths, shifting every onset).
+  Op. 53 p. 017's 346 beam edits are mostly the cross-staff beams the print-fixes step will set.

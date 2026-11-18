@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import unittest
 
-from gold_overrides import AMBIGUOUS_DECLARATION, beams_closed, corrected, midi, one_slur_per_chord
+import tempfile
+from pathlib import Path
+
+from gold_overrides import AMBIGUOUS_DECLARATION, beams_closed, corrected, midi, one_slur_per_chord, staves_of_columns
 
 PAGE = "\n".join(["**kern\t**kern", "*M2/4\t*M2/4", "=1\t=1", "4C\t16qqccL", ".\t16qqddJ", "4E\t8ccL",
                   ".\t8dd", "=2\t=2", "4G\t4g# 4b", "*-\t*-", ""])
@@ -24,9 +27,22 @@ class LineLocalOps(unittest.TestCase):
         self.assertEqual(line(text, 4), "4C\t16qqccL(")
         self.assertEqual(line(text, 6), "4E\t8ccL)(")
 
+    def test_beams_split_a_run_the_print_draws_as_two_groups(self):
+        text = corrected(PAGE, [override(5, beams={"column": 1, "marks": "JJ"}), override(6, beams={"column": 1, "marks": "L"})])
+        self.assertEqual(line(text, 5), ".\t16qqddJJ")
+        self.assertEqual(line(text, 6), "4E\t8ccL")
+
+    def test_beams_go_on_a_chords_last_note_only(self):
+        text = corrected(PAGE.replace("4E\t8ccL", "4E\t8ccL 8eeL"), [override(6, beams={"column": 1, "marks": ""})])
+        self.assertEqual(line(text, 6), "4E\t8cc 8ee")
+
     def test_show_accidental_marks_the_chosen_chord_note(self):
         text = corrected(PAGE, [override(9, show_accidental={"column": 1, "note": 0})])
         self.assertEqual(line(text, 9), "4G\t4g#X 4b")
+
+    def test_show_accidental_on_a_note_written_without_one_draws_a_natural(self):
+        text = corrected(PAGE, [override(9, show_accidental={"column": 1, "note": 1})])
+        self.assertEqual(line(text, 9), "4G\t4g# 4bn")
 
     def test_slash_grace_slashes_every_grace_in_the_field_only(self):
         text = corrected(PAGE.replace("4E\t8ccL", "16qqEE\t8qqcc 8qqee"), [override(6, slash_grace={"column": 1})])
@@ -175,6 +191,91 @@ class StaffMoves(unittest.TestCase):
     def test_lines_outside_the_range_are_unchanged(self):
         text = corrected(MOVES, [override(4, move_down={"last_line": 6})])
         self.assertEqual(line(text, 10), "4F\t4g")
+
+
+# The upper staff in two voices (columns: lower, upper voice 1, upper voice 2), as 030 bars 29 and
+# 37 and 056 bar 17 have it where a voice's notes are drawn on the lower staff.
+UPPER_SPLIT = "\n".join(["**kern\t**kern", "*clefF4\t*clefG2", "*M2/4\t*M2/4", "=1\t=1", "*\t*^",
+                         "4C\t4cc\t4e", "4D\t4dd\t4f", "*\t*v\t*v", "=2\t=2", "4E\t2g", "4F\t.", "*-\t*-", ""])
+
+
+def parsed_staves(text: str) -> list[list[str]]:
+    """The pitches music21 reads on each staff, upper first, as the scorer parses gold."""
+    from omr_ned import authors_metric, parsed_as_authors_do  # musicdiff's venv
+    with tempfile.TemporaryDirectory() as folder:
+        page = Path(folder) / "page.krn"
+        page.write_text(text)
+        score = parsed_as_authors_do(authors_metric(), page, prediction=False)
+    return [[pitch.nameWithOctave for note in part.recurse().notes for pitch in note.pitches] for part in score.parts]
+
+
+class StavesOfColumns(unittest.TestCase):
+    def test_one_column_a_staff_from_the_header(self):
+        self.assertEqual(staves_of_columns(UPPER_SPLIT.split("\n")[:3]), [0, 1])
+
+    def test_a_split_voice_stays_on_its_staff_and_a_merge_ends_it(self):
+        lines = UPPER_SPLIT.split("\n")
+        self.assertEqual(staves_of_columns(lines[:5]), [0, 1, 1])
+        self.assertEqual(staves_of_columns(lines[:8]), [0, 1])
+
+    def test_the_lower_staff_split_too(self):
+        lines = ["**kern\t**kern", "*^\t*", "*\t*\t*^"]
+        self.assertEqual(staves_of_columns(lines), [0, 0, 1, 1])
+
+
+class MoveDownFromTwoVoices(unittest.TestCase):
+    def test_a_named_upper_column_goes_to_a_new_voice_after_the_lower_staff(self):
+        text = corrected(UPPER_SPLIT, [override(6, move_down={"last_line": 7, "column": 1})])
+        self.assertTrue(spines_consistent(text))
+        self.assertEqual(line(text, 6), "*^\t*\t*")
+        self.assertEqual(columns(text, 7), ["4C", "4cc", "4ryy", "4e"])
+        self.assertEqual(columns(text, 8), ["4D", "4dd", "4ryy", "4f"])
+        self.assertEqual(line(text, 9), "*v\t*v\t*\t*")
+
+    def test_left_unnamed_it_takes_the_last_column(self):
+        text = corrected(UPPER_SPLIT, [override(6, move_down={"last_line": 7})])
+        self.assertEqual(columns(text, 7), ["4C", "4e", "4cc", "4ryy"])
+
+    def test_only_the_listed_notes_of_that_column_move(self):
+        page = UPPER_SPLIT.replace("4C\t4cc\t4e", "4C\t4cc\t4e 4g")
+        text = corrected(page, [override(6, move_down={"last_line": 7, "column": 2, "notes": {"6": [0]}})])
+        self.assertEqual(columns(text, 7), ["4C", "4e", "4cc", "4g"])
+        self.assertEqual(columns(text, 8), ["4D", "4ryy", "4dd", "4f"])
+
+    def test_the_moved_notes_are_read_on_the_lower_staff(self):
+        before = parsed_staves(UPPER_SPLIT)
+        after = parsed_staves(corrected(UPPER_SPLIT, [override(6, move_down={"last_line": 7, "column": 1})]))
+        self.assertEqual(sorted(before[0]), ["C5", "D5", "E4", "F4", "G4"])
+        self.assertEqual(sorted(after[0]), ["E4", "F4", "G4"])
+        self.assertEqual(sorted(after[1]), sorted(before[1] + ["C5", "D5"]))
+
+    def test_the_new_voice_follows_a_lower_staff_already_in_two(self):
+        page = UPPER_SPLIT.replace("*\t*^\n4C\t4cc\t4e\n4D\t4dd\t4f\n*\t*v\t*v",
+                                   "*^\t*\n4C\t4GG\t4cc\n4D\t4AA\t4dd\n*v\t*v\t*")
+        text = corrected(page, [override(6, move_down={"last_line": 7})])
+        self.assertTrue(spines_consistent(text))
+        self.assertEqual(line(text, 6), "*\t*^\t*")
+        self.assertEqual(columns(text, 7), ["4C", "4GG", "4cc", "4ryy"])
+
+    def test_an_upper_clef_change_in_the_range_stays_on_the_upper_staff(self):
+        page = UPPER_SPLIT.replace("4D\t4dd\t4f", "*\t*\t*clefF4\n4D\t4dd\t4f")
+        text = corrected(page, [override(6, move_down={"last_line": 8, "column": 1})])
+        self.assertEqual(columns(text, 8), ["*", "*", "*", "*clefF4"])
+
+    def test_a_barline_in_the_range_runs_through_the_new_voice(self):
+        page = UPPER_SPLIT.replace("4D\t4dd\t4f", "=1a\t=1a\t=1a\n4D\t4dd\t4f")
+        text = corrected(page, [override(6, move_down={"last_line": 8, "column": 1})])
+        self.assertEqual(columns(text, 8), ["=1a"] * 4)
+
+    def test_a_note_held_across_the_split_stops_the_build(self):
+        # the scorer's parser reads no parts at all from a page split under a sounding note
+        page = UPPER_SPLIT.replace("4C\t4cc\t4e\n4D", "2C\t4cc\t4e\n.")
+        with self.assertRaisesRegex(ValueError, "line 7: column 0 holds a note across the split"):
+            corrected(page, [override(7, move_down={"last_line": 7})])
+
+    def test_voices_split_inside_the_range_stop_the_build(self):
+        with self.assertRaisesRegex(ValueError, "voices split or merged inside the range"):
+            corrected(UPPER_SPLIT, [override(4, move_down={"last_line": 7})])
 
 
 def kern_page(*rows: str) -> str:

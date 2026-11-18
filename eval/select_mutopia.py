@@ -49,14 +49,14 @@ SECONDS_BETWEEN_DOWNLOADS = 2
 _candidate_grams: dict[str, set[tuple[int, ...]]] = {}
 
 
-def melody_grams(events: list[NoteEvent]) -> set[tuple[int, ...]]:
+def melody_grams(events: list[NoteEvent], gram: int = GRAM) -> set[tuple[int, ...]]:
     top: dict[tuple[int, object], int] = {}
     for e in events:
         key = (e.measure, e.onset)
         top[key] = max(top.get(key, 0), e.midi)
     pitches = [top[k] for k in sorted(top)]
     intervals = [b - a for a, b in zip(pitches, pitches[1:])]
-    return {tuple(intervals[i:i + GRAM]) for i in range(len(intervals) - GRAM + 1)}
+    return {tuple(intervals[i:i + gram]) for i in range(len(intervals) - gram + 1)}
 
 
 def candidates() -> list[str]:

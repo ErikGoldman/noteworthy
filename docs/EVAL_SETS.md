@@ -142,6 +142,9 @@ olimpic`, a script beside `polish_at.sh` that scores one checkpoint, and a line 
 
 ## 3. Bars read right, beside OMR-NED
 
+**Dropped on Polish, 2026-11-18** (EXPERIMENTS.md, "Bars read right (spec 3)"): its signal against
+noise is 1.11 against OMR-NED's 2.89; kept as a diagnostic by class. OLiMPiC's half not yet checked.
+
 **For:** a measure that one collapsed page cannot move by 1,000. OMR-NED charges every note of a
 misaligned or re-metered page (071); a bar is right or it is not. OMR-NED stays the headline and
 what problems are ranked by; this decides A/Bs alongside it.
@@ -210,8 +213,10 @@ tuplets cannot: 8 songs, and for hidden numbers effectively 3.
 **The sets:**
 
 - *Two voices on a staff; chords:* spec 2's songs, classes from spec 3. No new data.
-- *Tuplets, printed and hidden:* rendered systems of held-out PDMX scores (`omr.held_out`, 5% of
-  the scores, never trained on, their copies kept out too). 40 or more scores for each of printed
+- *Tuplets, printed and hidden:* rendered systems of unseen held-out PDMX scores
+  (`held_out_copies.is_unseen`: held out by `omr.held_out`, 5% of the scores, never trained on,
+  and with no copy in any training set by `eval/held_out_copies.py`'s melody and title checks,
+  reviewed by eye in `eval/held_out_copies_review.tsv`). 40 or more scores for each of printed
   and hidden, at most 5 systems a score, chosen by the label alone (the first systems holding the
   class, in score order). Rendered by MuseScore, the engraver training has less of, with each
   tuplet's number shown or hidden as the score's author set it, and the label taken from that
@@ -278,6 +283,13 @@ second is the costlier and is chosen only if the first finds too little.
 
 **Size:** from spec 1. As a first figure, 20 pieces holding hidden tuplets, 2 pages each.
 
-**Open, for the user:** the source (which collection pairs scans with open transcriptions of
-piano music outside OpenScore Lieder, Polish and MusiCorpus), and who reviews the gold. Half of
-whatever is built is sealed at once, by a split made from the gold alone, as Polish's was.
+**Decided 2026-11-18 (user):**
+- **Source:** IMSLP scans, from two routes. Pieces Mutopia has transcribed, by composers outside
+  GrandStaff's and ASAP's repertoire, with a scan of the edition the transcription was set from.
+  And scans transcribed afresh, for causes Mutopia lacks.
+- **Gold:** Claude reviews every page against the print: Mutopia's notes converted, or transcribed
+  from the image. Then Transcoda and our model read every page, and every bar where either
+  disagrees with the gold is settled from the print. Each correction is recorded with its reason.
+- **All validation, no sealed half.** The set exists to cut noise in development decisions, and
+  its gold is fixed with the help of two systems' readings, which tilts it slightly toward those
+  two. The final claim stays on Polish's sealed half and MusiCorpus's test split, untouched.

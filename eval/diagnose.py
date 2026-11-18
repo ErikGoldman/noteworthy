@@ -16,7 +16,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from score_events import NoteEvent, parse_musicxml
-from synthetic_benchmark import held_out_scores
+from synthetic_benchmark import unseen_scores
 
 
 def by_measure(events: list[NoteEvent]) -> list[list[NoteEvent]]:
@@ -105,7 +105,7 @@ def main() -> None:
     ap.add_argument("--count", type=int, default=100)
     args = ap.parse_args()
 
-    scores = held_out_scores(args.scores)
+    scores = unseen_scores(args.scores)
     total = Counter()
     worst = []
     for i, score in enumerate(scores[: args.count]):
