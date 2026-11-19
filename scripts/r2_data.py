@@ -5,6 +5,7 @@ usage: r2_data.py push PATH [PATH...]     (paths relative to the repo root, e.g.
        r2_data.py pull PATH [PATH...] [--into DIR]   (into the same paths under DIR, by default
                                                       this checkout's root)
        r2_data.py list
+       r2_data.py files PATH [PATH...]   (each file R2 holds under PATH, and its size)
 
 Each PATH is stored as tar shards of about SHARD_BYTES plus a manifest (PATH/manifest.json,
 written last) giving each shard's SHA-256 (also beside each shard, KEY.sha256, once it is
@@ -215,6 +216,52 @@ def pull(client, top: Path, into: Path) -> None:
             print(f"  shard {i + 1}/{len(manifest)} unpacked", flush=True)
 
 
+class RangedObject:
+    """A bucket object read as a seekable file, each read a ranged GET: tarfile seeks past each
+    member's data, so a shard's listing costs a request per member, not the shard's bytes."""
+
+    def __init__(self, client, key: str):
+        self.client, self.key, self.position = client, key, 0
+
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        if whence != os.SEEK_SET:
+            raise ValueError("only absolute seeks")
+        self.position = offset
+        return offset
+
+    def tell(self) -> int:
+        return self.position
+
+    def read(self, n: int = -1) -> bytes:
+        if n == 0:
+            return b""
+        end = "" if n < 0 else self.position + n - 1
+        try:
+            data = self.client.get_object(Bucket=BUCKET, Key=self.key, Range=f"bytes={self.position}-{end}")["Body"].read()
+        except ClientError as error:
+            if error.response["Error"]["Code"] == "InvalidRange":  # read at the object's end
+                return b""
+            raise
+        self.position += len(data)
+        return data
+
+
+def stored_files(client, top: Path) -> dict[str, int]:
+    """Each file R2 holds under top, by its name from the repo root, with its size."""
+    manifest = json.loads(client.get_object(Bucket=BUCKET, Key=f"{top}/manifest.json")["Body"].read())["shards"]
+    files = {}
+    for shard in manifest:
+        with tarfile.open(fileobj=RangedObject(client, shard["key"]), mode="r:") as tar:
+            files.update((m.name, m.size) for m in tar if m.isfile())
+    return files
+
+
+def not_stored(client, top: Path) -> list[Member]:
+    """The local files under top that R2 does not hold at the same size."""
+    stored = stored_files(client, top)
+    return [m for m in members(top) if stored.get(m.name) != m.size]
+
+
 def list_datasets(client) -> None:
     for page in client.get_paginator("list_objects_v2").paginate(Bucket=BUCKET):
         for item in page.get("Contents", []):
@@ -226,7 +273,7 @@ def list_datasets(client) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("action", choices=["push", "pull", "list"])
+    ap.add_argument("action", choices=["push", "pull", "list", "files"])
     ap.add_argument("paths", nargs="*", type=Path)
     ap.add_argument("--into", type=Path, default=ROOT, help="pull: the root the paths are unpacked under")
     args = ap.parse_args()
@@ -236,7 +283,11 @@ def main() -> None:
     if args.action == "list":
         list_datasets(client)
     for top in args.paths:
-        push(client, top) if args.action == "push" else pull(client, top, args.into)
+        if args.action == "files":
+            for name, size in sorted(stored_files(client, top).items()):
+                print(f"{name}\t{size}")
+        else:
+            push(client, top) if args.action == "push" else pull(client, top, args.into)
 
 
 if __name__ == "__main__":

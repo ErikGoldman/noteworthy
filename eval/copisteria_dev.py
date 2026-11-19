@@ -64,12 +64,12 @@ def read_systems(args: argparse.Namespace) -> None:
 
 
 def page_number(path: Path) -> int:
-    return int(path.name[4:].split("_")[0])
+    return int(path.stem[4:])
 
 
 def read_piece(name: str, args: argparse.Namespace) -> None:
     work = args.out / "work" / name
-    read_images(list((args.pages / name / "debug").glob("page*_input.png")), work)
+    read_images(list((args.pages / name / "pages").glob("page*.png")), work)
     pages = sorted(work.glob("*.musicxml"), key=page_number)
     if pages:
         joined(pages).write(args.out / f"{name}.musicxml", encoding="utf-8", xml_declaration=True)

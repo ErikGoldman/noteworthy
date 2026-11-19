@@ -11,7 +11,7 @@ usage: seq_pages.py CHECKPOINT mutopia --binary NOTEWORTHY --model MODEL.onnx --
        seq_pages.py CHECKPOINT score --inputs SCORE.pdf|PAGE.png... --binary NOTEWORTHY --model MODEL.onnx
                     --out SCORE.musicxml
 
-Mutopia PDFs are rendered by the recognizer, so its normalized debug pages are cropped; OLiMPiC
+Mutopia PDFs are rendered by the recognizer, so the pages it normalized are cropped; OLiMPiC
 scans are cropped as they are, with the layouts olimpic_benchmark.py pages left behind.
 The model reads two-staff systems (piano_staff_pairs chooses them: the voice of a
 song sits above the piano), at each of CROP_HEIGHT_RATIOS. The U-Net model is used only for finding systems. Results go
@@ -86,7 +86,7 @@ class Crop:
 
 
 def page_scales(layout: dict) -> dict[int, float]:
-    """The layout is in input coordinates; debug pages are as the recognizer read them. Inferring
+    """The layout is in input coordinates; its pages are as the recognizer read them. Inferring
     this from staff heights drifts by up to a tenth, which moves a low system off its crop."""
     return {system["page"]: system["scale"] for system in layout["systems"]}
 
@@ -329,11 +329,11 @@ def transcribe_score(args, model, vocab, device) -> None:
 def layout_of(args, inputs: list[Path], work: Path) -> tuple[dict, list[np.ndarray]]:
     """Systems found by the recognizer, and the pages they refer to, as it saw them."""
     work.mkdir(parents=True, exist_ok=True)
-    layout, debug = work / "layout.json", work / "debug"
+    layout, pages = work / "layout.json", work / "pages"
     if not layout.exists():
         subprocess.run([args.binary, *map(str, inputs), "--model", args.model, "-o", str(work / "v5.musicxml"), "--layout", str(layout),
-                        "--debug", str(debug), "--threads", "6"], capture_output=True, check=True)
-    names = sorted(debug.glob("page*_input.png"), key=lambda p: int(p.name[4:].split("_")[0]))
+                        "--pages", str(pages), "--threads", "6"], capture_output=True, check=True)
+    names = sorted(pages.glob("page*.png"), key=lambda p: int(p.stem[4:]))
     return json.loads(layout.read_text()), [cv2.imread(str(p), cv2.IMREAD_GRAYSCALE) for p in names]
 
 

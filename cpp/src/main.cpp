@@ -27,12 +27,13 @@ struct Options {
   fs::path model;
   fs::path output;
   fs::path debug_dir;
+  fs::path pages_dir;  // the pages as normalized for reading, which the layout's coordinates refer to
   int threads = 0;  // 0 = ONNX Runtime's default (all cores)
 };
 
 void usage() {
   std::cerr << "usage: noteworthy INPUT(.pdf|image)... --model MODEL.onnx -o OUT.musicxml\n"
-               "                  [--layout OUT.json] [--debug DIR] [--threads N]\n"
+               "                  [--layout OUT.json] [--pages DIR] [--debug DIR] [--threads N]\n"
                "Several inputs are read as consecutive pages of one score.\n";
 }
 
@@ -49,6 +50,8 @@ bool parse_args(int argc, char** argv, Options& opt) {
       opt.layout = v;
     } else if (a == "--debug" && (v = next())) {
       opt.debug_dir = v;
+    } else if (a == "--pages" && (v = next())) {
+      opt.pages_dir = v;
     } else if (a == "--threads" && (v = next())) {
       opt.threads = std::stoi(v);
     } else if (!a.starts_with("-")) {
@@ -160,6 +163,7 @@ int main(int argc, char** argv) {
       for (cv::Mat& page : omr::load_pages(input)) pages.push_back(std::move(page));
     }
     if (!opt.debug_dir.empty()) fs::create_directories(opt.debug_dir);
+    if (!opt.pages_dir.empty()) fs::create_directories(opt.pages_dir);
     omr::ScoreBuilder builder;
     for (size_t p = 0; p < pages.size(); ++p) {
       const auto [scale, page, maps, staves] = read_page(pages[p], segmenter);
@@ -167,8 +171,9 @@ int main(int argc, char** argv) {
       builder.add_page({static_cast<int>(p + 1), scale}, staves, symbols, segmenter.normalized_interline());
       std::cerr << "page " << p + 1 << ": scale " << scale << ", " << staves.size() << " staves, "
                 << symbols.heads.size() << " noteheads\n";
+      const std::string stem = "page" + std::to_string(p + 1);
+      if (!opt.pages_dir.empty()) cv::imwrite((opt.pages_dir / (stem + ".png")).string(), page);
       if (!opt.debug_dir.empty()) {
-        const std::string stem = "page" + std::to_string(p + 1);
         cv::imwrite((opt.debug_dir / (stem + "_input.png")).string(), page);
         write_staff_debug(opt.debug_dir / (stem + "_staves.png"), page, staves);
         write_symbol_debug(opt.debug_dir / (stem + "_symbols.png"), page, staves, symbols, segmenter.normalized_interline());
