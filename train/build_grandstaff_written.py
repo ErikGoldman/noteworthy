@@ -1,11 +1,14 @@
 """GrandStaff-LMX's training set with C and cut time (seq.time_symbols) and barline signs
 (seq.barlines) as tokens.
 
-usage: build_grandstaff_written.py GRANDSTAFF_ROOT REBUILT_DIR OUT_DIR
+usage: build_grandstaff_written.py GRANDSTAFF_ROOT OUT_DIR (--rebuilt REBUILT_DIR | --release-labels)
 
 REBUILT_DIR is rebuild_grandstaff_lmx.py's output: a system takes its mended LMX from there (the
 clefs, keys and meters its source has), keeps the release's where the rebuild gave it back
-unchanged, and is left out where it disagrees with its source.
+unchanged, and is left out where it disagrees with its source. That cleaning (2026-11-11) also
+leaves out the blank images, the systems cut at a merger and those with grace notes, below.
+--release-labels leaves the cleaning out whole, for TODO 3d's run: the release's LMX everywhere,
+only the filters that came before and after it (tuplets, signs not matched up, ties at an edge).
 
 GrandStaff's images draw a `*met(c)` or `*met(c|)` of the **kern source as a symbol, whatever
 the meter (a Scarlatti 3/8 shows C), and its repeats, double and final bars, but its LMX spells
@@ -29,8 +32,9 @@ to end on), and the other sets label such arcs (EXPERIMENTS.md, 2026-11-13).
 """
 from __future__ import annotations
 
+import argparse
 import random
-import sys
+from collections import Counter
 from pathlib import Path
 
 import cv2
@@ -50,37 +54,67 @@ def is_blank(image: Path) -> bool:
     return pixels.std() < BLANK_CONTRAST or pixels.mean() < BLANK_BRIGHTNESS
 
 
+def cleaning_leaves_out(name: str, status: dict[str, str], source, image: Path) -> str | None:
+    """Why the 2026-11-11 cleaning leaves this system out, or None."""
+    if status[name] not in (CORRECT, MENDED):
+        return "unlike their source"
+    if source.cut_at_merger:
+        return "with notes only before a merger of the staves"
+    if source.grace_notes:
+        return "with grace notes"
+    if is_blank(image):
+        return "with a blank image"
+    return None
+
+
+def always_left_out(source, lmx: str | None) -> str | None:
+    """Why this system is left out whichever labels it takes, or None."""
+    if source.ties_at_edges:
+        return "with a tie across an edge"
+    if lmx is None:
+        return "with signs that cannot be matched up"
+    if "tuplet:start" in lmx.split():
+        return "with tuplets"
+    return None
+
+
+def readable_source(kern: str):
+    try:
+        return kern_reader.read(kern)
+    except kern_reader.Unreadable:
+        return None
+
+
+def written_label(lmx: str, kern: str) -> str | None:
+    lmx = with_kern_time_symbols(lmx.strip(), kern)
+    return lmx and with_kern_barline_tokens(lmx, kern)
+
+
 def main() -> None:
-    root, rebuilt, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
-    status = dict(line.split("\t")[::2] for line in (rebuilt / "systems.tsv").read_text().splitlines())
-    kept, unmatched, with_tuplets, unlike_source, cut, graced, open_ties, blank = [], 0, 0, 0, 0, 0, 0, 0
+    ap = argparse.ArgumentParser()
+    ap.add_argument("root", type=Path, help="GrandStaff-LMX")
+    ap.add_argument("out", type=Path)
+    labels = ap.add_mutually_exclusive_group(required=True)
+    labels.add_argument("--rebuilt", type=Path, help="rebuild_grandstaff_lmx.py's output: the cleaned set")
+    labels.add_argument("--release-labels", action="store_true", help="the release's labels, the cleaning left out (TODO 3d)")
+    args = ap.parse_args()
+    root, out = args.root, args.out
+    status = (dict(line.split("\t")[::2] for line in (args.rebuilt / "systems.tsv").read_text().splitlines())
+              if args.rebuilt else None)
+    kept, left_out = [], Counter()
     for name in (root / "samples.train.txt").read_text().split():
-        if status[name] not in (CORRECT, MENDED):
-            unlike_source += 1
-            continue
-        labelled = rebuilt if status[name] == MENDED else root
         kern = (root / f"{name}.krn").read_text()
-        source = kern_reader.read(kern)
-        if source.cut_at_merger:
-            cut += 1
-            continue
-        if source.grace_notes:
-            graced += 1
-            continue
-        if source.ties_at_edges:
-            open_ties += 1
-            continue
-        lmx = with_kern_time_symbols((labelled / f"{name}.lmx").read_text().strip(), kern)
-        lmx = lmx and with_kern_barline_tokens(lmx, kern)
-        if lmx is None:
-            unmatched += 1
-            continue
-        if "tuplet:start" in lmx.split():
-            with_tuplets += 1
-            continue
+        source = readable_source(kern)
         image = root / (f"{name}_distorted.jpg" if random.Random(name).random() < DISTORTED_SHARE else f"{name}.jpg")
-        if is_blank(image):
-            blank += 1
+        labelled = args.rebuilt if status is not None and status[name] == MENDED else root
+        lmx = written_label((labelled / f"{name}.lmx").read_text(), kern)
+        if source is None:
+            reason = "whose source's spines cannot be followed"
+        else:
+            reason = ((cleaning_leaves_out(name, status, source, image) if status is not None else None)
+                      or always_left_out(source, lmx))
+        if reason:
+            left_out[reason] += 1
             continue
         target = out / f"{name}.lmx"
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -89,9 +123,7 @@ def main() -> None:
         target.with_suffix(".jpg").symlink_to(image.resolve())
         kept.append(name)
     (out / "samples.train.txt").write_text("\n".join(kept) + "\n")
-    print(f"{len(kept)} systems kept; left out: {unlike_source} unlike their source, {unmatched} with signs "
-          f"that cannot be matched up, {with_tuplets} with tuplets, {cut} with notes only before a merger of "
-          f"the staves, {graced} with grace notes, {open_ties} with a tie across an edge, {blank} with a blank image")
+    print(f"{len(kept)} systems kept; left out: " + ", ".join(f"{n} {why}" for why, n in left_out.most_common()))
 
 
 if __name__ == "__main__":

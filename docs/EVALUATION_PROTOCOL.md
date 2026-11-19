@@ -122,8 +122,13 @@ Beside each OMR-NED, the same metric with bars aligned over the whole page
 identical bars and aligns by cost only between those pins; on pages of repeated bars it pins
 the wrong copies, so a correct change can raise the score (Polish dev 017: 14.2 to 33.0 for
 correct slurs). The whole-page number is the minimum under the same costs, never above the
-authors'. The authors' number stays the headline, comparable to their paper; reports give both
-and say why. Added 2026-11-07, before any test run.
+authors'. Added 2026-11-07, before any test run.
+
+**The whole-page number is the headline (decided with the user, 2026-11-18).** The pinning is a
+fault in the metric as published, not a choice of ours: it can charge a correct reading more than
+a wrong one. Every system, Transcoda included, is scored with the same alignment from its own
+predictions, so the comparison is like for like. The authors' number is reported beside it, for
+comparison with their paper, with the reason the two differ.
 
 Comparisons are paired, with a 95% range from 5,000 resamples of pages (of songs or pieces
 where those are the unit). A difference counts only if its range excludes zero. Every page

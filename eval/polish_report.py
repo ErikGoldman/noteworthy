@@ -18,6 +18,7 @@ from collections import defaultdict
 from pathlib import Path
 
 RESAMPLES = 5000
+HEADLINE_ALIGNMENT = "whole-page"  # docs/EVALUATION_PROTOCOL.md: the authors' pinning can charge a right reading more
 
 
 def staff_count(kern: Path) -> int:
@@ -44,7 +45,8 @@ def main() -> None:
     for path in sorted(results.glob("*.*.*.json")):
         system, standard, alignment = path.stem.split(".")
         scores[standard, alignment][system] = json.loads(path.read_text())["scores"]
-    for (standard, alignment), by_system in sorted(scores.items()):
+    headline_first = lambda item: (item[0][0], item[0][1] != HEADLINE_ALIGNMENT)
+    for (standard, alignment), by_system in sorted(scores.items(), key=headline_first):
         print(f"== {standard} gold, {alignment} alignment ({len(staves)} pages)")
         print(f"{'system':<14}" + "".join(f"{f'{name} ({len(pages)})':>20}" for name, pages in groups.items()))
         for system, page_scores in sorted(by_system.items(), key=lambda kv: kv[0] != "ours"):

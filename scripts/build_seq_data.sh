@@ -38,7 +38,7 @@ for source in synthetic scanned; do
   (cd "$ROOT/train" && "$PY" build_olimpic_written.py "$olimpic/olimpic-1.0-$source" "$olimpic/lieder" "$outer_dev/$source" dev)
 done
 (cd "$ROOT/train" && with_display "$PY" rebuild_grandstaff_lmx.py "$olimpic/grandstaff-lmx" "$data/grandstaff_rebuilt")
-(cd "$ROOT/train" && "$PY" build_grandstaff_written.py "$olimpic/grandstaff-lmx" "$data/grandstaff_rebuilt" "$data/grandstaff_written")
+(cd "$ROOT/train" && "$PY" build_grandstaff_written.py "$olimpic/grandstaff-lmx" "$data/grandstaff_written" --rebuilt "$data/grandstaff_rebuilt")
 (cd "$ROOT/train" && with_display "$PY" build_musescore_crops.py --scores "$NW_DATA/render_scores.txt" \
   --out "$crops/musescore")
 (cd "$ROOT/train" && "$SMASHCIMA_PY" build_smashcima_crops.py --scores "$NW_DATA/render_scores.txt" \

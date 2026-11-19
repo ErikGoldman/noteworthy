@@ -12,7 +12,8 @@
 # those of the handwritten crops (2) and MusiCorpus's scans (30); 0 leaves a set out (TODO 3d). NW_EXPERIMENT_DEV and NW_EXPERIMENT_DEV_SAMPLES set the dev crops
 # and which of them are scored (OLiMPiC scanned, its 615 systems with no copy in PDMX), and
 # NW_EXPERIMENT_OUTER_DEV outer_notes.py's set (OLiMPiC dev with pitches as printed): the one-staff
-# runs take each from build_onestaff_data.sh's output.
+# runs take each from build_onestaff_data.sh's output. NW_EXPERIMENT_OLIMPIC and
+# NW_EXPERIMENT_GRANDSTAFF choose the labels of those two training sets.
 # usage: staff_experiment.sh NAME TRAIN_SEQ_OPTIONS...
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
@@ -29,13 +30,15 @@ dev_samples="${NW_EXPERIMENT_DEV_SAMPLES:-$NW_DATA/olimpic_dev_clean.txt}"
 outer_dev="${NW_EXPERIMENT_OUTER_DEV:-$NW_DATA/olimpic_written_dev}"
 # OLiMPiC's training labels: olimpic_written_v2 draws tuplet numbers as the scores do (TODO 3c (i)).
 olimpic_written="${NW_EXPERIMENT_OLIMPIC:-$data/olimpic_written}"
+# GrandStaff's: grandstaff_release has the release's labels, its cleaning left out (TODO 3d).
+grandstaff="${NW_EXPERIMENT_GRANDSTAFF:-$data/grandstaff_written_v2}"
 run="$NW_RUNS/$name"
 checkpoint="$run/average_$(printf '%06d' "$steps").pt"
 [ -f "$run/scores.txt" ] && { log "$name: already scored"; exit 0; }
 mkdir -p "$run"
 
 if [ ! -f "$checkpoint" ]; then
-  (cd "$ROOT/train" && "$PY" train_seq.py --data "$olimpic_written:train:2" "$data/grandstaff_written_v2:train" \
+  (cd "$ROOT/train" && "$PY" train_seq.py --data "$olimpic_written:train:2" "$grandstaff:train" \
     "$crops/pdmx:train" "$crops/beams:train" "$crops/round:train" "$crops/marks:train" "$crops/musescore:train" \
     "$crops/unmarked:train:$unmarked_weight" "$crops/smashcima:train:$smashcima_weight" "$data/musicorpus:train:$musicorpus_weight" \
     --dev "$dev:dev" --dev-samples "$dev_samples" --dev-count "$(wc -w < "$dev_samples")" \

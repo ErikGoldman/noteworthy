@@ -5294,3 +5294,50 @@ and 26 left out), in `runs/spec5/score_check_2026-11-18/`. No print fixes yet; `
   Op. 53 p. 017 (39; hands alternating 16ths under cross-staff beams, read as a chord on every 16th),
   Op. 53 p. 007 (31; hidden-number triplets read as plain eighths, shifting every onset).
   Op. 53 p. 017's 346 beam edits are mostly the cross-staff beams the print-fixes step will set.
+
+## The seed-1 repeat: the drop since 11-17 was chance (2026-11-18)
+
+`l_system_seed1_100k_repeat2` (seed 1 run again exactly, on Vast; stopped near 90k by the credit)
+against the original seed 1, both at 90k on `olimpic_written_dev_v2`'s scanned crops
+(`dev_v2_90k/tuplet_bars.txt`):
+
+| Run at 90k | Hidden-number bars right | Shown-number bars | Tuplet ratios read |
+|---|---|---|---|
+| seed 1 (trained 11-15/16) | 52.0% | 44.4% | 65.9% |
+| seed 1 repeated (11-18) | **56.4%** | 41.2% | 67.8% |
+
+Near 51% or above, so the low runs since 11-17 (43.9%, 44.5%) were chance, not a changed
+environment: (l)'s three seeds stay the baseline. But one configuration has now read 43.9% to
+56.4% on hidden-number bars: **this measure moves about 12 points between identical runs**, so
+no single run decides a tuplet question; two or three seeds a side at least. The repeat and 3b's
+seed 0 are finished locally from their last checkpoints (torch 2.11 for their last 15k and 5k
+steps, the pods' 2.8 before), and 3b's seeds 1 and 2 run on Vast.
+
+**Both finished at 100k, read on `olimpic_written_dev_v2`'s scanned crops (`dev_v2/tuplet_bars.txt`):**
+
+| Run at 100k | Tuplet ratios read | Shown-number bars | Hidden-number bars | No-tuplet bars |
+|---|---|---|---|---|
+| (l) seed 0 | 65.3% | 45.9% | 53.0% | 79.9% |
+| (l) seed 1 | 65.9% | 43.8% | 51.1% | 78.1% |
+| (l) seed 2 | 65.7% | 45.0% | 52.0% | 78.7% |
+| (l) seed 1 repeated | 68.1% | 41.2% | 57.0% | 78.1% |
+| 3b seed 0 (`l_system_two_voice_100k_r3`) | **71.0%** | 45.0% | **62.7%** | 79.4% |
+
+The repeat again lands above its original on hidden-number bars (+5.9) and below on shown ones:
+the same noise as at 90k. 3b's seed 0 is ahead on hidden-number bars by about 10 points over
+(l)'s mean, within reach of the 12-point spread seen between identical runs; seeds 1 and 2 decide.
+
+## The user's spot check of the Polish gold corrections (2026-11-19)
+
+Twenty of the 2026-11-17 review's corrections, checked by the user against the print
+(`runs/overnight_2026-11-14/gold_spot_check_2026-11-18/`). **19 right, 1 wrong.** The wrong one
+was mine, not the transcriber's: page 071's left-hand D4 (Print, the measure after the first
+line's end) is a real 16th ending a slur from the line before, as the original gold had it; my
+override had made it a grace note. Its three overrides are removed. Cases 1, 4, 5 and 8 were first
+marked unsure or wrong over my descriptions (a missing 32nd chord, which gold had right; bar
+numbers), and are right on the gold.
+
+The case notes' bar numbers were one behind the print for 11 of the 20: the override reasons in
+`eval/polish_overrides.jsonl` count bars from 0 in some places and from 1 in others. The overrides
+themselves are tied to kern lines, so gold is unaffected; the page now gives places as measures
+counted in each crop.

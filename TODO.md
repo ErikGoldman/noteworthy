@@ -241,7 +241,13 @@ The week's single-seed verdicts were undecided, and three came apart into one pa
 - **More real print pages** (spec 5): **decided 2026-11-18 (user):** IMSLP scans, from Mutopia's
   transcriptions and transcribed afresh; Claude reviews, then Transcoda's and our disagreements are
   settled from the print; all validation, no sealed half (docs/EVAL_SETS.md). About 150-200 pages
-  (EXPERIMENTS.md noise: pages help to about there). Building. Was: held until the three above size it. The source (outside
+  (EXPERIMENTS.md noise: pages help to about there). Building.
+  **New pages paused 2026-11-18 (token quota):** 50 of phase 1's 90 have checked gold (pairs 00–23
+  and the two pilots, `runs/spec5/gold/`); pairs 24–43 wait, and pairs 25 and 26 left unchecked
+  drafts of Op. 30 pp. 003 and 006. The rest of spec 5 goes ahead on the 50: the review pass, the
+  melody check, Transcoda's and our disagreements settled from the print, the print fixes, and
+  committing gold and images. Scored once already (EXPERIMENTS.md, "Spec 5's first 50 gold pages
+  through the scorer"). When pages resume, one pair at a time, with each pair's token cost measured. Was: held until the three above size it. The source (outside
   GrandStaff's and ASAP's repertoire, or pieces taken out of training) and the gold's reviewer
   are the user's to decide (below, "Held for the user").
 
@@ -271,7 +277,7 @@ a. **Set aside 2026-11-17** (EXPERIMENTS.md, "How OMR-NED charges errors"): an e
    moved-onset rows of `ned_causes.py`, `entry_probe.py`. If it helps, the larger form follows:
    a staff's voices written together in time order, as kern does (Copisteria had half our
    moved-onset cost early on, 1,689 against 3,676).
-b. **Rerunning 2026-11-18** as `l_system_two_voice_100k_r3` (r2 got no SSH and was destroyed): the first run's repeat never reached
+b. **Seeds 1 and 2 launched 2026-11-18 evening** (Vast, `l_system_two_voice_100k_seed1`/`_seed2`; seed 0 finished locally from its 95k checkpoint); the seed-1 repeat says (l)'s seeds stay the baseline (EXPERIMENTS.md, "The seed-1 repeat"). Was: **Rerunning 2026-11-18** as `l_system_two_voice_100k_r3` (r2 got no SSH and was destroyed): the first run's repeat never reached
    the mix (EXPERIMENTS.md, "Step 3b's first run"). (`l_system_two_voice_100k`, Vast, seed 0, (l), 100k, OLiMPiC labels v1
    as (l)'s seeds; `train_seq.py --two-voice-repeat 4`: each system with a two-voice staff-bar
    four times in the mix, two-voice staff-bars 16.4% of the mix to 28.2%). **Two-voice systems
@@ -280,7 +286,7 @@ b. **Rerunning 2026-11-18** as `l_system_two_voice_100k_r3` (r2 got no SSH and w
 c. **Tuplet data: step 1 has decided,** three runs, one change each, in this order.
    (i) **Verdict withdrawn 2026-11-18** (EXPERIMENTS.md, "Correction: step 3c (i)"): a repeat of (l)
    seed 0 shows the same tuplet drop, so it was run-to-run noise; the relabel marks hidden numbers
-   far better and reads rhythm alike. Undecided; needs more runs a side (the user's call).
+   far better and reads rhythm alike. **Kept (decided 2026-11-18, user):** the labels now match the images and nothing measured got worse; no more runs.
    (`l_system_relabel_100k`, Vast, seed 0, (l), 100k; baseline (l)'s three
    seeds): OLiMPiC's tuplets relabelled (1h items 1 and 2): the only source whose labels disagree
    with its images, and the real-scan one. (ii) "Hide tuplet numbers as engravers do" (below)
@@ -294,9 +300,12 @@ d. **`unmarked` left out: done 2026-11-18, no effect seen** (EXPERIMENTS.md, "Co
    `NW_UNMARKED_WEIGHT=0`; against (l)'s three seeds). **Smashcima and MusiCorpus left out: done 2026-11-18, no headline effect** (tuplets pending the
    seed-1 repeat, EXPERIMENTS.md "Leave-outs of Smashcima and MusiCorpus"). Was: **running 2026-11-18**
    (`l_system_no_smashcima_100k`, `l_system_no_musicorpus_100k`; `NW_EXPERIMENT_SMASHCIMA_WEIGHT=0`,
-   `NW_EXPERIMENT_MUSICORPUS_WEIGHT=0`). The GrandStaff cleaning's run needs the release's labels
+   `NW_EXPERIMENT_MUSICORPUS_WEIGHT=0`). **The GrandStaff cleaning left out: running 2026-11-18 night** (`l_system_grandstaff_release_100k`, Vast,
+   seed 0, (l), 100k, `NW_EXPERIMENT_GRANDSTAFF=…/grandstaff_release`: `build_grandstaff_written.py
+   --release-labels`, 32,034 systems against the cleaned 29,500, 10,736 of the shared ones relabelled; on R2
+   with positions; the first host gave no SSH, running on a second since 21:40 ET). Was: the GrandStaff cleaning's run needs the release's labels
    with staff positions on R2 first, and a choice: the cleaning mended signatures and also left out
-   systems (grace notes, tuplets, unlike their source), so which "uncleaned" set is the user's call. **seq516's data changes, each left out once** (Smashcima, MusiCorpus, `unmarked`, the
+   systems (grace notes, tuplets, unlike their source), **decided 2026-11-18 (user): the release's own labels** (`data/seq516_data`), the cleaning left out whole; its two parts apart only if that shows a difference. **seq516's data changes, each left out once** (Smashcima, MusiCorpus, `unmarked`, the
    GrandStaff cleaning; 4 runs): they went in together, worth about 2 points, and the handwriting
    share and `unmarked`'s weight rest on guesses until they are apart. `unmarked` first.
 
@@ -440,10 +449,6 @@ from saved readings). Built by `scripts/build_seq_data.sh` with the rest (always
 ## Held for the user
 
 - Sealed test run. Numbers only, and only after gold and the model are frozen.
-- Headline metric: authors' OMR-NED or `--whole-page-alignment` (or both). Then the protocol text.
-- Email to the Transcoda authors: add the bar-pinning finding (017, 042).
-- Email to the Transcoda authors: draft at https://claude.ai/artifact/NDK3s41464hRbJP1ybf7Bp. Send
-  after the review is finished. Add dot-or-wedge and the sealed results of the review as needed.
 - SMB application, which must come from the user.
 - Gold reviews: sample of about 20 cases for the user to check; the hardest calls were 067 bars 5-8
   and 12, and 062 bar 6. Also the beams-and-accidentals review of 2026-11-17
@@ -467,6 +472,14 @@ from saved readings). Built by `scripts/build_seq_data.sh` with the rest (always
   training. Corrections to gold are allowed.
 - Scoring is plain OMR-NED throughout; only the gold differs between standards.
 - Single-page locked scores can swing widely on correct changes (042): check unlocked too.
+
+## Decided 2026-11-18 (user)
+
+- **Whole-page alignment is the headline OMR-NED**, every system scored with it from its own
+  predictions (Transcoda too); the authors' number reported beside it (docs/EVALUATION_PROTOCOL.md).
+- **3c (i)'s relabel kept**; **3d's GrandStaff leave-out against the release's labels**.
+- **Vast credit added**: training may run remotely again.
+- `.venv-ly` and `requirements-ly.txt` deleted (python-ly was unused).
 
 ## Decided 2026-11-16 (user)
 
@@ -496,3 +509,8 @@ from saved readings). Built by `scripts/build_seq_data.sh` with the rest (always
   the target is what's printed, and MusicXML can record the hidden number
   (`<tuplet show-number="none">`), so a hidden 3 is the faithful transcription and the rhythm is
   unchanged. Quantify how much of the gap comes from this when seq514 is scored.
+
+## Last: the email to the Transcoda authors (decided 2026-11-18, user: after everything else)
+
+- Draft at https://claude.ai/artifact/NDK3s41464hRbJP1ybf7Bp. Add the bar-pinning finding (017,
+  042), dot-or-wedge, and the sealed results of the review as needed.
