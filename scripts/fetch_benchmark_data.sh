@@ -17,7 +17,7 @@
 #              (eval/spec5_scans.tsv): the Internet Archive's are fetched; IMSLP's need a person
 #              (its bot check), so any missing are listed with their links and the script stops
 #
-# A source already in place is not fetched again. Archives are deleted once unpacked.
+# SMB, which is gated, is fetch_smb.sh's. A source already in place is not fetched again. Archives are deleted once unpacked.
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 

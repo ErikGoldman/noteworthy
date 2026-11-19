@@ -25,6 +25,10 @@ def _smooth_field(rng: np.random.Generator, shape: tuple[int, int], sigma: float
     step = max(1, int(sigma / 2))
     small = rng.standard_normal((h // step + 2, w // step + 2)).astype(np.float32)
     small = cv2.GaussianBlur(small, (0, 0), 2.0)
+    # Centred before scaling: on a wide crop the grid is about 3 by 8, the blur leaves it nearly
+    # flat, and scaling an uncentred grid by its tiny std made its mean an offset of hundreds of
+    # grey levels, the whole crop black or white (EXPERIMENTS.md, 2026-11-19).
+    small -= small.mean()
     small /= small.std() + 1e-6
     return cv2.resize(small, (w, h), interpolation=cv2.INTER_CUBIC) * amplitude
 

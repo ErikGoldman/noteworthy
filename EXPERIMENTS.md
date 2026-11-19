@@ -5341,3 +5341,105 @@ The case notes' bar numbers were one behind the print for 11 of the 20: the over
 `eval/polish_overrides.jsonl` count bars from 0 in some places and from 1 in others. The overrides
 themselves are tied to kern lines, so gold is unaffected; the page now gives places as measures
 counted in each crop.
+
+## Step 3b on three seeds: no tuplet effect; seed 0's lead was noise (2026-11-19)
+
+`--two-voice-repeat 4`, seeds 1 and 2 (Vast) beside seed 0, at 100k on `olimpic_written_dev_v2`'s
+scanned crops:
+
+| Run at 100k | Tuplet ratios read | Shown-number bars | Hidden-number bars | No-tuplet bars |
+|---|---|---|---|---|
+| (l) seeds 0 / 1 / 2 | 65.3 / 65.9 / 65.7% | 45.9 / 43.8 / 45.0% | 53.0 / 51.1 / 52.0% | 79.9 / 78.1 / 78.7% |
+| 3b seeds 0 / 1 / 2 | 71.0 / 60.4 / 61.7% | 45.0 / 45.3 / 43.4% | 62.7 / 47.5 / 46.8% | 79.4 / 79.6 / 79.7% |
+| mean, (l) against 3b | 65.6 / 64.4% | 44.9 / 44.6% | 52.0 / 52.3% | 78.9 / 79.6% |
+
+Seed 0's +10 on hidden-number bars is gone in seeds 1 and 2 (both below every (l) seed): no tuplet
+effect. Its spread (47 to 63) is the widest yet for one recipe, against (l)'s 51 to 53: the
+measure, not the change, is what step "where the run-to-run noise comes from" (TODO) looks at
+first. Voices and Polish whole-page for 3b's verdict: the night queue (2026-11-19).
+
+## SMB: access granted, and nine pages in ten are trained on (2026-11-19)
+
+PRAIG/SMB (revision `1b75cc8`, `data/raw/smb`; parquet md5 `efe7b4d2…`): 685 pages, all test,
+469 of them pianoform. Melody check of its gold against every training score (`runs/smb/overlap.py`:
+the render list's PDMX and ASAP, and GrandStaff with each crop's fragments pooled by piece;
+controls: a page against its own GrandStaff movement 0.82, against another 0.00):
+
+| Texture | Pages | At or over 0.10 (8 intervals) |
+|---|---|---|
+| Pianoform | 468 (1 unparsed) | **409** (GrandStaff 304, PDMX 82, ASAP 23) |
+| Monophonic | 115 | 58 |
+| Quartet | 78 (1 unparsed) | 7 |
+| Piano and voice | 12 | 4 |
+| Other | 10 | 1 |
+
+Of the 409 pianoform copies, 225 share 0.90 or more. 59 pianoform pages are clean (median share
+0.021). By name alone, 382 of the 570 two-level pages are GrandStaff training pieces. With 16
+intervals GrandStaff shares are understated (its crops are 4-5 bars), so 8 is the figure.
+
+**Pooling caught a bug worth checking elsewhere:** crops number their bars from 0, so pooling a
+piece's crops' events before `melody_grams` stacks them on each other and shares nothing (the
+control read 0.00 until fragments were pooled per crop). The Polish check of 2026-11-05 also
+pooled GrandStaff "crops by piece"; its script was not kept, so Polish and OLiMPiC test are to be
+checked again with `overlap.py`.
+
+**Decided (user): only the unseen pieces are scored, the rest tossed.** `eval/smb_benchmark.py`
+holds a piece if any page reaches 0.10 or it is a GrandStaff training piece by name; 24 of the 59
+pages under 0.10 were other pages of held pieces, and four pieces (Chopin Mazurka 67/1, Hummel
+Preludes 67/14 and 67/20, Joplin's Gladiolus) are GrandStaff training pieces that melody missed,
+their crops covering other bars. **`eval/smb_pages.txt`: 30 pages of 12 pieces** (Haydn 4, Mozart 4,
+Grieg 2, Chopin's Etude 10/9, Liszt). One PDMX score unparsed. Small: an SMB figure carries a wide range.
+
+## Where the run-to-run noise comes from; 3b and 3d on Polish (2026-11-19)
+
+`runs/overnight_2026-11-14/noise_split.py`: (l)'s five runs at 100k (three seeds, two repeats) and
+3b's three seeds, the test units (songs, pages) bootstrapped to split the variance between two
+runs of one recipe into the test set's part and training's.
+
+| Measure | (l) runs | 3b seeds | sd between two runs | test set's part | smallest effect, 3 seeds a side |
+|---|---|---|---|---|---|
+| Hidden-number tuplet bars, OLiMPiC dev v2 (21 songs) | 52.95 / 51.14 / 52.05 / 43.86 / 57.05 | 62.73 / 47.50 / 46.82 | 9.19 | 59% | 10.6 (7.9 on a set 4x larger) |
+| Polish OMR-NED, print gold 2026-11-19, whole-page, two staves (49 pages) | 5.99 / 6.67 / 5.88 / 5.99 / 6.47 | 5.81 / 6.18 / 5.93 | 0.43 | 87% | 0.50 (0.29 at 4x) |
+
+Most of the noise on both is which pages and songs the test set holds, not training: more seeds
+help less than more test units. Hidden-number bars are too few to rank recipes at all.
+
+3b: Polish 5.97 against (l)'s 6.20, under the 0.50 it would need. No effect on tuplets (above) or
+Polish: not adopted. 3d (GrandStaff on the release's labels, one seed): Polish 5.84 at 100k (6.50
+at 60k, 6.12 at 80k), under the 0.86 one seed needs; its OLiMPiC dev v2 reading is still to do.
+The seed-0 repeat read 5.99, the same as seed 0.
+
+## The augmentation's lighting field blows up on wide crops (2026-11-19)
+
+Draws of `train/seq/data.augment`, step by step, on 150-200 crops of each training source (scratch,
+not kept). About 1-2% of print draws come out unreadable, the whole crop black or white; MusiCorpus
+and Smashcima about 3-5%. The cause is `capture_degradation`'s lighting variation,
+`omr.augment._smooth_field`: it scales its low-resolution noise by the std without taking the mean
+off. With sigma at a third of the crop's width the grid is about 3 by 8, the blur leaves it nearly
+flat, and dividing by its tiny std turns the mean into an offset of hundreds of grey levels. Meant
+as about ±25 at most (`uniform(0, 25)`); over crops as trained, the field passes ±100 in 8.5% of
+draws and ±255 in 0.8%. Also in the same function's other users (`stroke_weight`'s pressure field,
+`elastic`, `fade_staff_lines`), less visibly. The label keeps every note, so these draws teach
+guessing.
+
+Not the cause: binarization (a fixed threshold of 100-200 erases ink or blackens grey paper in
+under 2% of binarize draws, on Smashcima and MusiCorpus only). Smashcima's apparently missing
+noteheads (12 crops by eye) are small filled dabs, one writer style, present; its paper texture
+shows tile seams.
+
+**Fixed 2026-11-19 (user):** `_smooth_field` takes the mean off before scaling
+(`train/test_augment.py`: both tests fail on the old code). Runs trained from here on draw
+different images from (l)'s seeds and every run before: the fix rides with the next run that
+changes something, and is named in its entry; no baseline is rerun for it alone. A fresh
+sample of crops after the fix (150 a source): no print draw loses half its ink (was 0.7-2.7% a
+source), no crop is blanked. Left: binarization at a fixed 100-200 blackens grey-paper crops
+when the threshold passes the paper's tone (Smashcima's paper is about 182-197, MusiCorpus's
+173-215): 5 of 150 Smashcima draws and 4 of 150 MusiCorpus draws in this sample, by eye
+and replayed step by step.
+
+**Binarization fixed too, 2026-11-19 (user):** `seq.data.binarize` thresholds between the crop's own
+ink and paper tones (1st percentile and median), at the same fraction of the range as before, so
+white-paper print draws as it did (`test_augment.BinarizeTest`; the fixed threshold fails it on 89
+of 300 draws). A second fresh sample (150 a source, both fixes): no Smashcima draw and 1 of 109
+MusiCorpus draws flagged, and every flagged draw (5 GrandStaff, 1 PDMX, 1 MusiCorpus) readable by
+eye, heavy strokes the measure mistakes for lost ink. 254 training tests pass.

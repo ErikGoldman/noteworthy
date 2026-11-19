@@ -20,6 +20,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 scripts="$root/scripts"
 
+"$scripts/fetch_smb.sh"  # first: it may ask whether to go on without SMB (gated on Hugging Face)
 "$root/train.sh"
 "$scripts/setup_compare_env.sh"
 "$scripts/fetch_benchmark_data.sh"

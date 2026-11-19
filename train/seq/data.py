@@ -102,10 +102,19 @@ def degrade(rng: np.random.Generator, image: np.ndarray, interline: float) -> np
         # the notes on them (EXPERIMENTS.md).
         image = stroke_weight(rng, image, interline * 2, thin=False)
     if rng.random() < 0.3:
-        image = np.where(image < rng.uniform(100, 200), 0, 255).astype(np.uint8)  # binarized scan
+        image = binarize(rng, image)
     if rng.random() < 0.9:
         image = capture_degradation(rng, image, interline)
     return image
+
+
+def binarize(rng: np.random.Generator, image: np.ndarray) -> np.ndarray:
+    """A binarized scan, thresholded between the crop's own ink and paper tones: a fixed 100-200
+    passed the grey paper of Smashcima and MusiCorpus (173-215) and blackened the page
+    (EXPERIMENTS.md, 2026-11-19). On white paper and black ink, the same 100-200 as before."""
+    ink, paper = np.percentile(image, 1), np.median(image)
+    threshold = ink + rng.uniform(100 / 255, 200 / 255) * (paper - ink)
+    return np.where(image < threshold, 0, 255).astype(np.uint8)
 
 
 def to_tensor(image: np.ndarray) -> torch.Tensor:

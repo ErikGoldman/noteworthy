@@ -57,7 +57,7 @@ Each runs once, on the frozen system. Numbers only; errors are not read.
 | Polish (`btrkeks/polish-scores`) | 112 | corrected `**kern` | also as published and to the print standard (see Polish split) |
 | OLiMPiC scanned test | 100 songs | LMX and MusicXML | crops and pages; Zeus is the baseline |
 | Mutopia test | 7 pieces | MIDI | note F1, not OMR-NED |
-| SMB pianoform, if access is granted | 469 | `**kern` | pages sharing 0.10 or more of their melody fragments with one training piece reported apart |
+| SMB pianoform, unseen pieces only | `eval/smb_pages.txt` | `**kern` | only pieces no training source holds (`eval/smb_benchmark.py`); the rest is not scored (decided 2026-11-19, user) |
 
 The synthetic Verovio benchmark is not used for any claim: its sources overlap our training.
 

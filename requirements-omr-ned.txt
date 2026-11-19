@@ -3,3 +3,5 @@ musicdiff==5.0.2
 music21==9.9.1
 converter21==3.5.0
 pyarrow
+# eval/smb_benchmark.py: the protocol's melody check (select_mutopia) on **kern gold
+mido==1.3.3

@@ -1,6 +1,6 @@
 # To do
 
-Status as of 2026-11-17. The reader is Seq2Seq; StaffSeq2Seq was retired on 2026-11-15
+Status as of 2026-11-19. The reader is Seq2Seq; StaffSeq2Seq was retired on 2026-11-15
 (EXPERIMENTS.md, "(l): Seq2Seq matched to T7"), and its own experiment list is in git history
 (`TODO_STAFF_MODEL.md` before this commit). Results and evidence are in `EXPERIMENTS.md`. The
 list from before the staff model (seq512 to seq516, 2026-11-06 onward) is
@@ -49,9 +49,33 @@ statistic of agreement on open splits; stems against the image for the 10 most o
 - **One change a run,** and by cause as well as in total, with one accounting named: tuplets by
   the wider count (`tuplet_kinds.py`), voices by `voice_metrics.py`, the rest by `note_causes.py`.
 - **By page and by song** before a gain is believed: one song or page often holds it.
+- **Augmentation fixed 2026-11-19** (`_smooth_field` and `seq.data.binarize`, EXPERIMENTS.md "The augmentation's lighting
+  field"): every run from here on trains on different draws than (l)'s seeds. The next run that
+  changes something carries it and says so; nothing is rerun for it alone.
 - The gold's commit and the alignment stated with every number; a new training path's tests run
   on the pods' torch first. Polish from 2026-11-17 on: gold tag `gold_2026-11-17e` (`f` from 3b and 3d on, with 030) (overrides
   plus `polish_print_fixes.jsonl`), the baselines' seeds rescored on it (EXPERIMENTS.md, "Print fixes").
+
+## Done 2026-11-19: the run-to-run noise is mostly the test set
+
+EXPERIMENTS.md, "Where the run-to-run noise comes from": of the variance between two runs of one
+recipe, the test set's part is 87% on Polish whole-page (sd 0.43; 0.50 needed with 3 seeds a side)
+and 59% on hidden-number tuplet bars (sd 9.19; 10.6 needed, too few bars to rank recipes). So the
+"test set dominates" branch below: bigger sets by cause (step 2b, spec 4's tuplet renders and spec
+5), probes with the gold fed in (1h item 7), error bars by song on every comparison. 3d's second
+seed may go. Was: before more seeds: split the spread of the five runs of one recipe ((l)'s three seeds, the seed-1
+repeat, (l) seed 0's repeat) into the test set's part (resampling songs, from saved readings) and
+training's, on hidden-number tuplet bars and Polish whole-page. Each measure's smallest detectable
+effect follows. If the test set dominates: bigger sets by cause (spec 5; a synthetic hidden-tuplet
+set from held-out scores once the leakage filter is fixed), probes with the gold fed in (1h item 7),
+error bars by song on every comparison. If training dominates: find why a same-seed repeat differs
+(GPU kernels, data-loader seeding, torch 2.8 against 2.11), then matched seeds. The second seed of
+3d's GrandStaff run waits on this.
+
+**Next (2026-11-19): 3d's OLiMPiC dev v2 reading, then recheck Polish and OLiMPiC test for GrandStaff overlap.** Their check of
+2026-11-05 pooled GrandStaff crops by piece, and pooling events across crops (bars numbered from 0
+in each) finds nothing (EXPERIMENTS.md, "SMB"); the script was not kept. Melody per crop as
+`eval/smb_benchmark.py` does, plus GrandStaff names where the benchmark names its pieces.
 
 ## Next steps, in order
 
@@ -277,7 +301,8 @@ a. **Set aside 2026-11-17** (EXPERIMENTS.md, "How OMR-NED charges errors"): an e
    moved-onset rows of `ned_causes.py`, `entry_probe.py`. If it helps, the larger form follows:
    a staff's voices written together in time order, as kern does (Copisteria had half our
    moved-onset cost early on, 1,689 against 3,676).
-b. **Seeds 1 and 2 launched 2026-11-18 evening** (Vast, `l_system_two_voice_100k_seed1`/`_seed2`; seed 0 finished locally from its 95k checkpoint); the seed-1 repeat says (l)'s seeds stay the baseline (EXPERIMENTS.md, "The seed-1 repeat"). Was: **Rerunning 2026-11-18** as `l_system_two_voice_100k_r3` (r2 got no SSH and was destroyed): the first run's repeat never reached
+b. **Not adopted 2026-11-19** (EXPERIMENTS.md, "Where the run-to-run noise comes from"): three seeds,
+   no tuplet effect, Polish 5.97 against (l)'s 6.20 (0.50 needed). Was: **Seeds 1 and 2 launched 2026-11-18 evening** (Vast, `l_system_two_voice_100k_seed1`/`_seed2`; seed 0 finished locally from its 95k checkpoint); the seed-1 repeat says (l)'s seeds stay the baseline (EXPERIMENTS.md, "The seed-1 repeat"). Was: **Rerunning 2026-11-18** as `l_system_two_voice_100k_r3` (r2 got no SSH and was destroyed): the first run's repeat never reached
    the mix (EXPERIMENTS.md, "Step 3b's first run"). (`l_system_two_voice_100k`, Vast, seed 0, (l), 100k, OLiMPiC labels v1
    as (l)'s seeds; `train_seq.py --two-voice-repeat 4`: each system with a two-voice staff-bar
    four times in the mix, two-voice staff-bars 16.4% of the mix to 28.2%). **Two-voice systems
@@ -300,7 +325,9 @@ d. **`unmarked` left out: done 2026-11-18, no effect seen** (EXPERIMENTS.md, "Co
    `NW_UNMARKED_WEIGHT=0`; against (l)'s three seeds). **Smashcima and MusiCorpus left out: done 2026-11-18, no headline effect** (tuplets pending the
    seed-1 repeat, EXPERIMENTS.md "Leave-outs of Smashcima and MusiCorpus"). Was: **running 2026-11-18**
    (`l_system_no_smashcima_100k`, `l_system_no_musicorpus_100k`; `NW_EXPERIMENT_SMASHCIMA_WEIGHT=0`,
-   `NW_EXPERIMENT_MUSICORPUS_WEIGHT=0`). **The GrandStaff cleaning left out: running 2026-11-18 night** (`l_system_grandstaff_release_100k`, Vast,
+   `NW_EXPERIMENT_MUSICORPUS_WEIGHT=0`). **The GrandStaff cleaning left out: home 2026-11-19, undecided on one seed** (Polish 5.84 at 100k,
+   6.12 at 80k, 6.50 at 60k, against (l)'s 6.20; 0.86 needed with one seed; exit status 2, cause
+   unknown, scores intact). Next: its OLiMPiC dev v2 reading, then a second seed. Was: **running 2026-11-18 night** (`l_system_grandstaff_release_100k`, Vast,
    seed 0, (l), 100k, `NW_EXPERIMENT_GRANDSTAFF=…/grandstaff_release`: `build_grandstaff_written.py
    --release-labels`, 32,034 systems against the cleaned 29,500, 10,736 of the shared ones relabelled; on R2
    with positions; the first host gave no SSH, running on a second since 21:40 ET). Was: the GrandStaff cleaning's run needs the release's labels
@@ -449,10 +476,10 @@ from saved readings). Built by `scripts/build_seq_data.sh` with the rest (always
 ## Held for the user
 
 - Sealed test run. Numbers only, and only after gold and the model are frozen.
-- SMB application, which must come from the user.
-- Gold reviews: sample of about 20 cases for the user to check; the hardest calls were 067 bars 5-8
-  and 12, and 062 bar 6. Also the beams-and-accidentals review of 2026-11-17
-  (`runs/overnight_2026-11-14/gold_review_2026-11-17/`): 064/5, 083/5 and 095/9 were checked here.
+- SMB: **access granted 2026-11-19**; only its 30 unseen-piece pages are scored (`eval/smb_pages.txt`,
+  EXPERIMENTS.md "SMB"), with the sealed test run.
+- **Gold spot check: done 2026-11-19 (user), 19 of 20 right**; 071's grace-note override removed
+  (EXPERIMENTS.md, "The user's spot check"; gold tag `gold_2026-11-19`).
 - Beams across staves: **decided 2026-11-17 (user): a scorer flag**, done (`omr_ned.py
   --gold-print-fixes`, `eval/polish_print_fixes.jsonl`, also signs the print leaves off). Left:
   030 done (`move_down` from a two-voice upper staff, 2026-11-17). 056 bar 17 wants a fresh
@@ -460,10 +487,7 @@ from saved readings). Built by `scripts/build_seq_data.sh` with the rest (always
   notehead with two stems, in two voices).
   Sealed test pages not yet reviewed for these.
 - C++ port: off plan until there is a good model.
-- More real print pages for dev (docs/EVAL_SETS.md, spec 5): which collection pairs scans with
-  open transcriptions of piano music outside OpenScore Lieder, Polish, MusiCorpus and the
-  repertoire of GrandStaff and ASAP (KernScores' piano music is trained on), and who
-  reviews the gold. A first figure: 20 pieces holding hidden tuplets, 2 pages each, half sealed.
+- Spec 5's source and reviewer: decided 2026-11-18 (above, step 2b).
 
 ## Rules that are easy to forget
 
@@ -472,6 +496,12 @@ from saved readings). Built by `scripts/build_seq_data.sh` with the rest (always
   training. Corrections to gold are allowed.
 - Scoring is plain OMR-NED throughout; only the gold differs between standards.
 - Single-page locked scores can swing widely on correct changes (042): check unlocked too.
+- **Disk: prune checkpoints once a run's scores are in** (decided 2026-11-19, user, after the disk
+  filled): `scripts/prune_runs.py checkpoints runs/NAME --apply` keeps best.pt, the 60k/80k/100k
+  averages and the last one, and removes only what R2 holds; `retire` pushes a run no longer used
+  and removes it here. WSL's `ext4.vhdx` lives on C: and does not shrink by itself: after a big
+  prune, tell the user to compact it (`wsl --shutdown`, then `Optimize-VHD`). Readers write only the
+  pages scoring needs (`noteworthy --pages`); `--debug` (about 50 images a page) is for looking.
 
 ## Decided 2026-11-18 (user)
 
