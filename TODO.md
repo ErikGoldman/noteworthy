@@ -72,7 +72,7 @@ error bars by song on every comparison. If training dominates: find why a same-s
 (GPU kernels, data-loader seeding, torch 2.8 against 2.11), then matched seeds. The second seed of
 3d's GrandStaff run waits on this.
 
-**Next (2026-11-19): 3d's OLiMPiC dev v2 reading, then recheck Polish and OLiMPiC test for GrandStaff overlap.** Their check of
+**Recheck done 2026-11-19: no GrandStaff copies** (EXPERIMENTS.md, "Benchmark overlap rechecked"). Next: 3d's OLiMPiC dev v2 reading. Was: recheck Polish and OLiMPiC test for GrandStaff overlap. Their check of
 2026-11-05 pooled GrandStaff crops by piece, and pooling events across crops (bars numbered from 0
 in each) finds nothing (EXPERIMENTS.md, "SMB"); the script was not kept. Melody per crop as
 `eval/smb_benchmark.py` does, plus GrandStaff names where the benchmark names its pieces.
@@ -257,7 +257,15 @@ The week's single-seed verdicts were undecided, and three came apart into one pa
   only if its signal against the seeds' noise beats OMR-NED's; `eval/bars_right.py`.
 - **Sets by cause** (spec 4): **two voices and chords done 2026-11-18** (`cause_bars.py`; signal/noise
   2.97 and 4.16, EXPERIMENTS.md); held-out PDMX leak fixed (`eval/held_out_copies.py`, 92 copies);
-  printed-tuplet renders still to build. Was: two voices and chords on OLiMPiC's 46 clean songs, averaged by
+  **rendered sets built 2026-11-19** from unseen held-out PDMX (`eval/build_cause_sets.py`,
+  `data/cause_sets/held_out_2026-11-19c`): printed tuplets 40 pieces, two voices 261, chords 541; 20
+  crops a set by eye, all agree. Scorer tracked as `eval/cause_bars.py` (EXPERIMENTS.md, "Spec 4's
+  rendered sets": the test is rhythm). A bar's voices from one parser for every caller, checked
+  against the MusicXML on 567,437 bars with no disagreement (EXPERIMENTS.md, "One parser for a
+  bar's voices"); run `eval/check_bar_voices.py` before changing `parse_measure` or `seq.bar_voices`. Next: (l)'s three seeds read on
+  the three sets (`outer_notes.py --data .../<set> --sources clean degraded`, local GPU) for their
+  baselines and noise, and the OLiMPiC two-voice signal/noise measured again on the fixed classes. The hidden class is not built: unseen PDMX hides numbers in 6 scores, so it waits for
+  spec 5's scans (user, 2026-11-19). Was: two voices and chords on OLiMPiC's 46 clean songs, averaged by
   song; tuplets, printed and hidden, on rendered held-out PDMX scores (40 or more a class),
   numbers shown or hidden as each score's author set them and never by our rule, since OLiMPiC's
   clean songs hold hidden numbers in 8 songs and three of those hold 85%.
@@ -320,6 +328,24 @@ c. **Tuplet data: step 1 has decided,** three runs, one change each, in this ord
    arc over unbeamed quarter-plus-eighth groups, once for a run. Measures: tuplet bars printed
    and hidden on the tuplet set of step 2b, a hidden number drawn, tuplets added where none are;
    Polish 003 and 096 shown apart.
+   **(ii) and (iii) ready 2026-11-19, data building** (EXPERIMENTS.md, "Tuplet hiding, tuplet looks and
+   synthetic bars: built"; `scripts/build_tuplet_experiments.sh`, about 5 hours locally): the Verovio
+   and MuseScore sets rebuilt as `<set>_engraver_hiding` (`--engraver-hiding`) and `<set>_tuplet_looks`
+   (`--varied-tuplet-looks`, rebuilt as `_tuplet_looks_v2` after far numbers fell off the page), each
+   differing from the baseline's by that option alone. By eye: engraver hiding 100 of 100; looks v2 and
+   the synthetic MuseScore set still to check. Left: the push to R2, then one run each against (l)'s seeds:
+   `NW_EXPERIMENT_ENGRAVED=engraver_hiding` (or `tuplet_looks_v2`) with `NW_EXPERIMENT_PULL` naming the
+   five sets and their `staff_positions_v2/*.json`.
+e. **Synthetic pieces ready 2026-11-19, data building** (user's idea and design: one feature a
+   system, in otherwise plausible music, features not overlapping for now): `train/synthetic_bars.py`,
+   8,000 eight-bar pieces, each plain (20%) or holding one of tuplets (30%: passages in the melody,
+   or triplet broken chords), two voices on a staff (25%) or dense chords (25%); engraved two systems
+   a piece by Verovio (`features`) and MuseScore (`features_musescore`), about 30,000 crops, a tenth
+   of the mix. One run against (l)'s seeds with
+   `NW_EXPERIMENT_EXTRA_DATA="features:train features_musescore:train"`. Judged on the printed-tuplet
+   set, OLiMPiC dev v2's tuplet bars and spec 4's two-voice and chord classes, Polish as the check
+   that nothing got worse. Left: 20 crops a set by eye, the push, the run. (`bars`, the first design,
+   held a tuplet in 96% of bars, every beat drawn alone: not used.)
 d. **`unmarked` left out: done 2026-11-18, no effect seen** (EXPERIMENTS.md, "Correction: step 3c (i)").
    Was: **`unmarked` left out: running 2026-11-17** (`l_system_no_unmarked_100k`, Vast, seed 0, (l), 100k,
    `NW_UNMARKED_WEIGHT=0`; against (l)'s three seeds). **Smashcima and MusiCorpus left out: done 2026-11-18, no headline effect** (tuplets pending the

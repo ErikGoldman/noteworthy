@@ -3,6 +3,7 @@ sequence model (train_seq.py).
 
 usage: build_seq_dataset.py --scores LIST.txt --out DIR [--systems-per-score K] [--workers W]
                             [--unmarked-tuplets] [--thick-beams] [--round-heads] [--marks]
+                            [--engraver-hiding] [--varied-tuplet-looks]
 
 Held-out scores (omr.held_out) and PDMX scores with a license conflict are left out. Each two-staff (piano) part is cut into systems of a few measures, which OLiMPiC's code
 turns into self-contained parts: clefs and key repeated at each system start, the time
@@ -14,6 +15,11 @@ OLiMPiC's linearizer, as for the OLiMPiC and GrandStaff-LMX datasets.
 With --unmarked-tuplets only systems with tuplets are taken, drawn without their numbers
 (the first may stay): engravers mark the first triplets of a passage and leave the rest,
 and a model that only ever saw numbers reads the others as plain notes.
+
+Otherwise one system in five with tuplets hides every number (the first may stay), unless
+--engraver-hiding hides them as real scores do: by score, then by place in a run of like groups
+(seq.tuplet_display). --varied-tuplet-looks sets each score's printed numbers its own way: above
+or below, bracketed or not, 3 or 3:2, some far from their notes, small, or in an arc (TODO 3c).
 
 With --thick-beams beams are drawn heavier, as on old plates and in copyists' hands, where
 a single beam can be as thick as a printed double one. A model that only ever saw thin
@@ -64,7 +70,9 @@ from seq.staff_positions import Staves, staff_count
 from seq.ottava import TOKEN_ATTRIBUTE, move_octaves, notes_under_ottavas, written_part
 from seq.barlines import barline_tokens_of, with_barline_tokens
 from seq.time_symbols import TOKEN_OF_SYMBOL, token_of, with_time_symbol
+from seq.tuplet_display import PLAIN_LOOK, ScoreTuplets, TupletDrawing, TupletLook, hide_as_engravers_do, set_look
 from seq.tuplet_numbers import HIDDEN, START, starts_hidden_tuplet
+from seq.tuplet_svg import restyle_tuplets
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(os.environ.get("NW_DATA", ROOT / "data"))
@@ -197,6 +205,18 @@ def hide_tuplet_numbers(part: ET.Element, rng: random.Random) -> None:
     for tuplet in starts[1:] if keep_first else starts:
         tuplet.set("show-number", "none")
         tuplet.set("bracket", "no")
+
+
+def draw_tuplet_numbers(part: ET.Element, unmarked: bool, tuplets: ScoreTuplets, rng: random.Random) -> None:
+    """Which numbers the system hides: all for the unmarked set (the first may stay), else as the
+    score's engraver would (tuplets.hiding), else the blind rule; then the score's look."""
+    if unmarked:
+        hide_tuplet_numbers(part, rng)
+    elif tuplets.hiding is not None:
+        hide_as_engravers_do(part, tuplets.hiding, rng)
+    elif has_tuplets(part) and rng.random() < TUPLET_NUMBERS_HIDDEN:
+        hide_tuplet_numbers(part, rng)
+    set_look(part, tuplets.look)
 
 
 def draw_some_meters_as_symbols(part: ET.Element, rng: random.Random) -> None:
@@ -665,7 +685,7 @@ def rasterized(svg: bytes) -> np.ndarray:
 
 
 def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style: Style = Style(),
-                  line: int | None = None) -> tuple[np.ndarray, Staves | None] | None:
+                  line: int | None = None, look: TupletLook = PLAIN_LOOK) -> tuple[np.ndarray, Staves | None] | None:
     """The system as a grayscale image cropped to its ink plus a random margin, and its staves
     there, from the drawing (None if its lines do not come in fives). With line, the score holds
     neighbouring measures on lines of their own (with_neighbours), and only that line is drawn."""
@@ -682,7 +702,10 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style:
         if tk.getPageCount() != 1:
             return None
     interline = rng.uniform(*INTERLINE_PX)
-    svg = layout_svg(tk, tk.renderToSVG(1), interline / (UNITS_PER_INTERLINE_PER_UNIT * options["unit"]))
+    drawn = tk.renderToSVG(1)
+    if look != PLAIN_LOOK:
+        drawn = restyle_tuplets(drawn.encode(), look, UNITS_PER_INTERLINE_PER_UNIT * options["unit"], rng).decode()
+    svg = layout_svg(tk, drawn, interline / (UNITS_PER_INTERLINE_PER_UNIT * options["unit"]))
     if style.thick_beams:
         svg = thicken_beams(svg, rng.uniform(*SINGLE_BEAM_THICKENING))
     if style.round_heads:
@@ -720,9 +743,9 @@ def row_resized(row: float, factor: float) -> float:
     return (row + 0.5) * factor - 0.5
 
 
-def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
+def build_score(job: tuple[int, str, Path, int, bool, Style, TupletDrawing]) -> int:
     """Renders up to K systems of one score; returns how many."""
-    index, source, out, k, unmarked_tuplets, style = job
+    index, source, out, k, unmarked_tuplets, style, drawing = job
     target = out / "samples" / f"{index:06d}"
     if target.exists():
         return len(list(target.glob("*.lmx")))
@@ -739,6 +762,7 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
             systems = [s for s in systems if has_tuplets(s.part)]
     except Exception:
         return 0
+    tuplets = ScoreTuplets.drawn(drawing, rng)
     rng.shuffle(systems)
     partial = target.with_name(target.name + ".partial")
     shutil.rmtree(partial, ignore_errors=True)
@@ -753,8 +777,7 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
             if style.marks:
                 add_marks(system.part, rng)
             draw_some_meters_as_symbols(system.part, rng)
-            if unmarked_tuplets or (has_tuplets(system.part) and rng.random() < TUPLET_NUMBERS_HIDDEN):
-                hide_tuplet_numbers(system.part, rng)
+            draw_tuplet_numbers(system.part, unmarked_tuplets, tuplets, rng)
             lmx = linearize(system.part)
             drawn, neighbours = (with_neighbours(in_order, in_order.index(system)) if open_at_an_edge(lmx)
                                  else (system.part, None))
@@ -763,7 +786,7 @@ def build_score(job: tuple[int, str, Path, int, bool, Style]) -> int:
                 hide_part_name(score)
             musicxml = ET.tostring(score, encoding="unicode", xml_declaration=True)
             line = neighbours[0] if neighbours else None
-            rendered = render_system(tk, musicxml, rng, style, line) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
+            rendered = render_system(tk, musicxml, rng, style, line, tuplets.look) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
             # A system Verovio broke over several lines draws more staves than the label has.
             drawn_right = (rendered is not None and rendered[1] is not None
                            and len(rendered[1].centres) == staff_count(lmx)
@@ -790,13 +813,16 @@ def main() -> None:
     ap.add_argument("--thick-beams", action="store_true")
     ap.add_argument("--round-heads", action="store_true")
     ap.add_argument("--marks", action="store_true")
+    ap.add_argument("--engraver-hiding", action="store_true", help="hide tuplet numbers as engravers do")
+    ap.add_argument("--varied-tuplet-looks", action="store_true", help="set printed tuplet numbers in varied ways")
     args = ap.parse_args()
     sources = args.scores.read_text().split("\n")
     hung_log = args.out / "hung.txt"
     hung = set(hung_log.read_text().split("\n")) if hung_log.exists() else set()
     conflicts = pdmx_license_conflicts(DATA / "raw" / "pdmx")
     style = Style(args.thick_beams, args.round_heads, args.marks)
-    jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets, style)
+    drawing = TupletDrawing(args.engraver_hiding, args.varied_tuplet_looks)
+    jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets, style, drawing)
             for i, s in enumerate(sources)
             if s not in hung and is_training_score(s, conflicts)]
     total = 0

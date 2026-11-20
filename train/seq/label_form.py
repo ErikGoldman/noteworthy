@@ -33,20 +33,20 @@ or where the way to P cannot be spelled again.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import asdict, dataclass
 from fractions import Fraction
 
+from .bar_voices import voices_written
 from .lmx_tuplets import LENGTHS, PITCH, length_at
 
 VOICE_COUNT_CAP = 4
 VOICE_COUNT_TOKENS = [f"voices:{n}" for n in range(1, VOICE_COUNT_CAP + 1)]
-STAFF = re.compile(r"^staff:(\d+)$")
 STAFF_OR_VOICE = re.compile(r"^(staff|voice):\d+$")
 BACKUP_TO_BAR = "backup:bar"
 PREFIXES = {"print-object:no", "grace", "grace:slash", "chord"}
 SPELLED = sorted(((name, Fraction(value)) for name, value in LENGTHS.items() if value <= 4), key=lambda nv: -nv[1])
 SPELLED_TRIPLETS = [(name, value * Fraction(2, 3)) for name, value in SPELLED]
-HEADS = re.compile(r"^([A-G]-?\d|rest|rest:measure|forward)$")
 POSITION = re.compile(r"^at:(\d+(?:/\d+)?)$")
 
 
@@ -75,14 +75,12 @@ class LabelForm:
 
 
 def voices_per_staff(bar: list[str]) -> dict[int, int]:
-    """Each staff's voices in a bar: its stretches between backups that write something there,
-    a stretch belonging to the staff its first staff token names."""
-    counts: dict[int, int] = {}
+    """Each staff's voices in a bar as the label writes them (seq.bar_voices.voices_written), the
+    bar cut at its `backup:bar` tokens first, which have no length for the parser to go back by."""
+    counts: Counter = Counter()
     for tokens in stretches(bar):
-        staff = next((int(m[1]) for t in tokens if (m := STAFF.match(t))), None)
-        if staff is not None and any(HEADS.match(t) for t in tokens):
-            counts[staff] = counts.get(staff, 0) + 1
-    return counts
+        counts.update(voices_written(tokens))
+    return dict(counts)
 
 
 def stretches(bar: list[str]) -> list[list[str]]:

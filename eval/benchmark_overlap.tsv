@@ -1,0 +1,313 @@
+benchmark	item	fragments	largest_share	nearest
+polish	data/raw/polish_scores/gold/000.musicxml	251	0.016	pdmx:raw/pdmx/mxl/3/57/QmdZ5bsTQmzGuoAYXQ9vJrQ2TUxnr2NCgUytw3rCqHsxzV.mxl
+polish	data/raw/polish_scores/gold/001.musicxml	215	0.056	asap:raw/asap/Schubert/Wanderer_fantasie/xml_score.musicxml
+polish	data/raw/polish_scores/gold/002.musicxml	183	0.016	pdmx:raw/pdmx/mxl/10/44/QmStRnLG3iFwQT5MZtEPZyz1HW4ikiENjSvK5GZ6MpYoLW.mxl
+polish	data/raw/polish_scores/gold/003.musicxml	189	0.011	pdmx:raw/pdmx/mxl/15/41/QmXRJ2ajqwHJCDHUn6YrCh6A1TqXmCPQR75euARwakLZTk.mxl
+polish	data/raw/polish_scores/gold/004.musicxml	114	0.096	pdmx:raw/pdmx/mxl/3/35/Qmdo3XrYCTRwohLp6qGm3aLYYhVvcFH2bMmCyDEpiPE8Qc.mxl
+polish	data/raw/polish_scores/gold/005.musicxml	127	0.016	pdmx:raw/pdmx/mxl/8/23/QmQhzUSydUnjxi2oWuPA5d6XPY4Sqpp81q8TwUt8r45ZrE.mxl
+polish	data/raw/polish_scores/gold/006.musicxml	315	0.035	olimpic:6902615
+polish	data/raw/polish_scores/gold/007.musicxml	94	0.106	pdmx:raw/pdmx/mxl/7/7/QmP8Ko6ikJcRsyjuZbf9pVsMFUktLng8vZ5VuBijCgUEUf.mxl
+polish	data/raw/polish_scores/gold/008.musicxml	182	0.049	pdmx:raw/pdmx/mxl/2/57/QmcZbTpqEArMeAWTGVN7amy6dWfB89bJfV1UrEpd7dQLdV.mxl
+polish	data/raw/polish_scores/gold/009.musicxml	165	0.024	pdmx:raw/pdmx/mxl/16/17/QmYeG6Kh3vFFFFxCcUQFxwqCVMtM9QJSpobztsDS85WfSo.mxl
+polish	data/raw/polish_scores/gold/010.musicxml	109	0.128	pdmx:raw/pdmx/mxl/3/10/QmdAupskTZtHvy5faM2FoMBupSEczVihUQh9nmvGy1rX9N.mxl
+polish	data/raw/polish_scores/gold/011.musicxml	141	0.007	pdmx:raw/pdmx/mxl/13/37/QmVP61pFBtU5MENUNWJaboLuMktsU7miDS9zePC7oJPFv6.mxl
+polish	data/raw/polish_scores/gold/012.musicxml	116	0.017	pdmx:raw/pdmx/mxl/2/31/QmcmotPEAeZfYRrZMRP2EaE2fgD4Uq5nCoV5xesEtHXgif.mxl
+polish	data/raw/polish_scores/gold/013.musicxml	248	0.012	pdmx:raw/pdmx/mxl/17/26/QmZjz6EuyUKYTfqSDQRc1fds8dnV1vCTPS8yYuHaKaa5bU.mxl
+polish	data/raw/polish_scores/gold/014.musicxml	276	0.029	pdmx:raw/pdmx/mxl/13/50/QmVwywAThWwk28MNDhVnEZue6kkKaGWkJbDYff3ufJnUQw.mxl
+polish	data/raw/polish_scores/gold/015.musicxml	119	0.042	olimpic:5660578
+polish	data/raw/polish_scores/gold/016.musicxml	275	0.033	pdmx:raw/pdmx/mxl/2/42/Qmcs8xx2rA8y3LtwXqWjNi7me7sw12MaCwR266paN8XV9N.mxl
+polish	data/raw/polish_scores/gold/017.musicxml	67	0.030	pdmx:raw/pdmx/mxl/16/51/QmYWWrLrST7kM4tFVkRqZkh85tNSqY8MwbfQbaaA8hWAzK.mxl
+polish	data/raw/polish_scores/gold/018.musicxml	154	0.052	asap:raw/asap/Schubert/Wanderer_fantasie/xml_score.musicxml
+polish	data/raw/polish_scores/gold/019.musicxml	69	0.087	pdmx:raw/pdmx/mxl/10/20/QmSFMvcXeWoBkUnKeDaRZGwtWgPFV7DEC8J2HQEBciAuL1.mxl
+polish	data/raw/polish_scores/gold/020.musicxml	185	0.054	asap:raw/asap/Schubert/Wanderer_fantasie/xml_score.musicxml
+polish	data/raw/polish_scores/gold/021.musicxml	121	0.041	pdmx:raw/pdmx/mxl/16/28/QmYkwGqdPV2gFv7GS3Lv59K6pvwbH7tzEbp2uPFvzBzFzz.mxl
+polish	data/raw/polish_scores/gold/022.musicxml	106	0.047	pdmx:raw/pdmx/mxl/8/55/QmQY6TgMFsY6uG9RwMfTT6NhBGJadr685K6MocogCx2wLY.mxl
+polish	data/raw/polish_scores/gold/023.musicxml	122	0.131	pdmx:raw/pdmx/mxl/3/10/QmdAupskTZtHvy5faM2FoMBupSEczVihUQh9nmvGy1rX9N.mxl
+polish	data/raw/polish_scores/gold/024.musicxml	118	0.025	pdmx:raw/pdmx/mxl/7/34/QmPNzWZ41ZfUQcYoNtkozxxwY3MvnR3qJLAY5UvDo2kAPi.mxl
+polish	data/raw/polish_scores/gold/025.musicxml	249	0.012	pdmx:raw/pdmx/mxl/17/20/QmZFLf5bdHQkpcHu9U8VLs88MC6uJaN8MLwU3GKj77ySgb.mxl
+polish	data/raw/polish_scores/gold/026.musicxml	99	0.040	pdmx:raw/pdmx/mxl/8/30/QmQLPGiBzr6iXUGfZe7codZt1aX4tE6yxSNbx21nRQF26V.mxl
+polish	data/raw/polish_scores/gold/027.musicxml	122	0.025	pdmx:raw/pdmx/mxl/11/5/QmT68V2tC3LgNpzUZbXc98UYzyV2Kazu44ArdCNKsVXC9N.mxl
+polish	data/raw/polish_scores/gold/028.musicxml	101	0.030	pdmx:raw/pdmx/mxl/7/10/QmPAS5MYpUADS11vzufDWHKxCZWRdCXJNStYSAyH9PxBE2.mxl
+polish	data/raw/polish_scores/gold/029.musicxml	60	0.000	
+polish	data/raw/polish_scores/gold/030.musicxml	141	0.000	
+polish	data/raw/polish_scores/gold/031.musicxml	168	0.012	pdmx:raw/pdmx/mxl/2/36/QmcpQPzUEgeE2x1fCwH4GSJGZUsgHoCuA44zxgXWcnBdJA.mxl
+polish	data/raw/polish_scores/gold/032.musicxml	222	0.009	pdmx:raw/pdmx/mxl/4/21/Qmegh4EuDe2jzaewbGHmy6t9eZJmWVvKPzSYBzABftVttL.mxl
+polish	data/raw/polish_scores/gold/033.musicxml	177	0.056	pdmx:raw/pdmx/mxl/7/7/QmP8Ko6ikJcRsyjuZbf9pVsMFUktLng8vZ5VuBijCgUEUf.mxl
+polish	data/raw/polish_scores/gold/034.musicxml	151	0.026	pdmx:raw/pdmx/mxl/9/33/QmRnDnnYRTyy6GFJynY7ZqxWCA44zFi7PBS4ZpT5QdQjUs.mxl
+polish	data/raw/polish_scores/gold/035.musicxml	66	0.061	pdmx:raw/pdmx/mxl/3/35/QmdokTCDkwtCmUHVfVe24624DLMgg6k23c3xM1my9ur96v.mxl
+polish	data/raw/polish_scores/gold/036.musicxml	178	0.000	
+polish	data/raw/polish_scores/gold/037.musicxml	175	0.011	pdmx:raw/pdmx/mxl/11/56/QmTzX3q2uMtJyGrADQ6HsABnkRF9M15mE7rbBzfjbGywJe.mxl
+polish	data/raw/polish_scores/gold/038.musicxml	122	0.016	pdmx:raw/pdmx/mxl/8/56/QmQzAoBSx95CpVsNX97XsaHff2AKZV2mJ476Vpy2Lz6JNq.mxl
+polish	data/raw/polish_scores/gold/039.musicxml	130	0.038	pdmx:raw/pdmx/mxl/16/28/QmYkwGqdPV2gFv7GS3Lv59K6pvwbH7tzEbp2uPFvzBzFzz.mxl
+polish	data/raw/polish_scores/gold/040.musicxml	139	0.014	pdmx:raw/pdmx/mxl/8/30/QmQLB8ZqJEskZVbGa3DX1jLB4Wz5BskUDfVTmCAJiMquaj.mxl
+polish	data/raw/polish_scores/gold/041.musicxml	111	0.063	pdmx:raw/pdmx/mxl/4/51/QmeWwbGTvFM8NvVMGnQNvG28jTEV6qu7vwcQ1WH9jbPuRg.mxl
+polish	data/raw/polish_scores/gold/042.musicxml	51	0.039	pdmx:raw/pdmx/mxl/2/41/QmcRd4VvzmzX96PXwY1ErMa1f6zAE35y7ZYnhDLJ7ycuef.mxl
+polish	data/raw/polish_scores/gold/043.musicxml	135	0.037	pdmx:raw/pdmx/mxl/8/25/QmQi6RkK5b4Nxi8sQM9SMBqRBB4yr4Sgy7Vg2EV2azMtLA.mxl
+polish	data/raw/polish_scores/gold/044.musicxml	76	0.026	pdmx:raw/pdmx/mxl/9/52/QmRxkq1C5miDAhgoMJzWfbjK7iPeBrmDuWcmdCj7tZHbG4.mxl
+polish	data/raw/polish_scores/gold/045.musicxml	101	0.020	pdmx:raw/pdmx/mxl/9/52/QmRxkq1C5miDAhgoMJzWfbjK7iPeBrmDuWcmdCj7tZHbG4.mxl
+polish	data/raw/polish_scores/gold/046.musicxml	203	0.005	asap:raw/asap/Schubert/Wanderer_fantasie/xml_score.musicxml
+polish	data/raw/polish_scores/gold/047.musicxml	119	0.017	pdmx:raw/pdmx/mxl/3/52/QmdxUm2bEaMxHpav9Pxxwa5dSAJDYhbGYvypSvgywcNLws.mxl
+polish	data/raw/polish_scores/gold/048.musicxml	320	0.000	
+polish	data/raw/polish_scores/gold/049.musicxml	91	0.110	pdmx:raw/pdmx/mxl/9/46/QmRuM8nd9PZBn8KZpWBEWZy2CtDhatDteitQDStYow2mL1.mxl
+polish	data/raw/polish_scores/gold/050.musicxml	122	0.016	pdmx:raw/pdmx/mxl/16/45/QmYTPFNtShuoSPV2zpjMejyhEJy2AsEyFeiBu4eXBh6Atz.mxl
+polish	data/raw/polish_scores/gold/051.musicxml	116	0.017	pdmx:raw/pdmx/mxl/6/52/QmNx9V93FYas8SCXCVtKdhhZsrcoThWuxaLQ1CEVsLXks7.mxl
+polish	data/raw/polish_scores/gold/052.musicxml	113	0.044	pdmx:raw/pdmx/mxl/8/25/QmQi6RkK5b4Nxi8sQM9SMBqRBB4yr4Sgy7Vg2EV2azMtLA.mxl
+polish	data/raw/polish_scores/gold/053.musicxml	144	0.028	pdmx:raw/pdmx/mxl/14/23/QmWhYLo8JPz5PYpH3fsTGqwMyurmx3PyASN8p7UqaViVqo.mxl
+polish	data/raw/polish_scores/gold/054.musicxml	122	0.041	pdmx:raw/pdmx/mxl/8/25/QmQi6RkK5b4Nxi8sQM9SMBqRBB4yr4Sgy7Vg2EV2azMtLA.mxl
+polish	data/raw/polish_scores/gold/055.musicxml	93	0.054	pdmx:raw/pdmx/mxl/8/55/QmQY6TgMFsY6uG9RwMfTT6NhBGJadr685K6MocogCx2wLY.mxl
+polish	data/raw/polish_scores/gold/056.musicxml	179	0.006	pdmx:raw/pdmx/mxl/7/17/QmPeT6LebCodpaF1FYB2fpH6sce7mCqbD5PnMK6a1vfzf1.mxl
+polish	data/raw/polish_scores/gold/057.musicxml	113	0.044	pdmx:raw/pdmx/mxl/9/34/QmRNMjwM3xnoTJD6QD4pzkBzk1u4cv3S8qThKihNytYbea.mxl
+polish	data/raw/polish_scores/gold/058.musicxml	111	0.018	pdmx:raw/pdmx/mxl/2/31/QmcmotPEAeZfYRrZMRP2EaE2fgD4Uq5nCoV5xesEtHXgif.mxl
+polish	data/raw/polish_scores/gold/059.musicxml	80	0.075	pdmx:raw/pdmx/mxl/7/28/QmPkKBnfocq961db9jGwSSmS9dJ5pjER4XW5GgcQ7XfLvW.mxl
+polish	data/raw/polish_scores/gold/060.musicxml	153	0.000	
+polish	data/raw/polish_scores/gold/061.musicxml	163	0.067	olimpic:6199576
+polish	data/raw/polish_scores/gold/062.musicxml	114	0.044	pdmx:raw/pdmx/mxl/2/13/QmcciCYZe4JxfJcWoB6hfLkZTv1soipG4PCFtWw8r896ku.mxl
+polish	data/raw/polish_scores/gold/063.musicxml	270	0.041	olimpic:6902615
+polish	data/raw/polish_scores/gold/064.musicxml	111	0.081	pdmx:raw/pdmx/mxl/16/3/QmY4MGL5HYieiLniFVE65mXkdUpHwxUV6YEP9fKdNuJaqa.mxl
+polish	data/raw/polish_scores/gold/065.musicxml	152	0.007	pdmx:raw/pdmx/mxl/6/41/QmNRzWow2QDHgH99k6Avtfe68t9NR4EkhuG4PYEttJ1ZSw.mxl
+polish	data/raw/polish_scores/gold/066.musicxml	162	0.037	pdmx:raw/pdmx/mxl/12/54/QmUyTeUimh7RvsPx9tGjUeFzwpuXWqT6qnyUFh4ugCC7cU.mxl
+polish	data/raw/polish_scores/gold/067.musicxml	70	0.100	pdmx:raw/pdmx/mxl/16/17/QmYeG6Kh3vFFFFxCcUQFxwqCVMtM9QJSpobztsDS85WfSo.mxl
+polish	data/raw/polish_scores/gold/068.musicxml	73	0.014	pdmx:raw/pdmx/mxl/16/31/QmYmDyECe7Cjhiswt3PzYrhMUMqPjJssnAEBnLcBS5w4b5.mxl
+polish	data/raw/polish_scores/gold/069.musicxml	217	0.046	pdmx:raw/pdmx/mxl/12/46/QmUunRwXiH6jWWukUpYY1BvxWxKhzoZnDND45XTbHuTLJ3.mxl
+polish	data/raw/polish_scores/gold/070.musicxml	92	0.000	
+polish	data/raw/polish_scores/gold/071.musicxml	122	0.000	
+polish	data/raw/polish_scores/gold/072.musicxml	204	0.015	pdmx:raw/pdmx/mxl/6/39/QmNQ8rZgbKkoSpboUL8qpdsp2jtiTYPAyMGX7e2WZMbps7.mxl
+polish	data/raw/polish_scores/gold/073.musicxml	218	0.028	pdmx:raw/pdmx/mxl/1/51/QmbWhYRPux1RcQo4smQvKFinUE6DoPYXmg9Qy4U5qpy1Ue.mxl
+polish	data/raw/polish_scores/gold/074.musicxml	153	0.033	pdmx:raw/pdmx/mxl/6/9/QmNajn64RceKgsTapqCfCEqSd6FvbyrG7WNfGtuJcSvpdA.mxl
+polish	data/raw/polish_scores/gold/075.musicxml	128	0.047	pdmx:raw/pdmx/mxl/1/50/QmbwqquuzHHXM8ihmDJnWJfLZ5rxmo1VQ5edjqBDzBh5HT.mxl
+polish	data/raw/polish_scores/gold/076.musicxml	150	0.047	pdmx:raw/pdmx/mxl/7/10/QmPAsudN4jHYo1ZLjSocNUD8EpFJgBJiw5XrtjUyKPvKHf.mxl
+polish	data/raw/polish_scores/gold/077.musicxml	218	0.014	pdmx:raw/pdmx/mxl/7/31/QmPmqAB3PV2AYdQmReQ54kem6apy9ydnRH3whA3Nz5eeSQ.mxl
+polish	data/raw/polish_scores/gold/078.musicxml	82	0.085	pdmx:raw/pdmx/mxl/8/56/QmQztEr4TZBEqWhHTsSVhVJYjVhF2K3AZYARJNXmrEroQH.mxl
+polish	data/raw/polish_scores/gold/079.musicxml	129	0.054	pdmx:raw/pdmx/mxl/4/51/QmeWwbGTvFM8NvVMGnQNvG28jTEV6qu7vwcQ1WH9jbPuRg.mxl
+polish	data/raw/polish_scores/gold/080.musicxml	145	0.028	pdmx:raw/pdmx/mxl/8/47/QmQUkCVxnDxwJNM2muB71m4nAHFK8Aw5A43S6H9Kcjb9YB.mxl
+polish	data/raw/polish_scores/gold/081.musicxml	117	0.026	pdmx:raw/pdmx/mxl/11/5/QmT6tU6bxAs48DYH4aDHw4HoGt5vazexj58ycg1Xxr7qb2.mxl
+polish	data/raw/polish_scores/gold/082.musicxml	94	0.000	
+polish	data/raw/polish_scores/gold/083.musicxml	165	0.024	pdmx:raw/pdmx/mxl/11/2/QmT36T5tEbLBb7bik4hAY5mF8y2DPbqucf4SsHFgQhDaKZ.mxl
+polish	data/raw/polish_scores/gold/084.musicxml	183	0.011	pdmx:raw/pdmx/mxl/2/33/QmcnHx5NQFbrBC7NxcNec9Zn4WcEVxTi9JQc3ZcqtRht3y.mxl
+polish	data/raw/polish_scores/gold/085.musicxml	94	0.021	pdmx:raw/pdmx/mxl/7/17/QmPenAVuBRuY5o2nqKPUpcFPCBBVMyemsvYzTvAuvqo96B.mxl
+polish	data/raw/polish_scores/gold/086.musicxml	151	0.013	pdmx:raw/pdmx/mxl/1/40/QmbrNYUtLfBFpKoweKhk4ZSTvXYo8fPnj7PnvhJRffwHrN.mxl
+polish	data/raw/polish_scores/gold/087.musicxml	99	0.000	
+polish	data/raw/polish_scores/gold/088.musicxml	182	0.044	olimpic:5660558
+polish	data/raw/polish_scores/gold/089.musicxml	108	0.019	grandstaff:scarlatti-d/keyboard-sonatas/L178K258
+polish	data/raw/polish_scores/gold/090.musicxml	155	0.013	pdmx:raw/pdmx/mxl/16/17/QmYeG6Kh3vFFFFxCcUQFxwqCVMtM9QJSpobztsDS85WfSo.mxl
+polish	data/raw/polish_scores/gold/091.musicxml	95	0.126	pdmx:raw/pdmx/mxl/14/30/QmWL2ZNKrCH5t17nQQpmEFtt87arxLG1cWbCcWi5fPJm57.mxl
+polish	data/raw/polish_scores/gold/092.musicxml	72	0.014	pdmx:raw/pdmx/mxl/7/9/QmPatqPcbdBGNQDySySxi9AD1htbB3dYczQ3rXTYeiKaTJ.mxl
+polish	data/raw/polish_scores/gold/093.musicxml	126	0.016	pdmx:raw/pdmx/mxl/6/52/QmNx9V93FYas8SCXCVtKdhhZsrcoThWuxaLQ1CEVsLXks7.mxl
+polish	data/raw/polish_scores/gold/094.musicxml	297	0.007	pdmx:raw/pdmx/mxl/10/29/QmSKh7Gb6BcdLUHUvx8AM9j5RnhAe5n61KsVZDRuL5Ys18.mxl
+polish	data/raw/polish_scores/gold/095.musicxml	78	0.051	pdmx:raw/pdmx/mxl/4/8/Qme9ppk522VyQWN98meLAa7nz3B6iD5i5mUVEE9cTjvKEk.mxl
+polish	data/raw/polish_scores/gold/096.musicxml	148	0.007	pdmx:raw/pdmx/mxl/4/10/QmeAx52MBc5ea57mgxZAgo5TAC2fg2wQswfiC3UNZhHC2w.mxl
+polish	data/raw/polish_scores/gold/097.musicxml	109	0.202	pdmx:raw/pdmx/mxl/11/18/QmTEq61ZNPEwE97M8nX4M4THacz5CMrNjeMVhHZrxfvkPs.mxl
+polish	data/raw/polish_scores/gold/098.musicxml	98	0.051	pdmx:raw/pdmx/mxl/8/25/QmQi6RkK5b4Nxi8sQM9SMBqRBB4yr4Sgy7Vg2EV2azMtLA.mxl
+polish	data/raw/polish_scores/gold/099.musicxml	267	0.015	pdmx:raw/pdmx/mxl/1/40/QmbrNYUtLfBFpKoweKhk4ZSTvXYo8fPnj7PnvhJRffwHrN.mxl
+polish	data/raw/polish_scores/gold/100.musicxml	186	0.005	pdmx:raw/pdmx/mxl/3/35/Qmdo3XrYCTRwohLp6qGm3aLYYhVvcFH2bMmCyDEpiPE8Qc.mxl
+polish	data/raw/polish_scores/gold/101.musicxml	113	0.053	pdmx:raw/pdmx/mxl/15/47/QmXUUs8kAgoz1w8DYUMThwbxhzahWSLQa6HEBANPfWD8Eg.mxl
+polish	data/raw/polish_scores/gold/102.musicxml	97	0.041	olimpic:6486395
+polish	data/raw/polish_scores/gold/103.musicxml	111	0.045	pdmx:raw/pdmx/mxl/14/13/QmWcW1FW3MTkdPyLG5Nki8sp3TmCQQDNSxS79hu3EKJYnn.mxl
+polish	data/raw/polish_scores/gold/104.musicxml	149	0.034	pdmx:raw/pdmx/mxl/8/17/QmQeKzqntPVcKZ91miAwLeFubQDpUq4R5d7fjDoqAFeXfL.mxl
+polish	data/raw/polish_scores/gold/105.musicxml	87	0.000	
+polish	data/raw/polish_scores/gold/106.musicxml	93	0.054	pdmx:raw/pdmx/mxl/8/26/QmQjjtEVQpEBdzsbFjzhXE4ayv9Xvcjcqk5CCbMRzg59W7.mxl
+polish	data/raw/polish_scores/gold/107.musicxml	255	0.024	pdmx:raw/pdmx/mxl/17/26/QmZjz6EuyUKYTfqSDQRc1fds8dnV1vCTPS8yYuHaKaa5bU.mxl
+polish	data/raw/polish_scores/gold/108.musicxml	102	0.049	pdmx:raw/pdmx/mxl/8/41/QmQR6PUBEzWWcB7AYyPja37sh6Djg9RPgiPhFHr7jBQrrL.mxl
+polish	data/raw/polish_scores/gold/109.musicxml	151	0.026	pdmx:raw/pdmx/mxl/10/44/QmStSVYCyZFTckUT8tHmZesbCpVmjNToG9ouCMoT6fJhWd.mxl
+polish	data/raw/polish_scores/gold/110.musicxml	156	0.013	pdmx:raw/pdmx/mxl/12/7/QmU8HN5d3pufuaWLyDtT3zBLa4BFPtk2R7HkbpJZziA6Ps.mxl
+polish	data/raw/polish_scores/gold/111.musicxml	177	0.023	grandstaff:scarlatti-d/keyboard-sonatas/L178K258
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/4945954	110	0.045	pdmx:raw/pdmx/mxl/9/11/QmRbUKEs41HhWYifnjQxSo3HALJk3PbWfuk92tc2BReiye.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/4976604	163	0.018	pdmx:raw/pdmx/mxl/17/14/QmZC9pWvrUp1WbmeBetTBskJ4MrJJj3K2vSpWp1GzePqAU.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/4978393	96	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/4978397	31	0.032	pdmx:raw/pdmx/mxl/0/18/QmaEJSs5Uj4hS8bApqfFtQUN168rscQaRoNk5ibzJfFUEA.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/4985973	85	0.071	pdmx:raw/pdmx/mxl/5/32/QmfM3JtYkeZXaQbaDJrJV3V54mujUrEcGLBEn1djBtaUHM.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/4985990	279	0.183	pdmx:raw/pdmx/mxl/15/53/QmXXy7z89Mwgd5vP7VoLnPy2uB8GYwTwWs7LjTrvm72acY.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5001716	127	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5013969	80	0.037	pdmx:raw/pdmx/mxl/4/56/QmezGmPM4pe9mQ339eFcEoMG8RN2BzTwbiqSaahNosfVC6.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5015499	137	0.036	pdmx:raw/pdmx/mxl/4/31/Qmem4g5xEb97AE39s1KEV8grzU2syt5VJSQKqpHr57r4kh.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5023603	244	0.061	pdmx:raw/pdmx/mxl/14/50/QmWwDLH232SvpnqGCfMLaHW3P1u9bxiH7HLBMxuStZYfmP.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5026077	414	0.022	pdmx:raw/pdmx/mxl/8/30/QmQLPGiBzr6iXUGfZe7codZt1aX4tE6yxSNbx21nRQF26V.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5058194	267	0.363	olimpic:5058091
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5067692	166	0.012	pdmx:raw/pdmx/mxl/5/45/QmfTsdPXdEsRFo7jC2CSzAy7eFTSE26RY3Ui7wTh18JT4M.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5069066	129	0.016	grandstaff:beethoven/piano-sonatas/sonata29-2
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5071629	107	0.028	pdmx:raw/pdmx/mxl/11/11/QmTb8ZpFRMh8jQBbihiiYQREc3NXYzPoC6AFUrqqS4whvp.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5077675	47	0.064	pdmx:raw/pdmx/mxl/2/19/QmcfegmDM7fC1XtNp5TMcZdDpwzaMK6CmXFfzGb82goXZN.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5077917	135	0.030	pdmx:raw/pdmx/mxl/6/51/QmNW7hKXYfXqm7eSmJnh2m13CwBUNYNh3BGDxEt8HL7vTS.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5079378	80	0.062	pdmx:raw/pdmx/mxl/9/8/QmR9irNmXzcCoXLCFhLDW3RmagjbVFZrKfYavFk8aLCYrL.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5079391	174	0.069	pdmx:raw/pdmx/mxl/1/43/QmbSUabx8J6fhPtBtjapDXEnP4k55qGkBNE9s7Cjrhsces.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5079442	171	0.064	pdmx:raw/pdmx/mxl/12/39/QmUQZaTphSfKXi6Bjta873YdUFms9JXAxwjySf4vw3NHp3.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5098678	252	0.190	olimpic:6838113
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5098715	534	0.006	pdmx:raw/pdmx/mxl/6/44/QmNtKdi7E3GmdQX8xcPAicnh2TtHx4SgHw3wm68eSYmrwM.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5098728	161	0.025	pdmx:raw/pdmx/mxl/11/43/QmTSMX5N8WxbMpXLky4JaXvgHHP8QALCnsvkMenXyzYmYn.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5098732	261	0.015	pdmx:raw/pdmx/mxl/5/29/QmfKTAR2xhh4X2JmNhzaY468st9vfcZwB6HNkCNqA5byGe.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5100073	37	0.081	pdmx:raw/pdmx/mxl/7/10/QmPAsudN4jHYo1ZLjSocNUD8EpFJgBJiw5XrtjUyKPvKHf.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5187781	358	0.017	asap:raw/asap/Schubert/Wanderer_fantasie/xml_score.musicxml
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5652250	138	0.051	pdmx:raw/pdmx/mxl/12/20/QmUF3s59KhGSJZYEijsEfEhcHE1qzPKNzy1smaxWAMgCWG.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5653497	143	0.133	pdmx:raw/pdmx/mxl/7/35/QmPojGhiSBXRnP6xfaVqC86LruNTFw442PPAji6Sf6yPLR.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5661740	108	0.111	olimpic:4919673
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5862368	136	0.022	pdmx:raw/pdmx/mxl/13/26/QmVjxr3F2KSnHLKD8RzKfstgB2DHvEP6sTxgvWRoUjXknj.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5935864	152	0.020	pdmx:raw/pdmx/mxl/3/17/QmdezYq6VhApwuHYhxjKemYwW2rhRnTJ2k7PorM3rGuqXj.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5986599	80	0.062	pdmx:raw/pdmx/mxl/7/10/QmPAsudN4jHYo1ZLjSocNUD8EpFJgBJiw5XrtjUyKPvKHf.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5987851	284	0.032	pdmx:raw/pdmx/mxl/12/16/QmUDY9iPoDhWuy6D2bBffDvAb3nYaALKgUpKyaErsqb2gp.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5987937	102	0.078	grandstaff:chopin/mazurkas/mazurka50-3
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/5989993	136	0.029	pdmx:raw/pdmx/mxl/14/33/QmWnf8HQbJPQCWjcpVAkLtxkFpTHF6BpwWiv883B4qKE8n.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6001354	65	0.092	pdmx:raw/pdmx/mxl/8/5/QmQ6SHUSBSJ45JvjNdpusrHkAGs65wCX2mgi3cqf27kJ1g.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6007571	28	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6010916	29	0.069	pdmx:raw/pdmx/mxl/16/55/QmYY4ceTdT6LmKtKBzzzchHYG2cjqWeKxN3M4RpjFAgKzP.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6011095	119	0.034	pdmx:raw/pdmx/mxl/4/20/QmeFmKN465efGvRpgNM9xxTjPR5edNmsCJ69VyKHXHj19n.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6085883	64	0.016	pdmx:raw/pdmx/mxl/9/41/QmRRgebbxBRbbnXCT2VAojAbj2SFAEYxshXGoKf5MUHRXH.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6141796	133	0.165	olimpic:6061301
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6151337	186	0.048	olimpic:5002096
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6151982	115	0.061	pdmx:raw/pdmx/mxl/12/54/QmUyTeUimh7RvsPx9tGjUeFzwpuXWqT6qnyUFh4ugCC7cU.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6165152	103	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6174661	117	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6177220	31	0.161	olimpic:4985937
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6189628	173	0.012	pdmx:raw/pdmx/mxl/15/7/QmX8QfxNv53QFQ5TnTbKyXZPRXHSyHKUYJeCr2iaZeGS5P.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6196782	63	0.032	pdmx:raw/pdmx/mxl/9/8/QmR9XZYdoKoQPDLJiemsojaRWwqvxYpwAFJQjqTR7GZcZz.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6197282	126	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6202660	47	0.043	pdmx:raw/pdmx/mxl/1/19/QmbfuFgJvBZbAuihKKbE2Zu7KzF3dzfvPmrAPcpME6hhoZ.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6210961	18	0.167	pdmx:raw/pdmx/mxl/10/4/QmS5LQyAWKdLCZ7GzPN7nzFG67CUHw1wKamoacCX5L4GNS.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6218728	23	0.043	olimpic:6236151
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6218737	87	0.115	pdmx:raw/pdmx/mxl/7/45/QmPTAvXBjkxiNPoJ547x2JKGAzR9bFioJ5DJHg5eCNyYdg.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6230261	43	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6236150	100	0.020	pdmx:raw/pdmx/mxl/16/19/QmYfpnN2EsQEdwYKW46dt6k8Z92Udmbj1ydzWHLqcAr9iq.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6245974	59	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6247458	119	0.034	pdmx:raw/pdmx/mxl/2/19/QmcfegmDM7fC1XtNp5TMcZdDpwzaMK6CmXFfzGb82goXZN.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6248301	55	0.018	pdmx:raw/pdmx/mxl/9/22/QmRGdgCqG2tVtcY3qvE7Yexm5jfmTVZfT8y1F5xvqMLxgz.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6249298	166	0.060	pdmx:raw/pdmx/mxl/3/41/QmdRKSVNLQMtnze93qksBHYboNQBGQPwuXBU6GFwZ4a8QL.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6259566	203	0.059	asap:raw/asap/Schubert/Wanderer_fantasie/xml_score.musicxml
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6259568	218	0.050	pdmx:raw/pdmx/mxl/3/41/QmdRXyyTLZ1H6PRWRpVRV5t1prJHxTjv1Fsmf3eAgX1x7Y.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6264558	122	0.090	pdmx:raw/pdmx/mxl/13/37/QmVP1bWsb3eeeCPemR1NWeWrNU9ZLuumU4diM9RT7by77A.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6389103	264	0.341	pdmx:raw/pdmx/mxl/1/0/Qmb17FGEp1ncbesjvZ2a71HNGEDPxr7YewCeispRvdfmqa.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6404150	470	0.011	pdmx:raw/pdmx/mxl/15/44/QmXtjJFwPypGzHhRvcaxV1eTudfjQyvwwBgS9mHrsX5fvc.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6409323	145	0.021	pdmx:raw/pdmx/mxl/16/17/QmYeG6Kh3vFFFFxCcUQFxwqCVMtM9QJSpobztsDS85WfSo.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6412767	184	0.043	pdmx:raw/pdmx/mxl/16/19/QmYfLP7473TRjeXdfTgjJJ7SHmKLcTG7qSbZqa5fwsZ4Hm.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6415075	131	0.023	pdmx:raw/pdmx/mxl/14/6/QmW7zcFFYzSwucNrywuHWeZae8ApzqvM3btGJnCCmiqwLc.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6421815	41	0.098	pdmx:raw/pdmx/mxl/12/37/QmUPBHUCRZF63dexAXALE6Z6nKU3KXTBYWKgWNtLAsYMH9.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6425381	250	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6456450	227	0.066	pdmx:raw/pdmx/mxl/16/17/QmYeG6Kh3vFFFFxCcUQFxwqCVMtM9QJSpobztsDS85WfSo.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6472842	389	0.810	pdmx:raw/pdmx/mxl/15/41/QmXRJ2ajqwHJCDHUn6YrCh6A1TqXmCPQR75euARwakLZTk.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6474359	513	0.049	pdmx:raw/pdmx/mxl/1/53/QmbXYkuMs7dd2hcnjnqJpzKp3aAiCCtSxMYzwgpDWkRxAF.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6474469	171	0.123	pdmx:raw/pdmx/mxl/16/41/QmYRdaRZd5LjhbnYN5QciWTCm1H1gS7rABeTsbypsTHrvZ.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6488630	48	0.021	pdmx:raw/pdmx/mxl/8/22/QmQGVB6tEP6Kejr3fMkjUbEab82qgkaG77HUAYjwF6W3gR.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6491377	213	0.019	pdmx:raw/pdmx/mxl/14/43/QmWS6iQn5AP8dLqcUhfuQL9ngrHrZ9DWxbgQKvE2zSdEZ5.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6499366	83	0.012	pdmx:raw/pdmx/mxl/9/6/QmR7PMVPnfSKFnjJGDZMPqDuhfzLbg1eoz1uKFN6EFuk3X.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6505088	190	0.047	olimpic:6838113
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6572043	182	0.049	pdmx:raw/pdmx/mxl/3/30/QmdLe9DhDiWRzZCz5zQNG3MZidAxW8vRt95hU741sAed1C.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6577688	164	0.018	olimpic:6071196
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6581327	341	0.038	pdmx:raw/pdmx/mxl/11/17/QmTeXCYMMyoqqvjsptbWdXHy8qQ1FNC4x7CqV3tPXhRBw9.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6583512	163	0.006	pdmx:raw/pdmx/mxl/7/36/QmPp3sUamBFKZrmSuiHCvYKHJbtFryoSQeJsKWxAiZPe7h.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6589315	238	0.055	olimpic:6454809
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6598624	26	0.115	pdmx:raw/pdmx/mxl/9/25/QmRitsVbyYbpKjAyjrpQ7oj9jucy537zdkzTCquxHZq9bp.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6629643	128	0.031	pdmx:raw/pdmx/mxl/9/55/QmRYyHTsxhT9DoANMTeC1XJ5yf7rxV5RaKMrC56vaHYC6v.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6629763	49	0.020	pdmx:raw/pdmx/mxl/0/16/QmaD3FZ9uYfdxS2vmeXczF9k6nvMFQgw5DQgSVCv4kCHLE.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6632270	144	0.056	pdmx:raw/pdmx/mxl/13/31/QmVmy8j1j99M9PGXDzch8zYCWM7CnMzvq6H6TmYhqM3DWw.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6636042	69	0.058	olimpic:6765984
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6641170	169	0.041	pdmx:raw/pdmx/mxl/17/2/QmZ3vfJw1vS5Me9KDoUYSm7RYU4FYSAwioiFHbtogRihgd.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6645396	134	0.060	pdmx:raw/pdmx/mxl/17/55/QmZYyajNvNoD931nnSBVFGx74ZZr9hpx6pFoKWoWCsGMTV.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6652787	235	0.043	pdmx:raw/pdmx/mxl/13/9/QmVa7hSTAHsWrbxQ5iTo1Xr3gJw6RgRNWHXSdVfS5fjgHt.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6654137	95	0.484	olimpic:6652350
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6656152	136	0.007	pdmx:raw/pdmx/mxl/16/49/QmYVc4yBZ9BE4zYZP9H1WY2JiyW5838tyzndH1G4Fmrftw.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6753337	6	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6757520	59	0.051	pdmx:raw/pdmx/mxl/7/28/QmPkKBnfocq961db9jGwSSmS9dJ5pjER4XW5GgcQ7XfLvW.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6801790	209	0.144	pdmx:raw/pdmx/mxl/4/57/QmeZEirzi2uR3uHtsBrtosdyYWXKjgHzuqKRQkTHDiBSPT.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6805149	156	0.122	pdmx:raw/pdmx/mxl/15/53/QmXXy7z89Mwgd5vP7VoLnPy2uB8GYwTwWs7LjTrvm72acY.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6816059	105	0.038	pdmx:raw/pdmx/mxl/9/17/QmReDeC6Z7S2ep8KMyTCcc7pyNURmKz9jXixt5XH3W7rdb.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6910703	99	0.020	pdmx:raw/pdmx/mxl/8/22/QmQGQCSvL47MQQRUhir3JSpPQvUM6Q1q7UVR3NDD9cyVsT.mxl
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6982743	200	0.000	
+olimpic_dev	data/raw/olimpic/olimpic-1.0-scanned/samples/6989465	387	0.021	pdmx:raw/pdmx/mxl/8/56/QmQztEr4TZBEqWhHTsSVhVJYjVhF2K3AZYARJNXmrEroQH.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/4919798	203	0.015	olimpic:6606200
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/4978492	376	0.035	pdmx:raw/pdmx/mxl/9/33/QmRnDnnYRTyy6GFJynY7ZqxWCA44zFi7PBS4ZpT5QdQjUs.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/4982465	238	0.017	pdmx:raw/pdmx/mxl/10/47/QmSUw6fgUu2A59LfU5H3Pvt7uNL4QrDwA2Q7scwpTPQzKK.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/4982505	121	0.041	pdmx:raw/pdmx/mxl/16/3/QmY4MGL5HYieiLniFVE65mXkdUpHwxUV6YEP9fKdNuJaqa.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5000459	180	0.006	pdmx:raw/pdmx/mxl/8/57/QmQZGTk5TGdhMxUT3XfPe4NUcSexZaRB18LHkeRnUpNFs2.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5000464	124	0.016	pdmx:raw/pdmx/mxl/3/28/QmdkC2ig66agRZYCUjkedXCCQZ7U3KKDm4KQh1PqWv3uMo.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5000467	310	0.016	pdmx:raw/pdmx/mxl/17/50/QmZwBQqA2jm7eN5t9EVLQKR4Aevu3QzMmfYwgBLw2cyS1C.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5026306	428	0.037	pdmx:raw/pdmx/mxl/8/56/QmQztEr4TZBEqWhHTsSVhVJYjVhF2K3AZYARJNXmrEroQH.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5026309	435	0.032	pdmx:raw/pdmx/mxl/16/17/QmYeG6Kh3vFFFFxCcUQFxwqCVMtM9QJSpobztsDS85WfSo.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5026316	312	0.019	pdmx:raw/pdmx/mxl/9/43/QmRSKd8M9uJLx53xan2GoErFCrWf5zFARKe3d3T3YJCbLZ.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5062156	123	0.008	pdmx:raw/pdmx/mxl/12/39/QmUQZaTphSfKXi6Bjta873YdUFms9JXAxwjySf4vw3NHp3.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5062158	163	0.018	pdmx:raw/pdmx/mxl/17/33/QmZnrvK1BDr6VKdM3LTBPpiX88TcRo1HHrFPdcd4WebdeC.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5062159	151	0.026	pdmx:raw/pdmx/mxl/9/40/QmRrGdiknbq3rrFSoHFsuDutNawKrzudBA2UXLyYdGJxvS.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5069022	71	0.085	pdmx:raw/pdmx/mxl/7/36/QmPpoMSCFDit9USadf2tipoWEP11UWzAtzBghyvBLAPgmW.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5069028	81	0.123	olimpic:6471199
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5071644	200	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5098713	276	0.022	pdmx:raw/pdmx/mxl/17/22/QmZG113eDD5o4PBbGsYkeSMjkNUdveGYU3Y6WpgQSKgD55.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5654342	84	0.036	pdmx:raw/pdmx/mxl/14/18/QmWEjoorUwGqupxUAw52gr3dYqtXWV4Mw64pmBVczVxs9f.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5656522	376	0.011	pdmx:raw/pdmx/mxl/8/19/QmQffpjtRGi1vSrDu5VCTQBNkXEkRLs46Q2mfVGNyVq1mv.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5659823	173	0.017	grandstaff:beethoven/piano-sonatas/sonata12-4
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5667944	485	0.010	pdmx:raw/pdmx/mxl/6/26/QmNj6L7txbzbUUM6CJm7C1cHMS6NX5sa3gDKAk5cRpS8qD.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5700433	208	0.034	grandstaff:scarlatti-d/keyboard-sonatas/L198K296
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5701612	60	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5820797	110	0.064	pdmx:raw/pdmx/mxl/4/30/QmeLo8E4GiXc69Ho8p7zhUouytY6KxN2QFK1UEJhxD6pm6.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5834392	110	0.009	pdmx:raw/pdmx/mxl/10/57/QmSZjZziZqpMysuR5Wuuud6c9QowkXMPNDu8zDFgyrN2yy.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5837811	265	0.015	olimpic:6878940
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/5840228	276	0.004	pdmx:raw/pdmx/mxl/3/16/QmdD3vCzggqCYYwoh1K6LM9qiG4szo5yJaPd4sQsA2M6te.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6112984	171	0.029	pdmx:raw/pdmx/mxl/2/40/QmcrhFuX5rC5XYegwRd92yK5LQoFkQDuVw9Xu5957wmTYG.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6114679	156	0.026	pdmx:raw/pdmx/mxl/9/4/QmR5R8Z5UqPCCxS4S4GKcqn8UdzZVfTCtGUKVPM5y1w5by.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6115317	403	0.017	pdmx:raw/pdmx/mxl/16/17/QmYeG6Kh3vFFFFxCcUQFxwqCVMtM9QJSpobztsDS85WfSo.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6209594	25	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6209602	113	0.097	pdmx:raw/pdmx/mxl/1/1/Qmb2G3DgTu23N3wR62ExVLD4uEyNpsAyPXNMFWxqUWsLG9.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6209605	38	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6209607	99	0.030	pdmx:raw/pdmx/mxl/9/17/QmReAFwCejeyHAoBsegKGqiJQDXNkpP2qdvtsXqf6ot1Lz.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6209608	177	0.023	pdmx:raw/pdmx/mxl/4/30/QmeLi54htzYMhxPeYgJBZqGCghdsF86fKdwC44nvrfdRyn.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6232117	170	0.006	pdmx:raw/pdmx/mxl/8/5/QmQ6vA9LARrm1JijJTpLARVBxfNiNmJoUNp2wxay6MgLP9.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6243836	210	0.038	pdmx:raw/pdmx/mxl/5/34/QmfNDXZbWnqYgL8cF9VCT9VLTEhquZzjmxh87qUCwLA2NP.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6243838	100	0.060	pdmx:raw/pdmx/mxl/9/45/QmRTJsyka7NMswUfpoair9HADzTvVKmWFyXj7T6M4cJQrL.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6243839	109	0.018	pdmx:raw/pdmx/mxl/7/33/QmPnkUKGsJgSh3TBFK6gR5yBHSLmcXZrhmy6HUyBfScer7.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6302395	363	0.017	grandstaff:beethoven/piano-sonatas/sonata04-3
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6320420	382	0.005	pdmx:raw/pdmx/mxl/8/37/QmQPEjkNfdLdeuD1ZL687MxH7Aeqa5PZZiwVPmTZRxrM69.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6351349	185	0.011	pdmx:raw/pdmx/mxl/9/48/QmRvKc9XFJQy4hbN8CYm9kemJqmSLCMHTUEWfpVMQxDff9.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6377942	323	0.031	olimpic:6199576
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6378337	46	0.043	pdmx:raw/pdmx/mxl/17/8/QmZ9CeVLW5EERm8tN1ewuc7vcE9HKr5ZEvxa2opbsytErE.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6378373	51	0.059	pdmx:raw/pdmx/mxl/1/46/QmbuFqA9aZjWgrrrtxy5rvuojeTy3rjKqpuUkX7Jj2Zdcr.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6379527	203	0.044	olimpic:5079487
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6379750	11	0.182	pdmx:raw/pdmx/mxl/7/54/QmPy74Hf6M285Y1jAwGPsrR7LRExmMqpWtCEqAbqEHjqZu.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6447286	118	0.051	pdmx:raw/pdmx/mxl/3/28/QmdkC2ig66agRZYCUjkedXCCQZ7U3KKDm4KQh1PqWv3uMo.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6447342	83	0.012	pdmx:raw/pdmx/mxl/12/28/QmUkBdVLUewr5xt3HpRPtR9VzJonEiwXwnUL371A7e7SAx.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6447372	116	0.026	pdmx:raw/pdmx/mxl/17/26/QmZjB2H8YQADwnDMzB92iGKXN6n9pfKNyZg4959XA342an.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6481218	293	0.061	pdmx:raw/pdmx/mxl/16/17/QmYeG6Kh3vFFFFxCcUQFxwqCVMtM9QJSpobztsDS85WfSo.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6481941	339	0.041	pdmx:raw/pdmx/mxl/7/10/QmPAsudN4jHYo1ZLjSocNUD8EpFJgBJiw5XrtjUyKPvKHf.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6482032	487	0.031	pdmx:raw/pdmx/mxl/16/17/QmYeG6Kh3vFFFFxCcUQFxwqCVMtM9QJSpobztsDS85WfSo.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6548435	132	0.038	pdmx:raw/pdmx/mxl/2/28/QmckC6Mtct8bPVBWmykL8v7cvAKCHz88Yynp7V9vshAncs.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6565727	319	0.006	pdmx:raw/pdmx/mxl/9/32/QmRMcZyoTUeHHZiSkZbUymkaxU45UTAaWTLpaK4bRetiRz.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6567603	157	0.025	pdmx:raw/pdmx/mxl/4/36/Qmepvm6T8auoLoMysdvcSJD3yPuic9mwu1VA4g6yqGyvfB.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6568021	334	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6568070	295	0.024	pdmx:raw/pdmx/mxl/4/7/Qme88a7Fvz73EWc6i6ba61XjfTNxj1cJPeZBRsh1EGqVrC.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6569855	227	0.035	pdmx:raw/pdmx/mxl/7/32/QmPMna9fZXZqN2yi6Y1AVoFESHSS4ERd9a3i4DyRsumL22.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6569865	90	0.022	pdmx:raw/pdmx/mxl/4/37/QmePZ7UZaK2ZP3kGVA7Yk9wnefjxJkV2dYGvitoC4P7tze.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6570092	292	0.017	pdmx:raw/pdmx/mxl/7/45/QmPTAvXBjkxiNPoJ547x2JKGAzR9bFioJ5DJHg5eCNyYdg.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6570192	204	0.005	pdmx:raw/pdmx/mxl/1/3/Qmb4ysqcWPMfbJjkM81WDTCHNh1vZYthMvfDFamFZyJePZ.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6570255	417	0.007	olimpic:5079494
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6570310	342	0.032	pdmx:raw/pdmx/mxl/6/13/QmNcCtnwb6uz6TVzFZJPFavAT9V3VGezRxVXk8eSvBgZgd.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6573515	55	0.018	pdmx:raw/pdmx/mxl/9/46/QmRuHg2YZd2BmhG2mw96Da4AMSGN7sbx85VBa6736VCJ1s.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6573701	62	0.016	pdmx:raw/pdmx/mxl/9/43/QmRS2LK92DzxKkF6ecGmoix38FAezqcuzyHR69hSXyBQtw.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6586696	92	0.011	pdmx:raw/pdmx/mxl/2/53/QmcXtXPB7ok2CwWWmykcX3sG756rDEP3YSZ6B6GDdzXj24.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6592539	142	0.049	pdmx:raw/pdmx/mxl/9/8/QmR9vr7tsvU2WWDmFeRttusApvAA9sTDvfKxGB8jEzXXdA.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6592662	157	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6621051	217	0.046	pdmx:raw/pdmx/mxl/5/14/QmfCGL3zdA1kponSrXSyFvGVfRLP2CGEx4UHmWUS5zMFEJ.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6631610	245	0.029	olimpic:5079368
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6660019	176	0.006	pdmx:raw/pdmx/mxl/9/34/QmRNMjwM3xnoTJD6QD4pzkBzk1u4cv3S8qThKihNytYbea.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6660043	174	0.195	pdmx:raw/pdmx/mxl/5/4/Qmf5hs67Mcf3zeGD1SgdDGVGTYhBKTSDJTsmNcRsSzg3st.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6660097	71	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6686592	353	0.057	pdmx:raw/pdmx/mxl/4/21/Qmegh4EuDe2jzaewbGHmy6t9eZJmWVvKPzSYBzABftVttL.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6686901	209	0.010	olimpic:6166096
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6686980	145	0.021	pdmx:raw/pdmx/mxl/2/29/QmcKQyqjJPfUvz1tfZmPD4QXU3xfTR91CtQwPfxBc94BWw.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6687153	410	0.002	pdmx:raw/pdmx/mxl/5/24/QmfHY9oSE7VhqhiKE34FRZ7YruDvoK3Nzy1BdQ1FcAxqQo.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6715306	38	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6715339	99	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6715795	39	0.026	pdmx:raw/pdmx/mxl/9/19/QmRftmMXmgt3rDmsKhrSm2hS4iTtkcB4NUpD5j45bffZgt.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6716614	65	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6716631	48	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6725471	106	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6725510	61	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6725782	51	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6725890	10	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6726319	30	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6753259	55	0.000	
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6834630	424	0.019	olimpic:6574373
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6984262	42	0.024	pdmx:raw/pdmx/mxl/9/13/QmRcJkHBdD6RHUNdBVRBPUcXjB8TJsndcs7dyrCLfxhV4E.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6984553	489	0.016	pdmx:raw/pdmx/mxl/6/44/QmNtKdi7E3GmdQX8xcPAicnh2TtHx4SgHw3wm68eSYmrwM.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6984631	143	0.042	pdmx:raw/pdmx/mxl/17/30/QmZLLJiKvj52KtdSQVBLHMTAG7PSkiQJvVCxvvQsVq13az.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6985082	239	0.092	pdmx:raw/pdmx/mxl/11/28/QmTk5yZ6PkfMNiZnC8Z8tFo35xBVoVs8KqTzqcH6PgDqw8.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6986065	6	0.167	pdmx:raw/pdmx/mxl/2/5/Qmc6rvhY32DuvuRTz29Cii4WCfo3gzoCbiwe2irZuAvrnL.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6986302	87	0.046	pdmx:raw/pdmx/mxl/9/3/QmR46YCHQeJA4D15YQ7XD35rSbS7JeaQBB9nCpY48eh1vJ.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6987705	118	0.017	pdmx:raw/pdmx/mxl/8/57/QmQZguPA5EN5iMZoBQM6yfLeP5Ta6qrZYfqdigcBHe4oPG.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/6993176	112	0.036	pdmx:raw/pdmx/mxl/9/14/QmRC7RcvDh1Bjb8fmDSqwzrjr7CC8PcBg3oYV2xszc86ue.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/7086632	155	0.019	pdmx:raw/pdmx/mxl/13/31/QmVmy8j1j99M9PGXDzch8zYCWM7CnMzvq6H6TmYhqM3DWw.mxl
+olimpic_test	data/raw/olimpic/olimpic-1.0-scanned/samples/7163829	89	0.056	pdmx:raw/pdmx/mxl/9/46/QmRuM8nd9PZBn8KZpWBEWZy2CtDhatDteitQDStYow2mL1.mxl

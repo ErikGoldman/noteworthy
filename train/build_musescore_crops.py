@@ -3,7 +3,7 @@ Verovio (build_seq_dataset.py), for the sequence model (train_seq.py).
 
 usage: build_musescore_crops.py --scores LIST.txt --out DIR [--systems-per-score K]
                                 [--renderers R] [--scores-per-batch B] [--limit N]
-                                [--musescore SQUASHFS_ROOT]
+                                [--musescore SQUASHFS_ROOT] [--engraver-hiding] [--varied-tuplet-looks]
 
 Scores, systems and labels are chosen as for the Verovio crops: the same training scores, the
 first two-staff part cut into systems of a few measures, each system made self-contained by
@@ -20,6 +20,12 @@ interline, with random margins.
 Each score is engraved in one of STYLE_VARIANTS MuseScore styles (music font, line widths,
 spacing), drawn from the score's index, so a score's crops do not depend on which batch it was
 rendered in, and a run stopped and restarted writes what an uninterrupted one would.
+
+MuseScore draws every tuplet number of a MusicXML file (show_every_tuplet_number). With
+--engraver-hiding or --varied-tuplet-looks the numbers are hidden and set as build_seq_dataset.py's
+options say (seq.tuplet_display), through MuseScore's own file, which it honours: each system is
+converted to .mscx, its tuplets drawn there (mscx_tuplets), and the .mscx engraved. A system whose
+tuplets do not pair between the two files is left out ("tuplets do not pair" in its outcome).
 
 Output: DIR/samples/<index>/s<k>.png + .lmx + .staves.json (the staves as drawn), an outcome.json per score saying what became of
 each candidate system (or why the score was left out whole), and DIR/samples.train.txt; train_seq.py reads it as --data DIR:train. A score's
@@ -43,6 +49,7 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -60,6 +67,8 @@ from seq.staff_positions import Staves  # noqa: E402
 from omr.pieces import pdmx_license_conflicts  # noqa: E402
 from seq.barlines import REPEAT_START, barline_tokens_of  # noqa: E402
 from seq.ottava import add_octave_shifts, shifts_of  # noqa: E402
+from seq.tuplet_display import ScoreTuplets, TupletDrawing, hide_as_engravers_do, set_look  # noqa: E402
+from mscx_tuplets import drawn_in_mscx  # noqa: E402
 
 MIN_TOKENS = 10
 NICENESS = 10
@@ -98,6 +107,7 @@ class LabelledSystem:
     musicxml: str
     lmx: str
     expected: ExpectedDrawing
+    tuplets: ScoreTuplets | None = None  # drawn through MuseScore's own file (mscx_tuplets); None: every number shown
 
 
 @dataclass(frozen=True)
@@ -183,13 +193,16 @@ def with_label_ottavas(part: ET.Element, lmx: str) -> bool:
     return not any(shifts) or next(part.iter("octave-shift"), None) is not None
 
 
-def labelled_system(part: ET.Element, name: str, rng: random.Random) -> LabelledSystem | None:
+def labelled_system(part: ET.Element, name: str, rng: random.Random,
+                    tuplets: ScoreTuplets | None = None) -> LabelledSystem | None:
     """The system's label and its score for MuseScore, or None if its label is out of bounds, or
     if a tie or slur runs on across one of its edges: engraved alone, the system shows none of the
     half arc a page draws there. (The Verovio crops draw it from neighbouring measures; MuseScore
     would stretch a system that is not a page's last to the page's width.)"""
     draw_some_meters_as_symbols(part, rng)
     show_every_tuplet_number(part)
+    if tuplets is not None:
+        draw_tuplets(part, tuplets, rng)
     lmx = linearize(part)
     if open_at_an_edge(lmx):
         return None
@@ -201,23 +214,32 @@ def labelled_system(part: ET.Element, name: str, rng: random.Random) -> Labelled
     expected = ExpectedDrawing(barlines_drawn(part), spare_measure=not closes_with_own_barline(part))
     if expected.spare_measure:
         with_spare_measure(part)
-    return LabelledSystem(name, ET.tostring(score, encoding="unicode", xml_declaration=True), lmx, expected)
+    return LabelledSystem(name, ET.tostring(score, encoding="unicode", xml_declaration=True), lmx, expected, tuplets)
 
 
-def labelled_systems(source: Path, k: int, rng: random.Random) -> list[LabelledSystem]:
+def draw_tuplets(part: ET.Element, tuplets: ScoreTuplets, rng: random.Random) -> None:
+    """The score's hiding (else every number shown, as without a drawing) and look."""
+    if tuplets.hiding is not None:
+        hide_as_engravers_do(part, tuplets.hiding, rng)
+    set_look(part, tuplets.look)
+
+
+def labelled_systems(source: Path, rng: random.Random, k: int,
+                     drawing: TupletDrawing = TupletDrawing()) -> list[LabelledSystem]:
     """Up to k random systems of the score's piano part. Raises ValueError without one."""
     part = piano_part(load_musicxml(source))
     if part is None:
         raise ValueError("no two-staff part")
     without_octave_clefs(part)
     break_into_systems(part, rng)
+    tuplets = ScoreTuplets.drawn(drawing, rng) if drawing.changed else None
     parts = [s.part for page in split_part_to_systems(part) for s in page.systems]
     rng.shuffle(parts)
     chosen = []
     for part in parts:
         if len(chosen) == k:
             break
-        system = labelled_system(part, f"candidate{len(chosen)}", rng)
+        system = labelled_system(part, f"candidate{len(chosen)}", rng, tuplets)
         if system is not None:
             chosen.append(system)
     return chosen
@@ -268,9 +290,20 @@ def as_musescore_child() -> None:
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
-def run_musescore(musescore: MuseScore, musicxmls: list[Path], work: Path) -> bool:
+@dataclass(frozen=True)
+class Outputs:
+    """What a conversion writes beside its input, and whether it has."""
+    suffixes: tuple[str, ...]
+    written: Callable[[Path], bool]
+
+    def conversion(self, source: Path) -> dict:
+        stem = source.with_suffix("")
+        return {"in": str(source), "out": [f"{stem}{suffix}" for suffix in self.suffixes]}
+
+
+def run_musescore(musescore: MuseScore, musicxmls: list[Path], work: Path, outputs: Outputs) -> bool:
     """Converts in one MuseScore process, in order; False if it fails or hangs."""
-    (work / "job.json").write_text(json.dumps([conversion(m) for m in musicxmls]))
+    (work / "job.json").write_text(json.dumps([outputs.conversion(m) for m in musicxmls]))
     timeout = STARTUP_TIMEOUT_S + TIMEOUT_PER_SYSTEM_S * len(musicxmls)
     try:
         done = subprocess.run([str(musescore.binary), "-c", str(work / "config"), "-j", str(work / "job.json")],
@@ -281,23 +314,18 @@ def run_musescore(musescore: MuseScore, musicxmls: list[Path], work: Path) -> bo
     return done.returncode == 0
 
 
-def engrave(musescore: MuseScore, musicxmls: list[Path], work: Path, style: str) -> set[Path]:
+def engrave(musescore: MuseScore, musicxmls: list[Path], work: Path, style: str, outputs: Outputs) -> set[Path]:
     """Converts the files in as few MuseScore processes as it takes; returns those it crashed
     or hung on. MuseScore stops at the first such file, so the rest go to a new process."""
     (work / "style.mss").write_text(style)
     write_settings(work / "config", work / "style.mss")
     failed = set()
     remaining = musicxmls
-    while remaining and not run_musescore(musescore, remaining, work):
-        culprit = next((i for i, m in enumerate(remaining) if not converted(m)), len(remaining))
+    while remaining and not run_musescore(musescore, remaining, work, outputs):
+        culprit = next((i for i, m in enumerate(remaining) if not outputs.written(m)), len(remaining))
         failed.update(remaining[culprit:culprit + 1])
         remaining = remaining[culprit + 1:]
     return failed
-
-
-def conversion(musicxml: Path) -> dict:
-    stem = musicxml.with_suffix("")
-    return {"in": str(musicxml), "out": [f"{stem}.png", f"{stem}.svg"]}
 
 
 def page_files(musicxml: Path, page: int) -> tuple[Path, Path]:
@@ -309,6 +337,11 @@ def page_files(musicxml: Path, page: int) -> tuple[Path, Path]:
 def converted(musicxml: Path) -> bool:
     """The SVG is written after the PNG."""
     return page_files(musicxml, 1)[1].exists()
+
+
+PAGES = Outputs((".png", ".svg"), converted)
+MSCX = Outputs((".mscx",), lambda source: source.with_suffix(".mscx").exists())
+CRASHED = "musescore crashed or hung"
 
 
 # ---- finding the system on the page ----------------------------------------------------------
@@ -450,6 +483,9 @@ def engraved_system(musicxml: Path, expected: ExpectedDrawing, rng: random.Rando
 
 # ---- scores ----------------------------------------------------------------------------------
 
+SystemChooser = Callable[[Path, random.Random], list[LabelledSystem]]  # a score's systems to engrave
+
+
 @dataclass
 class ScoreJob:
     index: int
@@ -458,15 +494,18 @@ class ScoreJob:
     outcome: dict[str, str]
 
     @staticmethod
-    def prepared(index: int, source: str, k: int) -> "ScoreJob":
+    def prepared(index: int, source: str, choose: SystemChooser) -> "ScoreJob":
         try:
-            return ScoreJob(index, source, labelled_systems(Path(source), k, random.Random(index)), {})
+            return ScoreJob(index, source, choose(Path(source), random.Random(index)), {})
         except Exception as e:  # a score we cannot read is left out, as by build_seq_dataset
             return ScoreJob(index, source, [], {"score": f"unreadable: {type(e).__name__}"})
 
     def crop_rng(self, system: LabelledSystem) -> random.Random:
         """A system's own, so that one MuseScore fails on does not change the others' crops."""
         return random.Random(f"crop:{self.index}:{system.name}")
+
+    def tuplet_rng(self, system: LabelledSystem) -> random.Random:
+        return random.Random(f"tuplets:{self.index}:{system.name}")
 
 
 def score_dir(out: Path, index: int) -> Path:
@@ -479,19 +518,37 @@ def system_file(work: Path, job: ScoreJob, system: LabelledSystem) -> Path:
 
 def write_scores(jobs: list[ScoreJob], work: Path, musescore: MuseScore, style: str, out: Path) -> None:
     """Engraves the scores' systems in one style and writes each score's crops."""
-    musicxmls = []
+    systems: dict[Path, tuple[ScoreJob, LabelledSystem]] = {}
     for job in jobs:
         for system in job.systems:
             path = system_file(work, job, system)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(system.musicxml)
-            musicxmls.append(path)
-    failed = engrave(musescore, musicxmls, work, style)
+            systems[path] = (job, system)
+    plain = [m for m, (_, system) in systems.items() if system.tuplets is None]
+    not_drawn = {m: CRASHED for m in engrave(musescore, plain, work, style, PAGES)}
+    not_drawn |= engrave_with_tuplets(musescore, {m: js for m, js in systems.items() if js[1].tuplets is not None}, work, style)
     for job in jobs:
-        write_score(job, work, failed, out)
+        write_score(job, work, not_drawn, out)
 
 
-def write_score(job: ScoreJob, work: Path, failed: set[Path], out: Path) -> None:
+def engrave_with_tuplets(musescore: MuseScore, systems: dict[Path, tuple[ScoreJob, LabelledSystem]], work: Path,
+                         style: str) -> dict[Path, str]:
+    """MusicXML to MuseScore's file, the tuplets drawn there (mscx_tuplets), then to the page;
+    returns the systems not drawn and why."""
+    not_drawn = {m: CRASHED for m in engrave(musescore, list(systems), work, style, MSCX)}
+    mscxs = []
+    for musicxml, (job, system) in systems.items():
+        if musicxml in not_drawn:
+            continue
+        if not drawn_in_mscx(musicxml, musicxml.with_suffix(".mscx"), system.tuplets.look, job.tuplet_rng(system)):
+            not_drawn[musicxml] = "tuplets do not pair"
+            continue
+        mscxs.append(musicxml.with_suffix(".mscx"))
+    return not_drawn | {m.with_suffix(".musicxml"): CRASHED for m in engrave(musescore, mscxs, work, style, PAGES)}
+
+
+def write_score(job: ScoreJob, work: Path, not_drawn: dict[Path, str], out: Path) -> None:
     """The score's crops, labels and outcome, moved into place only once all are written."""
     partial = score_dir(out, job.index).with_suffix(".partial")
     shutil.rmtree(partial, ignore_errors=True)
@@ -499,8 +556,8 @@ def write_score(job: ScoreJob, work: Path, failed: set[Path], out: Path) -> None
     written = 0
     for system in job.systems:
         musicxml = system_file(work, job, system)
-        if musicxml in failed:
-            job.outcome[system.name] = "musescore crashed or hung"
+        if musicxml in not_drawn:
+            job.outcome[system.name] = not_drawn[musicxml]
             continue
         try:
             image, staves = engraved_system(musicxml, system.expected, job.crop_rng(system))
@@ -525,7 +582,7 @@ class Batch:
 class RunSettings:
     out: Path
     musescore: MuseScore
-    systems_per_score: int
+    choose: SystemChooser  # module-level (or a partial of one): the spawned workers unpickle it
 
 
 def render_batch(batch: Batch, run: RunSettings) -> int:
@@ -534,7 +591,7 @@ def render_batch(batch: Batch, run: RunSettings) -> int:
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
     try:
-        jobs = [ScoreJob.prepared(index, source, run.systems_per_score) for index, source in batch.scores]
+        jobs = [ScoreJob.prepared(index, source, run.choose) for index, source in batch.scores]
         write_scores(jobs, work, run.musescore, engraving_style(batch.variant), run.out)
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -600,6 +657,8 @@ def main() -> None:
     ap.add_argument("--scores-per-batch", type=int, default=4, help="scores per MuseScore process")
     ap.add_argument("--limit", type=int, help="only the first N scores of the list")
     ap.add_argument("--musescore", type=Path, default=ROOT / "tools" / "musescore" / "squashfs-root")
+    ap.add_argument("--engraver-hiding", action="store_true", help="hide tuplet numbers as engravers do")
+    ap.add_argument("--varied-tuplet-looks", action="store_true", help="set printed tuplet numbers in varied ways")
     args = ap.parse_args()
     raise_on_sigterm()
     os.nice(NICENESS)
@@ -611,7 +670,9 @@ def main() -> None:
     (args.out / "samples").mkdir(parents=True, exist_ok=True)
     pending = [(i, s) for i, s in scores if not score_dir(args.out, i).exists()]
     work = batches(pending, args.scores_per_batch)
-    run = RunSettings(args.out, MuseScore(args.musescore), args.systems_per_score)
+    drawing = TupletDrawing(args.engraver_hiding, args.varied_tuplet_looks)
+    run = RunSettings(args.out, MuseScore(args.musescore),
+                      functools.partial(labelled_systems, k=args.systems_per_score, drawing=drawing))
     print(f"{len(scores)} scores, {len(pending)} to render in {len(work)} batches", flush=True)
     start = time.time()
     done = 0

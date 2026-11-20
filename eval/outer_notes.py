@@ -3,7 +3,7 @@ ottava signs and notes far above the top staff or below the bottom one, where a 
 staff crop runs out of room (EXPERIMENTS.md). For comparing short training runs
 that change the crops: overall SER is too blunt, since such notes are under 1% of its edits.
 
-usage: outer_notes.py CHECKPOINT --out PREDICTIONS.jsonl [--limit N] [--device cuda|cpu]
+usage: outer_notes.py CHECKPOINT --out PREDICTIONS.jsonl [--data DIR --sources S ...] [--limit N] [--device cuda|cpu]
        outer_notes.py --report PREDICTIONS.jsonl
 
 The crops are OLiMPiC's dev systems, synthetic and scanned (the same 1,422 systems, printed and
@@ -100,7 +100,7 @@ def wrong_label_tokens(reading: list[str], label: list[str]) -> set[int]:
 
 def report(rows: list[dict]) -> None:
     print(f"{len(rows)} crops")
-    for source in SOURCES + ("all",):
+    for source in sorted({r["source"] for r in rows}) + ["all"]:
         chosen = [r for r in rows if source == "all" or r["source"] == source]
         notes, edits, total, false_signs = Counter(), 0, 0, 0
         for r in chosen:
@@ -125,7 +125,7 @@ def read(args) -> list[dict]:
     vocab = Vocab.load(VOCABULARY)
     model = load_model(args.checkpoint, device)
     rows = []
-    for source in SOURCES:
+    for source in args.sources:
         root = args.data / source
         items = samples(root, split_names(root, "dev"))[:args.limit]
         paired = with_staves(items, root, args.data / "staff_positions")
@@ -151,6 +151,7 @@ def main() -> None:
     ap.add_argument("--out", type=Path, help="where the readings are saved, one JSON line a crop")
     ap.add_argument("--report", type=Path, help="report on readings saved earlier, reading nothing")
     ap.add_argument("--data", type=Path, default=DATA, help="the crops to read (default: OLiMPiC dev's, two staves)")
+    ap.add_argument("--sources", nargs="+", default=SOURCES, help="the set's subdirectories to read")
     ap.add_argument("--limit", type=int, help="the first N crops of each source only (a quick check)")
     ap.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
     args = ap.parse_args()

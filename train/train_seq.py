@@ -32,7 +32,8 @@ import torch
 from torch.nn import functional as F
 
 from seq.data import SystemDataset, collate, samples, split_names
-from seq.label_form import LabelForm, bars_of, voices_per_staff
+from seq.bar_voices import has_two_voices_on_a_staff
+from seq.label_form import LabelForm, bars_of
 from seq.meter import METER, PREFIX_LENGTH, without_meter
 from seq.model import Seq2Seq, StaffSeq2Seq
 from seq.ottava import sounding
@@ -59,8 +60,8 @@ def rhythm_heavy(sample) -> bool:
 
 
 def has_two_voices(sample) -> bool:
-    """A staff holds two or more voices in some bar."""
-    return any(count >= 2 for bar in bars_of(sample.lmx.read_text().split()) for count in voices_per_staff(bar).values())
+    """A staff draws two or more voices in some bar."""
+    return any(has_two_voices_on_a_staff(bar) for bar in bars_of(sample.lmx.read_text().split()))
 
 
 def dataset_items(spec: str, two_voice_repeat: int = 1):

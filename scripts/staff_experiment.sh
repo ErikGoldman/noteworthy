@@ -13,7 +13,11 @@
 # and which of them are scored (OLiMPiC scanned, its 615 systems with no copy in PDMX), and
 # NW_EXPERIMENT_OUTER_DEV outer_notes.py's set (OLiMPiC dev with pitches as printed): the one-staff
 # runs take each from build_onestaff_data.sh's output. NW_EXPERIMENT_OLIMPIC and
-# NW_EXPERIMENT_GRANDSTAFF choose the labels of those two training sets.
+# NW_EXPERIMENT_GRANDSTAFF choose the labels of those two training sets. NW_EXPERIMENT_ENGRAVED names
+# the Verovio and MuseScore sets to train on in place of pdmx, beams, round, marks and musescore:
+# engraver_hiding or tuplet_looks_v2 takes build_tuplet_experiments.sh's <set>_engraver_hiding or
+# <set>_tuplet_looks_v2 (TODO 3c). NW_EXPERIMENT_EXTRA_DATA adds train_seq.py --data entries to the
+# mix, as "features:train features_musescore:train" for the synthetic pieces (sets in $crops).
 # usage: staff_experiment.sh NAME TRAIN_SEQ_OPTIONS...
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
@@ -32,6 +36,10 @@ outer_dev="${NW_EXPERIMENT_OUTER_DEV:-$NW_DATA/olimpic_written_dev}"
 olimpic_written="${NW_EXPERIMENT_OLIMPIC:-$data/olimpic_written}"
 # GrandStaff's: grandstaff_release has the release's labels, its cleaning left out (TODO 3d).
 grandstaff="${NW_EXPERIMENT_GRANDSTAFF:-$data/grandstaff_written_v2}"
+engraved_sets=(pdmx beams round marks musescore)
+if [ -n "${NW_EXPERIMENT_ENGRAVED:-}" ]; then engraved_sets=("${engraved_sets[@]/%/_$NW_EXPERIMENT_ENGRAVED}"); fi
+engraved=("${engraved_sets[@]/#/$crops/}")
+read -r -a extra_data <<< "${NW_EXPERIMENT_EXTRA_DATA:-}"
 run="$NW_RUNS/$name"
 checkpoint="$run/average_$(printf '%06d' "$steps").pt"
 [ -f "$run/scores.txt" ] && { log "$name: already scored"; exit 0; }
@@ -39,7 +47,7 @@ mkdir -p "$run"
 
 if [ ! -f "$checkpoint" ]; then
   (cd "$ROOT/train" && "$PY" train_seq.py --data "$olimpic_written:train:2" "$grandstaff:train" \
-    "$crops/pdmx:train" "$crops/beams:train" "$crops/round:train" "$crops/marks:train" "$crops/musescore:train" \
+    "${engraved[@]/%/:train}" "${extra_data[@]/#/$crops/}" \
     "$crops/unmarked:train:$unmarked_weight" "$crops/smashcima:train:$smashcima_weight" "$data/musicorpus:train:$musicorpus_weight" \
     --dev "$dev:dev" --dev-samples "$dev_samples" --dev-count "$(wc -w < "$dev_samples")" \
     --out "$run" --batch 10 --lr 3e-4 --warmup 4800 --steps "$steps" --eval-every 5000 \

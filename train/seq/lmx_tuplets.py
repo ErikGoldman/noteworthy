@@ -58,10 +58,23 @@ class Note:
 
 
 @dataclass
+class Event:
+    """A head as written in its stretch, for counting voices (seq.bar_voices): a note (grace notes and
+    chord members too), a rest, a whole-bar rest or a forward."""
+    kind: str                   # "note", "rest", "measure rest", "forward"
+    onset: Fraction             # in the bar, a backup going back by its length
+    drawn: bool                 # False for a forward and anything print-object:no
+    staff: int | None = None    # from the stretch's staff:N tokens (resolve_staff)
+    voice: str | None = None    # its voice:N token
+
+
+@dataclass
 class Voice:
+    """A stretch of a bar between backups."""
     notes: list[Note] = field(default_factory=list)
     skipped: Fraction = Fraction(0)  # forwards
     measure_rest: bool = False
+    events: list[Event] = field(default_factory=list)
 
     def total(self) -> Fraction:
         return self.skipped + sum((n.length for n in self.notes if n.advances), Fraction(0))
@@ -95,21 +108,52 @@ def length_at(tokens: list[str], at: int) -> tuple[Fraction, int | None]:
     return length * scale, ratio_at
 
 
+def resolve_staff(voice: Voice, staff: int) -> None:
+    """A staff:N token: the linearizer writes one after a note's head whenever the staff changes (and
+    at each stretch's first note), so it is the last event's, and that of any before it in the stretch
+    still without one (a forward or grace note opening the stretch)."""
+    for event in voice.events:
+        if event.staff is None:
+            event.staff = staff
+    if voice.events:
+        voice.events[-1].staff = staff
+
+
+def resolve_voice(voice: Voice, name: str) -> None:
+    for event in voice.events:
+        if event.voice is None:
+            event.voice = name
+    if voice.events:
+        voice.events[-1].voice = name
+
+
 def parse_measure(tokens: list[str], start: int, end: int) -> list[Voice]:
     voices, voice = [], Voice()
     depth, group, next_group = 0, None, 0
     inner, next_inner = None, 0
-    chord = grace = False
+    chord = grace = hidden = False
     head = None
     note = None
+    time = onset = Fraction(0)  # where the stretch has reached; the last advancing note's onset
+    staff = name = None         # staff:N and voice:N in force in the stretch
     for i in range(start, end):
         token = tokens[i]
         if token in ("grace", "grace:slash"):
             grace = True
         elif token == "chord":
             chord = True
+        elif token == "print-object:no":
+            hidden = True
         elif token == "rest:measure":
             voice.measure_rest = True
+            voice.events.append(Event("measure rest", Fraction(0), not hidden, staff, name))
+            hidden = False
+        elif token.startswith("staff:") and not (i > start and tokens[i - 1].startswith("clef:")):  # a clef's own staff
+            staff = int(token.removeprefix("staff:"))
+            resolve_staff(voice, staff)
+        elif token.startswith("voice:"):
+            name = token
+            resolve_voice(voice, name)
         elif token in ("forward", "backup", "rest") or PITCH.match(token):
             head = token
         elif token in LENGTHS and head:
@@ -117,13 +161,20 @@ def parse_measure(tokens: list[str], start: int, end: int) -> list[Voice]:
             if head == "backup":
                 voices.append(voice)
                 voice = Voice()
+                time, staff, name = time - length, None, None
             elif head == "forward":
                 voice.skipped += length
+                voice.events.append(Event("forward", time, False, staff, name))
+                time += length
             else:
                 note = Note(i, length, not (chord or grace), tuplet_at, group if depth else None,
                             inner if depth > 1 else None, grace)
                 voice.notes.append(note)
-            head, chord, grace = None, False, False
+                at = onset if chord else time
+                voice.events.append(Event("note" if PITCH.match(head) else "rest", at, not hidden, staff, name))
+                if note.advances:
+                    onset, time = time, time + length
+            head, chord, grace, hidden = None, False, False, False
         elif token == "beam:begin":
             if depth == 0:
                 group, next_group = next_group, next_group + 1

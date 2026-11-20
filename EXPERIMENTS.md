@@ -5443,3 +5443,231 @@ white-paper print draws as it did (`test_augment.BinarizeTest`; the fixed thresh
 of 300 draws). A second fresh sample (150 a source, both fixes): no Smashcima draw and 1 of 109
 MusiCorpus draws flagged, and every flagged draw (5 GrandStaff, 1 PDMX, 1 MusiCorpus) readable by
 eye, heavy strokes the measure mistakes for lost ink. 254 training tests pass.
+
+## Benchmark overlap rechecked: no GrandStaff copies (2026-11-19)
+
+`eval/benchmark_overlap.py` rewritten: training is every unit as trained on
+(`held_out_copies`' render list less its held-out scores, GrandStaff's 362 movements at one crop a
+bar range, OLiMPiC's 1,095 songs, MusiCorpus's 14 manuscripts), fragments taken per file and
+pooled per unit, the SMB check's fix; `--training LIST` still checks a source before it is trained
+on. Shares in `eval/benchmark_overlap.tsv`.
+
+| Benchmark | Items | At or over 0.10 | Largest | Largest against GrandStaff alone |
+|---|---|---|---|---|
+| Polish | 112 pages | 7 (6 dev, 1 test: 007) | 0.202 (097, PDMX) | 0.105 (091, already flagged) |
+| OLiMPiC test | 100 songs | 4 | 0.195 (PDMX) | 0.098 |
+| OLiMPiC dev (control) | 100 songs | 16 | 0.810 (6472842, the known copy) | 0.115 |
+
+The counts match the protocol's of 2026-11-05 (7 and 4, none at 0.26), and GrandStaff holds no
+copy of any: its largest shares are the generic level unrelated pieces reach (Beethoven
+sonatas against Polish pages and Lieder). Polish names no pieces and OLiMPiC is Lieder, so no
+check by name applies. `smb_benchmark.py` keeps its own copy of the engine for now: it runs in
+.venv-musicdiff (converter21 for **kern), which lacks yaml and torch that `held_out_copies`
+brings.
+
+## Spec 4's printed-tuplet set: built; the hidden class cannot be (2026-11-19)
+
+Of the 935 unseen held-out PDMX scores (`held_out_copies.is_unseen`), 785 have a readable piano part
+and 136 hold tuplets; **6 hide any tuplet number** (422 of 3,904 groups), 130 show every one. Spec 4
+wanted 40 scores a class, so the hidden class is not built from authored settings (PDMX hides in
+about 2% of its scores with tuplets, not the quarter ASAP and OLiMPiC suggested), and waits for spec
+5's real scans. The user chose the printed class alone.
+
+`eval/build_cause_sets.py`: each unseen score cut into systems as the MuseScore training crops are
+(same seed, same style variant), and the first 5 systems whose label holds a tuplet, engraved by
+MuseScore 3.6.2 (every number drawn and labelled shown), clean and through `capture_degradation`.
+**278 systems from 101 scores, 496 bars with tuplets; 39 scores hold 5 or more** (the per-piece
+measure's floor; spec 4's 40 is missed by one, its 20-piece floor met). Lost: 150 scores without a
+two-staff part, 37 unreadable by the training parser (31 AssertionError, 6 AttributeError), and
+systems MuseScore drew otherwise than labelled (29 barlines differing between staves, 4 barline
+counts, 1 broken onto two pages). Staves found for all 278.
+
+Read one system at a time (`outer_notes.py --data DIR --sources clean degraded`), not as pages with
+`seq_pages.py rendered` as the spec said: the label is exact for a crop, and the page's segmentation
+would add noise the set is not about. Scored by `eval/cause_bars.py`, spec 4's per-piece measure
+(see "Spec 4's rendered sets", below: the set was rebuilt there beside two voices and chords).
+
+By eye, the 20 crops spec 4 asks for (every 14th sample; 15 clean, 5 degraded): **all 20 agree**,
+bar by bar: every tuplet group in the label is drawn with its number, and none drawn is missing from
+the label (2-note groups such as a quarter and eighth, 6:4 sextuplets, groups in both staves of a bar,
+groups under an ottava). Degradation leaves every number legible. One (samples/013237/s1) shows
+unnumbered brackets under the lower staff in its last three bars, which the label has no tuplets
+for: the score's pedal lines (`<pedal line="yes">`, 122 of them), drawn by MuseScore without text,
+and not tuplets. A second (samples/015344/s0, "simile") has the same. MuseScore draws a textless
+pedal line as an open bracket under the staff, much like a tuplet bracket without its number: a
+reading that turns it into a hidden-number tuplet is charged here, as it should be.
+
+
+## Tuplet hiding, tuplet looks and synthetic bars: built (2026-11-19)
+
+Three training changes for TODO step 3, each one run against (l)'s seeds, each behind its own
+builder option so the baseline's sets rebuild unchanged (checked: today's builders reproduce the
+2026-11-13 sets file for file, 420 Verovio files of 60 scores, 216 of the marks set, 146 MuseScore
+files of 20 scores; with the options off, byte for byte the last commit's output).
+
+**Engravers' hiding** (`--engraver-hiding`, `seq.tuplet_display`), from the rates of 2026-11-15
+("When real scores hide a tuplet's number"): per score, show every number (65%), hide by run (28%),
+hide all (7%); hiding by run leaves a group's number out 50 / 65 / 72 / 78 / 87% at its 1st to 5th
+and later place in a run of like groups, at most 58% at a voice's first tuplet in a system, 47%
+alone in its bar, 10% for 5s and 7s. Replaces the blind rule (one system in five, all hidden) in
+the Verovio and MuseScore sets; `unmarked` stays as it was.
+
+**Varied looks** (`--varied-tuplet-looks`): each score draws one look: number above or below (else
+the engraver's choice), bracket forced on or off, 3:2 in 5% of scores, and shares of numbers set
+1.5-4 interlines away from their notes (as over a slur), drawn at 55-80% size, or bracketed with an
+arc (1e's "far up a slur, small arc, small number"). Labels do not change. Verovio takes side,
+bracket and ratio from MusicXML and the rest from edits of its SVG (`seq.tuplet_svg`).
+
+**MuseScore through its own file.** MuseScore 3.6.2 ignores MusicXML's show-number, bracket,
+placement and 3:2 on import (tested: every number drawn, bracket by beaming); it honours its .mscx
+(numberType, bracketType, direction, a number offset). With either option each system goes
+MusicXML, .mscx, tuplets drawn there (`train/mscx_tuplets.py`), page. Groups pair by staff, bar and
+order, checked by ratio and every note's value and pitch class (under an ottava the MusicXML has
+printed pitches, the .mscx sounding ones). On 40 scores with tuplets, 5 of 147 systems did not pair
+and were left out, counted in their outcome: groups MuseScore does not keep as tuplets (two eighths
+marked 3:2). No arcs or small numbers in MuseScore.
+
+**Synthetic pieces** (`train/synthetic_bars.py`, the user's idea). A first design drew every beat
+of every voice alone, 40% of them tuplets, and 40% of a voice's bars one tuplet beat repeated: built
+(`bars`, 15,158 Verovio crops, 20 checked by eye against their labels, all right), but 96% of its
+bars held a tuplet, as four beats and about three voices a bar compound a beat's chance. Not used.
+Redesigned with the user: a piece at a time, each with one feature or none, the feature set in
+otherwise plausible music, features not overlapping. Eight bars over a diatonic progression (I to V
+or I every four bars), a right-hand melody mostly stepwise and on chord tones at the beat, plain
+rhythms and a long value closing each phrase; the left hand in one pattern a piece (block chords,
+broken chords, bass and chord, held octaves). Then plain (20%), or tuplets (30%: one kind a piece,
+3:2 eighths most, as passages over some beats in 70% of bars, or the left hand's broken chords in
+triplets), two voices on a staff (25%: an inner line of longer values with rests under the melody,
+or a bass voice under the chords), or dense chords (25%: three- and four-note chords in both hands).
+Passing chromatic notes in the melody only. Tests: every voice fills its bar, beams and tuplets
+close, a feature's mark appears in its pieces and no other (tuplets, a second voice, right-hand
+chords of three or more), the systems linearize, a piece depends on its index alone. 40 pieces drawn
+by Verovio and looked at by feature: each reads as its feature in ordinary surroundings.
+
+By eye so far, 30 Verovio and 10 MuseScore crops with the options, counted against their labels:
+every crop's printed and hidden groups agree with its `tuplet:start` and `tuplet:hidden` tokens;
+arcs, 3:2, small and far numbers drawn as meant. A far number can land between the staves, and
+MuseScore can draw two voices' numbers on one spot: as real prints do, and the labels hold. The
+formal 20 crops a set wait for the full builds (`scripts/build_tuplet_experiments.sh`, started
+19:44 ET; log `data/tuplet_experiments_build.log`).
+
+## Spec 4's rendered sets: printed tuplets, two voices, chords (2026-11-19)
+
+`eval/build_cause_sets.py` now builds three sets from the 935 unseen held-out PDMX scores, each the
+first 5 systems a score holding a bar of its class, chosen by the label alone with the classes it is
+scored by; MuseScore-engraved, clean and degraded (`data/cause_sets/held_out_2026-11-19c`, record
+`eval/cause_sets.txt`; the two-voice set rebuilt twice the same evening as its class was fixed, below):
+
+| Set | Systems | Scores | Class bars | Scores with 5+ (spec 4's pieces) |
+|---|---|---|---|---|
+| printed_tuplets | 279 | 101 | 497 | 40 |
+| two_voices | 1,437 | 472 | 3,146 | 261 |
+| chords | 2,455 | 626 | 6,046 | 541 |
+
+Read with `outer_notes.py CHECKPOINT --data .../<set> --sources clean degraded`, scored by
+`eval/cause_bars.py`. By eye, 20 crops a set: chords and two voices all agree with their labels
+(the tuplet set's 20 were checked before, above; the rebuild left it unchanged); one two-voice crop
+is a lower-staff voice's cross-staff note on the upper staff, two voices there as printed.
+
+**The scorer is now tracked.** Spec 4's classes and bar test moved from the scratch scripts
+(runs/overnight_2026-11-14: cause_bars.py, compare_bars.py, voice_events.py, compounding.py) to
+`eval/bar_classes.py` and `eval/cause_bars.py`, with tests; before the fix below it reproduced the
+scratch scorer's 2026-11-18 numbers exactly. Two findings on the way:
+
+- **The test is rhythm, not equality.** A label bar is right when the alignment pairs it with a
+  reading bar of the same rhythm (`tuplet_bars.rhythm`: durations, dots, ratios, rests, chords,
+  backups and forwards). Pitches, accidentals, staves, stems, beams and ties are not compared. The
+  2026-11-18 entry called it equality; its numbers were rhythm's. Fair for tuplets and voices,
+  lenient for chords (a chord of the right size with a wrong tone passes).
+- **A bug in the two-voice class, fixed.** A voice's staff was read from the first `staff:` token
+  after its first timed note; a voice opening with a grace note carries its token after the grace
+  note, so the next voice's staff was taken, and an upper-staff melody counted as a second voice on
+  the lower staff. Found by eye in 2 of 20 crops of the first two-voice set (rebuilt). On OLiMPiC's
+  clean scanned songs, (l) at 100k: two voices 62.4% (38 songs) to 62.9% (36), seed 2 60.1% both,
+  seed 1's repeat 60.5%; chords unchanged; none of these 88.6 to 88.3%. The two-voice signal/noise of
+  2.97 rests on the old classes and is to be measured again.
+
+## One parser for a bar's voices, checked against the MusicXML (2026-11-19)
+
+Three rules counted a staff's voices, each on its own token scan, none tested against the others or
+on real labels: `seq.label_form.voices_per_staff` (the voice-count label form and training's
+two-voice repeat), spec 4's class (`eval/bar_classes`, from the scratch scorer) and the generator's
+test. They disagreed on 0.7% of 66,427 bars. Two bugs: the training rule took a bar-opening clef's
+`staff:2` (`clef:F4 staff:2`) as the first voice's staff, so a bar with one voice a staff counted two
+on the lower (402 bars); the eval rule took the next voice's staff for a voice opening with a grace
+note.
+
+Now `seq.lmx_tuplets.parse_measure`, the parser `imply_tuplets` already used, also records each
+head's onset, kind and staff and voice as the tokens resolve them (a clef's staff token is the
+clef's), and `seq.bar_voices` answers both questions from it: **voices written** (stretches holding a
+note or rest, on the staff of their first; the voice-count form) and **voices with notes** (the
+user's definition, 2026-11-19: a staff holds two voices when it has notes from two; rests, hidden
+notes and forwards do not count; a voice crossing staves counts on each staff it has notes on).
+The parser change is additive: `imply_tuplets` gives byte-identical output on all 301,665 training
+labels and saved dev readings.
+
+**Checked against the MusicXML** (`eval/check_bar_voices.py`): every training score cut into
+systems as the builders cut them, and 1,000 synthetic pieces, linearized; each bar's counts from the
+tokens against those from the MusicXML's own `<staff>`, `<voice>` and print-object. **567,437 bars,
+no disagreement** (stretches of forwards alone, which MuseScore writes to carry a clef change, are
+not written voices; first found as 4 disagreements, decided so). Kinds of bar covered: clefs opening
+and inside bars, whole-bar rests, hidden notes and rests, voices opening with grace notes or
+forwards, cross-staff notes, tuplets in two voices. Six real bars of each, with their MusicXML
+counts, are `train/test_bar_voices_cases.jsonl`, run by `train/test_bar_voices.py` beside a
+hand-made bar for each rule.
+
+What moved: the voice-count form's counts in 0.9% of bars (only (p) used it); training's
+two-voice bars 1.3% fewer (only 3b's repeat used them). Spec 4 on OLiMPiC's clean scanned songs,
+(l) seed 0 / seed 2 / seed 1's repeat at 100k:
+
+| Class | 2026-11-18 (scratch rule) | Now |
+|---|---|---|
+| Two voices on a staff | 62.4 / 60.1 / - (38 songs) | 63.2 / 61.0 / 59.5 (36) |
+| Chord of 3+ | 79.6 / 78.3 / - (39) | 79.6 / 78.3 / 77.9 (39) |
+| None of these | 88.6 / 87.7 / - (28) | 90.9 / 90.3 / 91.3 (27) |
+
+"None of these" rose because cross-staff bars where the other staff has another voice's notes now
+count as two voices, and they are hard bars. The two-voice signal/noise (2.97) is to be measured
+again on the new classes.
+
+## The new training sets by eye; far tuplet numbers fell off the page (2026-11-19)
+
+20 crops a set against their labels (half with a hidden group where the set has them), per bar:
+printed and hidden groups, and for the synthetic pieces voices with notes and the largest chord.
+
+- **Engraver hiding, all five sets (pdmx, beams, round, marks, musescore): 100 of 100 agree.** Every
+  hidden group draws neither number nor bracket; runs print their first number or two and drop the
+  rest. MuseScore: 108 of about 53,000 systems did not pair with its own file and were left out
+  (0.2%). Things that look like tuplet marks and are not: pedal lines drawn as open brackets, an eighth
+  rest at small size.
+- **Varied looks, first build: a real fault.** In the round set a group labelled printed showed no
+  number (samples/011305/s1). A number set far from its notes (1.5 to 4 interlines) can leave
+  Verovio's page, which holds the music within a 500-unit margin, and nothing off the page is drawn.
+  Fixed (`seq.tuplet_svg.page_grown_to_hold`: the page grows to hold each moved number, before it is
+  sized; tested), and the same risk closed for MuseScore (`mscx_tuplets.ROOMY_PAGE`, a page with 2
+  inches above and below on the looks route). Default builds unchanged (checked byte for byte). The
+  first build (`<set>_tuplet_looks`) is left unused; `<set>_tuplet_looks_v2` rebuilt. Before the fault
+  the four Verovio sets' other 79 crops agreed, with every look drawn as meant (3:2, far, small, arcs,
+  side brackets).
+- **Synthetic pieces, Verovio (`features`): 20 of 20 agree**, five of each feature. Of the tuplet
+  pieces' systems 89% hold a tuplet (the rest are cadence bars and bars without a passage), two-voice
+  pieces' 99%, dense-chord pieces' 100%.
+- In passing, not new: some crops draw an empty box where a score's text uses a music symbol the
+  text font lacks ("poco più ☐"); the default builder draws the same, so the baseline's crops have it.
+
+## Spec 5: Gemini's pages, a first look against the print (2026-11-19)
+
+37 of the 40 pages of pairs 24-43 are in `runs/spec5/gold_agy/` (Gemini through the agy CLI,
+`TRANSCRIBE_AGY.md`), each "passes: 2 full". `check_gold.py`: 31 pass, 6 list bar-length flags, the
+worst Op. 67 p. 010's 11, all bars split around a double barline (right in print).
+
+Bar by bar against the PDF at 4-8x, before any system reads them (the spec's order):
+- **Op. 67 p. 010, system 1 (bars 0-4): four errors.** The chord closing the system is a dotted
+  quarter (filled heads, a dot) written as a dotted half on all four notes: it fills the bar, so the
+  bar-length check cannot see it (the next bar is the 1.5-beat pickup). In bars 0-2 the third 16th of
+  the upper figure is A#4 (level with the first), written B4 each time. System 2's first two bars agree.
+- **Heller Op. 47 p. 020, system 1 (bars 0-5): none found**, with less certainty on the left hand's
+  octaves at this scan's resolution.
+So Gemini's pages are not uniform: one carries a repeated misreading and a duration error that
+the bar-length check passes. They need the full review the first 50 had, not a skim.
+

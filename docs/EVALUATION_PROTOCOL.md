@@ -146,8 +146,11 @@ gold. Models fine-tuned on a benchmark are not zero-shot baselines.
 Before scoring, each benchmark is checked for copies of training pieces with
 `select_mutopia.melody_grams`: the share of a page's or song's fragments found in one training
 piece, 0.10 as the threshold, on the known copy in OLiMPiC dev (share 0.81) as positive control.
-Results are given with and without flagged pages. Polish: 7 pages flagged, none at 0.26.
-OLiMPiC test: 4 songs flagged, none at 0.26.
+Results are given with and without flagged pages. Rechecked 2026-11-19 against every training
+unit as trained on, fragments pooled per file (GrandStaff's crops and OLiMPiC's systems number
+their bars from 0): Polish 7 pages flagged (097, 023, 010, 091, 049, 067 dev; 007 test), largest
+0.202; OLiMPiC test 4 songs, largest 0.195; GrandStaff alone reaches none (largest 0.105, page 091,
+flagged by PDMX already). The shares: `eval/benchmark_overlap.tsv`.
 Each new training source is checked the same way before it is trained on
 (`eval/benchmark_overlap.py`). MusiCorpus' 53 training grand staves (from seq516), 2026-11-10:
 none of Polish's 112 pages (largest share 0.061), OLiMPiC scanned's 200 dev and test songs
