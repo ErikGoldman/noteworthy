@@ -1,11 +1,139 @@
 # To do
 
-Status as of 2026-11-19. The reader is Seq2Seq; StaffSeq2Seq was retired on 2026-11-15
+Status as of 2026-11-20. The reader is Seq2Seq; StaffSeq2Seq was retired on 2026-11-15
 (EXPERIMENTS.md, "(l): Seq2Seq matched to T7"), and its own experiment list is in git history
 (`TODO_STAFF_MODEL.md` before this commit). Results and evidence are in `EXPERIMENTS.md`. The
 list from before the staff model (seq512 to seq516, 2026-11-06 onward) is
 `docs/history/TODO_2026-11-06.md`: its standing rules and decisions are below; its other open
 items have not been re-checked since.
+
+## Priority 1: counting beats and recognizing tuplets (the user, 2026-11-20)
+
+Until this is solved, other problems wait unless one has a very clear path to a fix.
+
+What is known (EXPERIMENTS.md, from "Hidden tuplets: what goes wrong, and the first fine-tunes" on):
+hiding a tuplet's number costs about 15 points on the same bars (spec 4's hidden_tuplets set, 271
+systems, against printed_tuplets). 75-83% of the failures drop the tuplet and leave a bar overfull
+for its meter, whether or not the crop draws the time signature: the model does not count beats.
+It closes an overfull bar as readily as a right one (probe 1). Clock tokens make it decline overfull
+bars 3-4 times as often but move no readings at 10k steps, and the clock it writes is mostly read
+off the page, not counted from its notes. Hiding a note or a group while its length is written
+(masking) taught it to fill gaps from neighbours, not to count.
+
+Done: probes 1 and 3 (2026-11-20); hidden-only fine-tune (+20 on hidden bars, four times the false
+tuplets, no counting); masking, three ways (closed at this size); clock tokens at 10k, two seeds.
+
+**Order.** No-training diagnostics first, as they decide which training bets are worth making;
+then the bets, the best-founded first; the biggest build last.
+
+**Results of 2026-11-21, and what they leave open** (EXPERIMENTS.md, from "The night's runs, local"):
+- Not adopted: onset tokens (two seeds), the deeper encoder (two seeds), DPO, the clock variants,
+  joined bars (closes bars without a line, but not by adding), synthetic bars and masks for stage 2,
+  the count as a repair of one end-to-end reading (about even with imply_tuplets).
+- **The count as a referee between two readings** works on the headline: the release model's
+  reading first, a second from (l) + 1,500 steps on hidden-group crops (`dpo_ft.py --no-dpo`, about
+  25 minutes; reproduced with seed 1), each bar the two differ on taken from the first that adds up.
+  Polish dev corrected OMR-NED 21.27 → 20.66-20.68 (outside chance); dev v2 scans hidden-number bars
+  54.3 → 65.0, plain 80.0 → 80.4. Scratch scripts: `runs/stage2_gold_2026-11-21/referee_pages.py`,
+  `polish_referee*.sh`. **Held for the user:** adopt it (a referee option in seq_pages.py and
+  benchmark_pages.sh, the second checkpoint built by the recipe), and whether the published system
+  may read twice.
+- **Stage 2 on gold symbols** (item 7's test): columns (what stands together) beat exact positions;
+  with every common ratio a class and the count, 88.3% of real tuplet bars right
+  (`run_columns_wide`). It cannot run on real pages without columns from the page.
+- **A position output** (open, a day or more): the builder records each note's x from Verovio's SVG,
+  a head on the decoder predicts it, columns come from the page. The decoder's layer-2 attention
+  already locates notes roughly (AUC 0.95; too coarse to use as is). It would make the count's
+  alignment check evidence, the cause of 58% of the bars the count could not fix.
+
+0. **In flight** (2026-11-20 evening): the clock variants on Vast (30k steps, clock weight 3, clock
+   with `--meter-context`, clock with often-hidden data) and clock-consistency training stage 1
+   (local, against its control; "dot removed" is the held-out test of whether it learned to add).
+   `--meter-context` is tested as the clock + meter variant.
+1. **Backtracking at decoding** (the user's idea). No training, a few hours to build. Where a bar's
+   sum, computed from the notes the model wrote (not its clock tokens, which are read off the page),
+   misses the meter, decode that bar again among the model's own candidates and keep the most
+   probable that fills it. The model chooses the fix; code only finds the bar. *Why first:* it says
+   whether the right reading is within the model's reach. If it is, training need only move the
+   model's preference (favours 5, RL); if not, the knowledge is missing (favours 3, a new label form).
+   It is also a ceiling for any decoding check (the earlier "rerank the beam by bar length" item).
+   Variant: block `measure` in the bar's beam until the sum fits (an FSA mask), careful with
+   pickup bars and voices that stop early. The bar sum always from code, never the model's clock.
+2. **Barline check, no training** (the user's idea; first step of 4). About an hour. Erase one
+   barline per system of the hidden-tuplet set in the pixels and score `measure` teacher-forced; a
+   decoy column of the same width erased elsewhere tells whether the gap alone gives it away.
+   Barlines located from the render's positions if the pipeline records them, else detected (a thin
+   line across the whole staff, unlike stems), checked by eye. *Why now:* if the model still places
+   bars right without the line, hiding barlines teaches nothing and 4 drops out.
+2b. **Lookahead probe, no training.** Linear probes on the frozen encoder's features at each bar's
+   first notehead, and on the decoder's states there: does the bar hold a hidden tuplet, how many
+   onsets and beats does it hold? If the 2-layer encoder cannot tell, that is the case for a deeper
+   one (3b).
+3. **Each note's position before the note** (the user's idea), factorized: `beat:N` (whole quarters)
+   plus `sub:p/q` (0, 1/4, 1/3, 1/2, 2/3, 3/4, ...; about 40 tokens), on onsets only, not chord
+   members (sequences grow 30-40%: watch max_tokens). E.g. `beat:1 sub:1/3 B4 eighth 3in2 ...`, so a
+   length is the gap to the next position (local arithmetic) instead of a running sum. *Why the
+   strongest bet:* the model already reads positions off the page (it writes the image's clock
+   66-89% of the time where that differs from its notes'), so the shortcut does the work; and there
+   is precedent in symbolic music generation: REMI (Huang & Yang, ACM MM 2020) replaced time-shift
+   events with Bar and Position tokens and kept bars and beats steadier; Compound Word (Hsiao et al.,
+   AAAI 2021) and OctupleMIDI (MusicBERT, Zeng et al., ACL 2021) keep bar and position with each
+   note. Their 16-step grid has no triplets: ours needs fractional positions (seq.label_form's `at:`
+   tokens exist). Weak where nothing aligns with a lone triplet (engraved spacing is not
+   proportional); strongest against the other hand. A label form like the clock's, then a 10k
+   fine-tune on Vast.
+3b. **A deeper encoder, if 2b says the encoder cannot see a bar's whole**: the encoder has 2 layers
+   (seq/model.py). Layers inserted with their output projections at zero start as (l) exactly, so a
+   10k fine-tune tests depth without a 100k run. A looped (recurrent-depth) block is the larger version.
+4. **Hide barlines in training** (the user's idea). The barline check (2026-11-20 night) says the line
+   is the model's only cue for a bar's end: fed every note before it right, (l) closes a bar 98% of
+   the time with its barline and 18% without. **Done as joined bars, engraved sets only** (the user:
+   pixel erasing has too many edge cases: ties and slurs cut where they cross, paper texture on
+   scans, and the engraver's extra space around an erased line): `build_seq_dataset.py --joined-bars`
+   (seq.joined_bars) joins some boundaries of each system in the MusicXML before Verovio draws it
+   (it does not count beats, and spaces a long bar evenly: an invisible barline alone still leaves
+   a gap 26% wider), the label keeping every bar. `build_tuplet_experiments.sh joined_bars` builds
+   hidden_often's Verovio sets so; `ft_l_joined_10k` is hidden_often's fine-tune with them in place
+   of their printed-barline twins, against `ft_l_hidden_often_10k` (71.2 on the hidden-tuplet test).
+   Still to build: **the counting-vs-spacing test** (a bar's end with its barline gone and one length
+   before it changed: a counting model moves the bar's end, a looking one does not), on (l) and on
+   the joined model, before its gains are believed. Cues left: beams never cross a joined boundary;
+   a whole-bar rest drawn as a plain one; real scans keep their barlines.
+4b. **Preference fine-tuning on the model's own overfull bars** (DPO or unlikelihood): pairs of the
+   right bar and the model's overfull reading of it (the evaluations already hold them), no sampling
+   loop; gradient straight onto "do not close an overfull bar". A local 1,500-step test, before 5.
+5. **RL fine-tuning** (the user's idea). Reward bars that add up to the meter, checkable without
+   gold, so unlabeled real scans can train; with a label-match reward on synthetic data (self-critical
+   sequence training, as in captioning) against reward hacking by invented tuplets or dropped notes,
+   and false tuplets watched. *Why last:* the biggest build, and worth it only if 1 shows right
+   readings are within sampling reach.
+5b. **Two-pass deliberation**: Pass 2 attends to the whole of Pass 1's draft (bidirectionally) and
+   the image, and writes the final reading. Trained on Pass 1's real readings of the training set (a
+   few GPU-hours), never on gold, or it learns to copy. After 1 says how much a second look is worth.
+6. **Real scans: the same failure sort** on OLiMPiC dev v2's hidden-number bars and Polish's.
+   Cheap but it does not change direction: whenever the GPU is idle, and before any win is claimed,
+   since dev v2's real-scan numbers have been noisy.
+7. **Two stages: symbols, then rhythm across the bar** (the user, 2026-11-21). Stage 1 reads the
+   symbols ({x, staff, pitch, notehead, flags or beams, dots, barlines}), stage 2 assigns each its
+   onset, length and voice with the whole bar in view (bidirectional), so hidden tuplets are the
+   one assignment that fills the meter. *Why:* the lookahead probe found the decoder knows nothing
+   of a bar before writing it (chance at its `measure`): it decides rhythm note by note from looks.
+   Classical OMR (Audiveris) detects symbols and then solves each bar's rhythm, which is how it finds
+   unmarked tuplets; this learns both. Costs: symbol positions in the labels (Verovio's SVG and MEI
+   give them for rendered data; none for real scans, so stage 1 renders-only or an order-only loss
+   such as CTC), voices assigned in stage 2 (the scorer charges them), the result written back as
+   LMX; a new decoder, one to two weeks, then full runs.
+   - **First, stage 2 alone on gold symbols** (a few hours, no rebuild): from rendered bars, the true
+     symbols (never the ratio or a hidden number) into a small bidirectional model that predicts
+     onsets and lengths. If it gets hidden tuplets nearly all right, the design holds and the risk is
+     stage 1's perception, which the model already does well; if not, the rebuild would not help.
+   - After tonight's runs (joined bars, onsets, deeper encoder): if they show the current model can
+     learn to count, this may not be needed.
+
+Parked (2026-11-20): events serialized in time order across both staves (the other hand's lengths
+in the token history; but LMX, the delinearizer and the voice scoring are voice by voice: after 3
+shows positions help); a bar header or countdown clock (the meter is the header, and `--meter-context`
+added nothing; a "this bar holds a tuplet" bit is the one piece worth a look).
 
 ## Where the cost is (Polish dev, 2026-11-16)
 

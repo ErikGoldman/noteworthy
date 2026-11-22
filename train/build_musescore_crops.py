@@ -3,7 +3,7 @@ Verovio (build_seq_dataset.py), for the sequence model (train_seq.py).
 
 usage: build_musescore_crops.py --scores LIST.txt --out DIR [--systems-per-score K]
                                 [--renderers R] [--scores-per-batch B] [--limit N]
-                                [--musescore SQUASHFS_ROOT] [--engraver-hiding] [--varied-tuplet-looks]
+                                [--musescore SQUASHFS_ROOT] [--tuplet-hiding {engravers,often}] [--varied-tuplet-looks]
 
 Scores, systems and labels are chosen as for the Verovio crops: the same training scores, the
 first two-staff part cut into systems of a few measures, each system made self-contained by
@@ -22,7 +22,7 @@ spacing), drawn from the score's index, so a score's crops do not depend on whic
 rendered in, and a run stopped and restarted writes what an uninterrupted one would.
 
 MuseScore draws every tuplet number of a MusicXML file (show_every_tuplet_number). With
---engraver-hiding or --varied-tuplet-looks the numbers are hidden and set as build_seq_dataset.py's
+--tuplet-hiding or --varied-tuplet-looks the numbers are hidden and set as build_seq_dataset.py's
 options say (seq.tuplet_display), through MuseScore's own file, which it honours: each system is
 converted to .mscx, its tuplets drawn there (mscx_tuplets), and the .mscx engraved. A system whose
 tuplets do not pair between the two files is left out ("tuplets do not pair" in its outcome).
@@ -67,7 +67,7 @@ from seq.staff_positions import Staves  # noqa: E402
 from omr.pieces import pdmx_license_conflicts  # noqa: E402
 from seq.barlines import REPEAT_START, barline_tokens_of  # noqa: E402
 from seq.ottava import add_octave_shifts, shifts_of  # noqa: E402
-from seq.tuplet_display import ScoreTuplets, TupletDrawing, hide_as_engravers_do, set_look  # noqa: E402
+from seq.tuplet_display import HIDING_MIXES, ScoreTuplets, TupletDrawing, hide_as_engravers_do, set_look  # noqa: E402
 from mscx_tuplets import drawn_in_mscx  # noqa: E402
 
 MIN_TOKENS = 10
@@ -657,7 +657,8 @@ def main() -> None:
     ap.add_argument("--scores-per-batch", type=int, default=4, help="scores per MuseScore process")
     ap.add_argument("--limit", type=int, help="only the first N scores of the list")
     ap.add_argument("--musescore", type=Path, default=ROOT / "tools" / "musescore" / "squashfs-root")
-    ap.add_argument("--engraver-hiding", action="store_true", help="hide tuplet numbers as engravers do")
+    ap.add_argument("--tuplet-hiding", choices=sorted(HIDING_MIXES),
+                    help="hide tuplet numbers by a mix of seq.tuplet_display: as engravers do, or often")
     ap.add_argument("--varied-tuplet-looks", action="store_true", help="set printed tuplet numbers in varied ways")
     args = ap.parse_args()
     raise_on_sigterm()
@@ -670,7 +671,7 @@ def main() -> None:
     (args.out / "samples").mkdir(parents=True, exist_ok=True)
     pending = [(i, s) for i, s in scores if not score_dir(args.out, i).exists()]
     work = batches(pending, args.scores_per_batch)
-    drawing = TupletDrawing(args.engraver_hiding, args.varied_tuplet_looks)
+    drawing = TupletDrawing(args.tuplet_hiding, args.varied_tuplet_looks)
     run = RunSettings(args.out, MuseScore(args.musescore),
                       functools.partial(labelled_systems, k=args.systems_per_score, drawing=drawing))
     print(f"{len(scores)} scores, {len(pending)} to render in {len(work)} batches", flush=True)

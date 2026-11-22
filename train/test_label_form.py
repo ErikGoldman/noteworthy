@@ -7,7 +7,9 @@ from fractions import Fraction
 
 from seq.label_form import (BACKUP_TO_BAR, LabelForm, UnplacedPosition, spelled, voices_per_staff,
                              with_backups_spelled, with_canonical_gaps, with_gaps_from_positions, with_positions,
-                             with_voice_counts, without_voice_counts)
+                             with_clock, with_onsets, with_voice_counts, without_clock, without_onsets,
+                             without_voice_counts, LANE_TOKENS, interleaving_failures, with_interleaving,
+                             without_interleaving)
 from seq.vocab import UNK, Vocab
 from train_seq import VOCABULARY
 
@@ -119,6 +121,88 @@ class Form(unittest.TestCase):
 
 
 
+class Clock(unittest.TestCase):
+    def clocks(self, lmx: str) -> list[str]:
+        return [t for t in with_clock(lmx).split() if t.startswith("clock:")]
+
+    def test_each_quarter_reached_is_marked_and_the_bar_ends_on_its_length(self):
+        bar = "measure C4 quarter D4 eighth E4 eighth F4 half"
+        self.assertEqual(with_clock(bar), "measure C4 quarter clock:1 D4 eighth E4 eighth clock:2 F4 half clock:4")
+
+    def test_triplets_reach_the_beat_on_their_third_note(self):
+        triplet = "C4 eighth 3in2 D4 eighth 3in2 E4 eighth 3in2"
+        self.assertEqual(with_clock(f"measure {triplet}").split(), ["measure", *triplet.split(), "clock:1"])
+
+    def test_the_same_notes_plain_reach_it_a_note_early(self):
+        self.assertEqual(with_clock("measure C4 eighth D4 eighth E4 eighth").split()[:6],
+                         ["measure", "C4", "eighth", "D4", "eighth", "clock:1"])
+
+    def test_a_second_voice_counts_again_from_the_bars_start(self):
+        bar = "measure C5 half backup half C3 quarter D3 quarter"
+        self.assertEqual(self.clocks(bar), ["clock:2", "clock:1", "clock:2"])
+
+    def test_chord_notes_and_graces_do_not_move_the_clock(self):
+        self.assertEqual(self.clocks("measure C4 quarter chord E4 quarter grace D4 eighth F4 quarter"), ["clock:1", "clock:2"])
+
+    def test_no_clock_after_a_whole_bar_rest(self):
+        self.assertEqual(self.clocks("measure rest:measure rest whole backup whole C3 quarter"), [])
+
+    def test_reading_takes_the_clock_out(self):
+        form = LabelForm(clock=True)
+        self.assertEqual(form.reading(form.label(TWO_BASS_VOICES)), TWO_BASS_VOICES)
+        self.assertEqual(without_clock(with_clock(TWO_BASS_VOICES)), TWO_BASS_VOICES)
+
+    def test_clock_tokens_are_in_the_vocabulary(self):
+        vocab = Vocab.load(VOCABULARY)
+        self.assertNotIn(UNK, vocab.encode(with_clock("measure C4 whole measure D4 half D4 half")))
+
+    def test_option_round_trips_through_a_checkpoints_args(self):
+        self.assertEqual(LabelForm.from_options(LabelForm(clock=True).options()), LabelForm(clock=True))
+
+
+class Onsets(unittest.TestCase):
+    def onsets(self, lmx: str) -> list[str]:
+        tokens = with_onsets(lmx).split()
+        return [f"{a} {b}" for a, b in zip(tokens, tokens[1:]) if a.startswith("beat:")]
+
+    def test_each_note_is_preceded_by_where_it_starts(self):
+        self.assertEqual(with_onsets("measure clef:G2 C4 quarter D4 eighth E4 eighth"),
+                         "measure clef:G2 beat:0 sub:0 C4 quarter beat:1 sub:0 D4 eighth beat:1 sub:1/2 E4 eighth")
+
+    def test_triplets_start_on_thirds(self):
+        triplet = "measure C4 eighth 3in2 D4 eighth 3in2 E4 eighth 3in2 F4 quarter"
+        self.assertEqual(self.onsets(triplet), ["beat:0 sub:0", "beat:0 sub:1/3", "beat:0 sub:2/3", "beat:1 sub:0"])
+
+    def test_chord_members_and_graces_take_none(self):
+        self.assertEqual(self.onsets("measure C4 quarter chord E4 quarter grace D4 eighth F4 quarter"),
+                         ["beat:0 sub:0", "beat:1 sub:0"])
+
+    def test_a_second_voice_starts_again_from_the_bars_start(self):
+        self.assertEqual(self.onsets("measure C5 half backup half C3 quarter dot D3 eighth"),
+                         ["beat:0 sub:0", "beat:0 sub:0", "beat:1 sub:1/2"])
+
+    def test_rests_and_gaps_have_onsets_too(self):
+        self.assertEqual(self.onsets("measure print-object:no rest half forward half"), ["beat:0 sub:0", "beat:2 sub:0"])
+
+    def test_none_after_a_whole_bar_rest_or_off_the_grid(self):
+        self.assertEqual(self.onsets("measure rest:measure rest whole backup whole C3 quarter"), ["beat:0 sub:0"])
+        quintuplet = " ".join(f"C4 16th 5in4" for _ in range(5))
+        self.assertEqual(self.onsets(f"measure {quintuplet}"), ["beat:0 sub:0"])
+
+    def test_reading_takes_the_onsets_out(self):
+        for form in (LabelForm(onsets=True), LabelForm(onsets=True, clock=True)):
+            self.assertEqual(form.reading(form.label(TWO_BASS_VOICES)), TWO_BASS_VOICES)
+        self.assertEqual(without_onsets(with_onsets(TWO_BASS_VOICES)), TWO_BASS_VOICES)
+
+    def test_onset_tokens_are_in_the_vocabulary(self):
+        vocab = Vocab.load(VOCABULARY)
+        bar = "measure C4 eighth 3in2 D4 eighth 3in2 E4 eighth 3in2 F4 16th G4 16th A4 eighth B4 half"
+        self.assertNotIn(UNK, vocab.encode(with_onsets(bar)))
+
+    def test_option_round_trips_through_a_checkpoints_args(self):
+        self.assertEqual(LabelForm.from_options(LabelForm(onsets=True).options()), LabelForm(onsets=True))
+
+
 class Positions(unittest.TestCase):
     def test_each_backup_and_closing_gap_becomes_where_the_next_event_starts(self):
         self.assertEqual(with_positions(TWO_BASS_VOICES),
@@ -149,6 +233,49 @@ class Positions(unittest.TestCase):
     def test_a_dotted_hidden_rest_is_a_gap_too(self):
         self.assertEqual(with_positions("measure print-object:no rest voice:1 quarter dot C4 eighth"),
                          "measure at:3/2 C4 voice:1 eighth")
+
+
+
+class Interleaved(unittest.TestCase):
+    TWO_HANDS = ("measure clef:G2 staff:1 C4 voice:1 half stem:up staff:1 D4 half backup whole "
+                 "E3 voice:5 quarter staff:2 F3 quarter G3 half")
+
+    def test_voices_come_in_time_order(self):
+        form = LabelForm(canonical_gaps=True, interleaved=True)
+        self.assertEqual(form.label(self.TWO_HANDS),
+                         "measure clef:G2 staff:1 C4 voice:1 half stem:up staff:1 lane:2 E3 voice:5 quarter staff:2 "
+                         "F3 quarter lane:1 D4 half lane:2 G3 half")
+
+    def test_reading_gives_the_canonical_form_back(self):
+        canonical = LabelForm(canonical_gaps=True)
+        form = LabelForm(canonical_gaps=True, interleaved=True)
+        self.assertEqual(form.reading(form.label(self.TWO_HANDS)), canonical.reading(canonical.label(self.TWO_HANDS)))
+
+    def test_a_chord_stays_after_its_head(self):
+        lmx = "measure C4 voice:1 half chord E4 half D4 half backup whole G3 voice:5 whole staff:2"
+        self.assertIn("C4 voice:1 half chord E4 half", with_interleaving(with_canonical_gaps(lmx)))
+
+    def test_a_voice_coming_in_partway_keeps_its_backup(self):
+        lmx = "measure C4 voice:1 half D4 half backup half E4 voice:2 half"
+        canonical = with_canonical_gaps(lmx)
+        interleaved = with_interleaving(canonical)
+        self.assertEqual(interleaving_failures(canonical), 0)
+        self.assertEqual(interleaved, "measure C4 voice:1 half D4 half lane:2 backup half E4 voice:2 half")
+        self.assertEqual(without_interleaving(interleaved), canonical)
+
+    def test_a_grace_chord_stays_after_its_grace_note(self):
+        lmx = ("measure C5 voice:1 half D5 half backup whole grace grace:slash B1 eighth staff:2 "
+               "grace grace:slash chord B2 eighth B3 voice:5 whole")
+        canonical = with_canonical_gaps(lmx)
+        self.assertEqual(without_interleaving(with_interleaving(canonical)), canonical)
+
+    def test_needs_canonical_gaps(self):
+        with self.assertRaises(ValueError):
+            LabelForm(interleaved=True)
+
+    def test_lane_tokens_are_in_the_vocabulary(self):
+        vocab = Vocab.load(VOCABULARY)
+        self.assertTrue(all(token in vocab.index for token in LANE_TOKENS))
 
 
 if __name__ == "__main__":

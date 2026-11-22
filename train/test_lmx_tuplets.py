@@ -5,7 +5,7 @@ import unittest
 from fractions import Fraction
 
 from seq.lmx_tuplets import (ALL_RULES, PageRule, bar_at_end, bars_in_force, dots_mended, extra_beams_dropped, imply_tuplets,
-                              length_at, measures_of, with_page_rules)
+                              length_at, measures_of, runs_as_tuplets, with_page_rules)
 
 THREE_FOUR = Fraction(3)
 
@@ -74,7 +74,7 @@ class RulesChosen(unittest.TestCase):
         for lmx in (self.OVERFULL, self.RUNAWAY):
             self.assertEqual(with_page_rules(lmx, THREE_FOUR, frozenset()), lmx)
 
-    def test_every_rule_is_the_default(self):
+    def test_every_rule_but_those_on_trial_is_the_default(self):
         self.assertEqual(with_page_rules(self.OVERFULL, THREE_FOUR), imply_tuplets(self.OVERFULL, THREE_FOUR))
 
 
@@ -105,6 +105,38 @@ class MeterInForce(unittest.TestCase):
         lmx = ("measure time beats:6 beat-type:8 C4 quarter dot D4 quarter dot "
                f"measure time beats:2 beat-type:4 {triplets} backup half C3 voice:2 half")
         self.assertEqual(imply_tuplets(lmx).count("3in2"), 6)
+
+
+class RunsOfThree(unittest.TestCase):
+    """runs_as_tuplets: triplets the model wrote plain, whatever their beaming, in both hands."""
+    def ratios(self, lmx: str) -> list[str]:
+        return [t for t in lmx.split() if t in ("3in2", "6in4")]
+
+    def test_quarter_then_three_eighths_in_one_beam_becomes_a_triplet(self):
+        bar = measure("C4 quarter", beamed(["D4", "E4", "F4"], "eighth"), "G4 quarter")  # 3/4 overfull by one eighth
+        self.assertEqual(self.ratios(runs_as_tuplets(bar, THREE_FOUR)), ["3in2"] * 3)
+
+    def test_two_hands_of_plain_triplets_both_mended(self):
+        upper = " ".join([beamed(["C5", "D5", "E5", "F5", "G5", "A5"], "eighth")] + [beamed(["B4", "C5", "D5"], "eighth")])
+        lower = " ".join([beamed(["C3", "D3", "E3", "F3", "G3", "A3"], "eighth")] + [beamed(["B2", "C3", "D3"], "eighth")])
+        bar = measure(upper, "backup half dot", lower)  # every voice overfull: imply_tuplets leaves it
+        self.assertEqual(imply_tuplets(bar, THREE_FOUR), bar)
+        self.assertEqual(self.ratios(runs_as_tuplets(bar, THREE_FOUR)).count("3in2") + self.ratios(runs_as_tuplets(bar, THREE_FOUR)).count("6in4"), 18)
+
+    def test_a_beamed_six_becomes_a_sextuplet(self):
+        bar = measure(beamed(["C4", "D4", "E4", "F4", "G4", "A4"], "16th"), "B4 quarter", "C5 quarter")  # 3/4 + an eighth
+        self.assertEqual(self.ratios(runs_as_tuplets(bar, THREE_FOUR)), ["6in4"] * 6)
+
+    def test_a_bar_that_fits_is_left_alone(self):
+        bar = measure(*[beamed(["C4", "D4"], "eighth")] * 3)
+        self.assertEqual(runs_as_tuplets(bar, THREE_FOUR), bar)
+
+    def test_nothing_marked_unless_the_bar_comes_out_exact(self):
+        bar = measure("C4 quarter", beamed(["D4", "E4", "F4", "G4"], "eighth"))  # 3/4 + a quarter: no triplets fit
+        self.assertEqual(runs_as_tuplets(bar, THREE_FOUR), bar)
+
+    def test_on_trial_so_not_a_default_rule(self):
+        self.assertNotIn(PageRule.RUNS_OF_THREE, ALL_RULES)
 
 
 class RunawayTuplets(unittest.TestCase):

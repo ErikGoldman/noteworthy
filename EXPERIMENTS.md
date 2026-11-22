@@ -5671,3 +5671,928 @@ Bar by bar against the PDF at 4-8x, before any system reads them (the spec's ord
 So Gemini's pages are not uniform: one carries a repeated misreading and a duration error that
 the bar-length check passes. They need the full review the first 50 had, not a skim.
 
+**Option 2, readers first (the user, 2026-11-19 night).** Gemini's 37 pages read by our model
+(`l_system_150k/best.pt`) and Transcoda, each scored against Gemini's gold edit by edit
+(`runs/spec5/agy_check_2026-11-19/`: `run.sh`, `agreement.py`, `disagreements.notes.tsv`):
+
+| Pages | Our model disagrees, notes only | All edits | Mean OMR-NED |
+|---|---|---|---|
+| Gemini's (34 scored by both readers) | 45.3% of 2,213 staff-bars | 53.6% | 18.20 |
+| The first 50, Claude's gold checked against the print | 29.5% of 2,468 | 37.8% | 8.16 |
+
+- **Transcoda says little here**: it disagrees on 90-100% of most pages' bars because it stops at its
+  2,048-token limit partway down a dense page (22% of its cost is bars it never wrote); 3 pages failed
+  to score. Its agreement counts only on the part of a page it read.
+- **Our model flags the errors found by hand.** On Op. 67 p. 010 it disagrees with Gemini exactly at
+  bars 0-2's third 16th (it reads A, Gemini wrote B; the print is A#) and at bar 4, the dotted quarter
+  written as a dotted half; and at bar 3's inner voice (F against G), a new candidate.
+- **Hard textures flag nearly every bar without the gold being wrong.** Op. 38 pp. 005-006 (94%, OMR-NED
+  61-76): hidden-number triplet 16ths crossing between the staves; the print bears Gemini out (six
+  unnumbered 16ths a beat over quarter chords), our model misreads the texture.
+- So our model's disagreement is a good finder of Gemini's errors on ordinary pages and a poor one on
+  hard ones; the gap to the checked pages (45% against 30%) is part music, part gold. Next: settle a
+  sample of the flagged bars from the print to split the two.
+
+
+**Transcoda on the first 50 (checked gold), for scale** (`runs/spec5/claude50_check_2026-11-19/`, same
+`run.sh` and scorer): pooled OMR-NED **67.8** on the 38 pages it scored, ours **8.9** pooled on all 50
+(page mean 7.75 on the same 38). 12 of its 50 kern outputs never became MusicXML (music21 cannot parse
+them; `*clefTAB5` and similar), so they are left unscored, counted here, not dropped. Notes only, it
+disagrees on 86% of the staff-bars of its 38 pages, ours on 31%. So on spec-5 scans Transcoda is not a
+second opinion worth weighing: its disagreement says little about the gold on either set of pages.
+
+**Settling flagged bars from the print, first sample.** Op. 30 p. 005 (ours OMR-NED 3.2, 16% of bars
+flagged): in bars 36-39 every left-hand eighth is an octave whose lower note sits on the second or
+third ledger line; Gemini wrote both notes, our reading drops the lower one. Bar 46's high
+bass-staff chords also bear Gemini out. So far, the flags settled from the print are model
+errors except on Op. 67 p. 010, which has Gemini's own errors. The sample is too small to split the 45%;
+it continues with the user.
+
+## Spec 4's rendered sets: (l)'s baselines and seed spread (2026-11-20)
+
+The three held-out sets (`data/cause_sets/held_out_2026-11-19c`) read by (l)'s three seeds at 100k
+(`runs/spec4_baselines_2026-11-20/`: `run.sh`, `cause_bars.txt`). Bars right by class, per piece
+(spec 4's measure; pieces in brackets), on each set's own class, clean source:
+
+| Set (its class) | seed 0 | seed 1 | seed 2 | mean | spread |
+|---|---|---|---|---|---|
+| printed tuplets (tuplet, number shown; 40) | 85.0 | 81.4 | 83.7 | 83.4 | 3.6 |
+| two voices (two voices on a staff; 261) | 81.0 | 80.5 | 81.4 | 81.0 | 0.9 |
+| chords (chord of 3+; 541) | 96.1 | 95.9 | 96.2 | 96.1 | 0.3 |
+
+- Degraded scans move each by under 1 point (printed tuplets on seed 1, 81.4 → 83.2, is the largest,
+  in the other direction): the sets measure the music, not the scan.
+- **Printed tuplets is the noisy one**: 40 pieces, and the seeds span 3.6 points, so a run must
+  clear the seeds by more than that before it means anything there. Two voices (0.9) and chords
+  (0.3) can show changes of a point or two.
+- Chords are near the ceiling (96%), so the dense-chords part of the synthetic pieces can barely show
+  here; two voices at 81% has room. OLiMPiC's two-voice bars are much harder for the same seeds
+  (59.5-63.2, 36 songs), so these rendered bars are the easier test of the same class.
+- Next: the three new runs (synthetic pieces, engraver hiding, varied looks) read on these sets at
+  100k against these numbers, beside Polish dev and OLiMPiC v2.
+
+## Synthetic pieces at 100k: no gain where aimed, worse on OLiMPiC pages (2026-11-20)
+
+`l_system_features_100k`: (l), seed 0, with `features` and `features_musescore` added to training
+(the system-by-system synthetic pieces above). Against (l)'s seeds 0 / 1 / 2 at 100k:
+
+| | synthetic pieces | (l) seeds | |
+|---|---|---|---|
+| spec 4 printed tuplets, bars right | 84.1 | 85.0 / 81.4 / 83.7 | noise |
+| spec 4 two voices, bars right | 81.7 | 81.0 / 80.5 / 81.4 | noise (0.3 over the best seed) |
+| Polish dev, print 17d, whole-page, two staves | 6.76 | 6.32 / 6.97 / 6.17 | noise |
+| OLiMPiC pages, v2 gold, whole-page | **6.90** | 5.55 / 5.22 / 4.73 | worse |
+| OLiMPiC pages, v2 gold, authors | **7.51** | 6.34 / 5.80 / 5.42 | worse |
+
+The OLiMPiC loss is a few pages, not every page:
+- **6264558-p7 fails to score** (`float division by zero` in the parse; 11 measures read of 12), so it
+  counts 100 against seed 0's 4.4: 0.60 of the 1.35 gap by itself. Not yet looked into.
+- **6474359 pp. 54-59, every number hidden** (p. 54: 266 of 286 notes in 52 triplet groups, all
+  `show-number="none"`): seed 0 reads them all as triplets; synthetic pieces reads bars 1-4 as plain
+  eighths, 36 to a bar that holds 12 (123 of 266 read as tuplets). About 0.7 of the gap.
+- Without those, the rest is within the seeds' spread; single pages swing both ways by 15-46 points.
+
+**A likely cause, not tested**: the synthetic pieces' tuplets mostly print their numbers (Verovio
+set 19.6% hidden, MuseScore set 0%, against PDMX's 39.5%), and they add about ten times PDMX's
+tuplet groups per crop, so the model learns that a triplet has a printed number. A run with the
+synthetic tuplets drawn by the engraver-hiding rule (or the features run with its tuplet pieces
+left out) would test it.
+
+## Spec 5: Gemini's gold measured against the print, a third of staff-bars wrong (2026-11-20)
+
+A stratified random sample of Gemini's 2,213 staff-bars (37 pages), drawn by our reading's verdict
+(notes only, whole-page alignment): bars it is charged on ("disagree", 1,002) and bars it is not
+("agree", 1,211). Each bar judged blind to its stratum, against the PDF rendered at 600 dpi with a
+pitch ruler set on the staff's drawn lines (`runs/spec5/agy_check_2026-11-19/audit/`, verdicts with a
+note each). Wrong = any note, rest or duration of the bar differs from the print.
+
+| Stratum | Judged | Gemini wrong | |
+|---|---|---|---|
+| disagree | 39 (+1 unclear) | 24 | 62% ± 15% |
+| agree | 22 | 2 | 9% ± 12% |
+| **weighted, all staff-bars** | 61 | | **33% ± 10%** |
+
+- **The errors are pitch, mostly a step off**: a melody a third or second low through a bar (Op. 67
+  p. 010, Op. 102 p. 001, p. 005, Op. 85 pp. 001-002), a chord tone a step off, a bass a line off; one
+  bar an octave low with no clef or 8va to explain it (Op. 38 p. 006 bar 16); extra chord tones
+  (MacDowell). Rhythm errors are rare. Several bars are right except one note.
+- **Both "agree" errors are notes our model read right**: the whole-page alignment charged the
+  difference to a neighbouring bar, so the stratum is "agree by the scorer's bar", not "both readers
+  agree". The 9% is an upper bound on errors both readers share.
+- **The earlier reading, "flags are mostly model errors", was wrong**: it rested on Op. 30 p. 005
+  and Op. 38 pp. 005-006, judged at 150 dpi; at 600 dpi with the ruler the disagreement bars are
+  mostly Gemini's errors. The first pass at 150 dpi (bars 0-24) was redone at 600 dpi: 10 of the 22
+  it called right were wrong, so 150-dpi checks of pitch on these scans are not to be trusted.
+- So Gemini's pages are not gold, nor near it: about one staff-bar in three needs a fix. Cleaning
+  them means every bar against the print, as Claude's 50 had, not the flagged ones alone.
+
+**Claude's 50 checked pages, the same audit** (`claude_sample.tsv`, `claude_v.tsv` in the same folder):
+of the 2,468 staff-bars, 728 disagree and 1,740 agree with our model. 60 disagree bars and 8 agree
+bars judged, the same way: **1 wrong** (Czerny p. 052 bar 11, the first two left-hand chords written
+Eb/G/Bb and E/G/Bb where the print has Db/F/Bb and D/F/Bb; our model reads them right). So the
+checked gold is wrong in about 1.4% of disagree bars (95% upper bound about 8%) and in none of the
+few agree bars judged: under 2% of all staff-bars, against Gemini's 33%. Our model's 29.5%
+disagreement on these pages is its own errors almost entirely. The agree stratum is thin here (8
+bars); the disagree stratum, where the gold's errors would show, carries the estimate.
+
+## Hidden tuplets: what goes wrong, and the first fine-tunes (2026-11-20)
+
+**A test set for hidden numbers** (`data/cause_sets/held_out_2026-11-20/hidden_tuplets`,
+`build_cause_sets.py --sets hidden_tuplets`): spec 4's 271 printed-tuplet systems again, every tuplet
+number hidden (MuseScore through its own file), so the same music with and without numbers. 20 of 20
+crops by eye agree with their labels. Hidden-number bars right, per piece, clean (39 pieces):
+(l) seeds 67.5 / 71.1 / 66.9, against 83.4 mean on the same bars printed. **Hiding the number costs
+about 15 points.**
+
+**Step 1, the bars hiding breaks** (`runs/hidden_debug_2026-11-20/pair_failures.py`, the printed and
+hidden readings of one checkpoint bar by bar): of tuplet bars read right with the number printed,
+26% / 20% / 25% (seeds 0 / 1 / 2) are wrong hidden. Sorted by what the hidden reading did:
+- **75-83%: the tuplet dropped (or partly found) and the bar overfull**: the same notes read as
+  plain values, so the bar runs past its meter (24 plain 16ths in 4/4; quarter + three plain eighths).
+- The rest: tuplets partly found in a bar that fits, too many, another ratio.
+- **The meter shown or not makes no difference**: failure 35% on systems whose crop draws the time
+  signature, 23% on those that do not. The model has the arithmetic in view and does not use it.
+- **`imply_tuplets`, the repair after decoding, mends none of the 103 failures** (seed 0), even given
+  the score's meter: 43 have no beam group of exactly 3/5/6 equal notes (quarter-and-eighth groups,
+  unbeamed quarter triplets, other beaming), 28 have every voice overfull (both hands in triplets), so
+  no voice confirms the bar; 7 others.
+
+**Fine-tunes from (l) seed 0 at 100k, 10k steps, lr 1e-4** (control vs the `*_hidden_often` sets,
+`--tuplet-hiding often`: a quarter of scores show all, a quarter hide all, half hide by run, about 60%
+of groups hidden, a third of tuplet systems mixed; weight 2 beside the base mix, about 28% of samples).
+Hidden-number bars right, the test set above:
+
+| | hidden-tuplet test |
+|---|---|
+| control, seed 0 / seed 1 | 67.3 / 65.2 |
+| often-hidden data | **71.2** |
+
++3.9 and +6.0 over the two controls: at the edge of the noise (controls 2.1 apart, (l)'s seeds 4.2),
+and the same as (l)'s best seed. **On real scans it does not carry over**: OLiMPiC dev v2, scanned,
+hidden-number bars 49.1% against the controls' 45.7% / 49.3%; numbers shown 45.6% against 48.1% /
+48.8%; no-tuplet bars 78.9% against 79.2% / 79.4%. Fine-tuning alone moves nothing (control 67.3 against its start's
+67.5). **Hidden-only fine-tune** (`ft_l_hidden_only_3k`, local: the often sets' crops with a tuplet and
+every number hidden, 11,647 samples alone, 3k steps from (l) seed 0, lr 1e-4; `hidden_only_sets.py`):
+
+| | rendered hidden test | OLiMPiC v2 scanned: hidden | shown | no tuplets | false tuplets in no-tuplet bars |
+|---|---|---|---|---|---|
+| control fine-tune(s) | 67.3 / 65.2 | 45.7 / 49.3 | 48.1 / 48.8 | 79.2 / 79.4 | 0.6% |
+| hidden-only | **75.2** | **69.8** | 44.7 | **72.6** | 2.6% |
+
+The model can learn to read unnumbered tuplets: +20 points on real scans. But it learns to guess
+them, not to count: probe 1 is unchanged (an overfull bar closed as readily as one that adds up,
+difference 0.002), and it writes tuplets into plain bars four times as often; with three thousand
+steps of narrow data it also forgets (no-tuplet bars -6.6, half of it the false tuplets).
+
+Next, from step 1: a check at decoding that a bar's notes add up to the meter (the beam's candidates,
+or a repair that takes any grouping that fits); and `--meter-context` (labels start with the meter in
+force), since the model ignores the meter it can see.
+
+**Probes: the model does not count beats** (`runs/hidden_debug_2026-11-20/probe_bars.py`, `probe_report.py`;
+the label fed in, the next token's probability read). On the hidden-tuplet test set, 1,141 bars:
+- **Probe 1, closing a bar.** P(the bar ends) at its end: 0.90 median as labelled, **0.90 with its
+  tuplets made plain** (the same notes, 1-2 quarters overfull: difference 0.000, quartiles
+  -0.003..0.003), 0.000 with its last note cut. 0.90 is the ceiling under label smoothing 0.1. A bar
+  that does not add up is closed as readily as one that does; a cut bar is not closed because the
+  next note is still in view. The model ends a bar where it sees the barline. The same for (l) on the
+  printed set, the control fine-tune, and the often-hidden fine-tune: more data does not teach it.
+- **Probe 3, a hidden group's ratio at its first note.** Nearly every hidden group read plain would
+  overflow its bar (912 of 922), so a counting model would be sure. Control: 14% of groups below
+  0.05 (sure it is plain), 9% between 0.05 and 0.5, 77% above. Often-hidden fine-tune: 8% / 7% / 84%:
+  the data halves the confident misses, without counting.
+
+**A repair that counts instead: `RUNS_OF_THREE`** (`seq.lmx_tuplets.runs_as_tuplets`, a page rule on
+trial, not in ALL_RULES). In each voice that overflows the bar in force, runs of three equal notes
+that would start on their own division (earlier runs counted as triplets) are marked 3in2 (6in4 for
+a whole beamed six), first ones or last ones, until the voice fills the bar exactly; nothing changes
+otherwise. Unlike imply_tuplets it needs no beam group and no voice that already fills the bar.
+On (l)'s existing readings, the same readings scored before and after (so no seed noise):
+- Rendered hidden-tuplet test, seed 0: 67.5 -> 73.1; no loss on printed tuplets (85.0 -> 85.1),
+  two voices (81.0 -> 80.7) or chords (96.1 -> 95.9).
+- OLiMPiC dev v2 crops, the bar carried from earlier systems, seeds 0 / 1 / 2: hidden-number bars,
+  scanned 53.0 -> 55.2, 51.1 -> 53.2, 52.0 -> 54.8; numbers-shown bars 45.9 -> 50.0, 43.8 -> 45.9,
+  45.0 -> 48.1; no-tuplet bars -0.1 at most.
+- On OLiMPiC the hidden failures are more varied than on the rendered set: 41-45% dropped tuplets in
+  an overfull bar, the rest partly found, another ratio, or another rhythm; one song, 4985990, holds
+  a third. A first version missed most of OLiMPiC's overfull bars (its division check counted time
+  as plain; sextuplets written 6in4).
+- Pages, OMR-NED, rebuilt from the saved readings with today's default rules and with the rule
+  added (`rebuild_pages.py`; the default rebuild reproduces the recorded scores exactly):
+
+  | (l) seed | OLiMPiC pages, v2 gold, whole-page | Polish dev, print 17d, whole-page, two staves |
+  |---|---|---|
+  | 0 | 5.55 -> **4.16** | 6.32 -> 6.02 |
+  | 1 | 5.22 -> 4.94 | 6.97 -> 6.95 |
+  | 2 | 4.73 -> 4.55 | 6.17 -> 6.23 |
+
+  Better on OLiMPiC for every seed (seed 0's 6474359 pages, all hidden triplets, account for much of
+  its 1.4), about level on Polish. A measure of what counting is worth, not the fix: the user wants
+  rhythm in the model, not a rule after it (2026-11-20). The rule stays off by default.
+
+## Clock tokens: the model made to count (2026-11-20)
+
+The user: rhythm into the model, not rules after it. `--clock` (`seq.label_form`, clock): after each note,
+rest or gap that carries a voice past a whole quarter of its bar, `clock:N`, the quarter reached
+(`clock:1`..`clock:16` added to the vocabulary; readings have them taken out first). Labels grow 11%
+at the median; 3 of 6,000 sampled cross 1,024 tokens. Three plain eighths in place of a triplet
+reach the beat a note early: written out, that is an error the loss sees.
+
+Fine-tuned from (l) seed 0 at 100k, 10k steps, lr 1e-4, as the controls: `ft_l_clock_10k` (seed 0),
+`ft_l_clock_seed1_10k` (seed 1). Dev SER 0.0727 / 0.0817 (controls 0.0731 / 0.0727).
+
+Seed 0:
+- **Probe 1: it begins to count.** Overfull bars (tuplets made plain) it declines to close
+  (P < 0.5): 49 of 479 (10%), against the control's 12 (2.5%); bars as labelled declined 17
+  against 16. Mean difference 0.053 against -0.002. A start, not yet counting as a rule.
+- Rendered hidden-tuplet test: 69.8 (controls 67.3 / 65.2).
+- **OLiMPiC dev v2, scanned: hidden-number bars 55.0%** (controls 45.7 / 49.3), numbers shown 44.7%
+  (48.1 / 48.8), no-tuplet bars 79.4% (79.2 / 79.4); **false tuplets in plain bars 0.5%** (0.6%).
+  The gain the hidden-only data bought with four times the false tuplets, without them.
+
+Seed 1 (`ft_l_clock_seed1_10k`, dev SER 0.0817 against its control's 0.0727): probe 1, overfull bars
+declined 40 of 479 against its control's 13 (bars as labelled declined 26 against 19); the rendered
+hidden-tuplet test 65.7 against 65.2. **The clock reliably starts the model counting (both seeds,
+3-4 times the control's refusals of an overfull bar), but at 10k steps not enough to move many
+readings**; seed 0's +2.5 on the test set is within the noise. OLiMPiC dev v2, scanned, seed 1:
+hidden-number bars 48.0% (its control 49.3%), numbers shown 40.0% (48.8%), no tuplets 79.0% (79.4%):
+seed 0's real-scan gain (55.0%) does not repeat, so it too is most likely noise.
+
+**Hiding the note while its length is written (the user's idea), tested before any training**
+(`seq.note_mask`, `runs/hidden_debug_2026-11-20/hidden_accuracy.py`; the label fed in, first choices scored):
+- The decoder looks at a note while writing its pitch, not its length, and only in layers 1-2 (their
+  peak column moves along the system note by note; layers 3-5 rest on the clef at the left edge).
+  Located there, the note can be hidden.
+- Hiding the note's columns in the image features does little (lengths 99.7 -> 88 at ±4 columns):
+  the encoder mixes columns, so the note is spread across the memory. Erasing its pixels (paper is 0,
+  ink 1) before the encoder is the way to hide it.
+- (l) with a note's pixels erased: lengths still 90% right (±1 to ±6 columns, 48-208 px): the
+  other staff, the lengths already written and repeated patterns give them away; a bar's last
+  length 100%. But **hidden-number tuplet ratios fall from 78% to 57% (±3) and 29% (±6)**, though
+  the bar's arithmetic still decides them: the model does not count to fill the gap. So hiding a
+  group, not a note, puts the training signal where counting is the only way to lower the loss.
+
+Page reads of the four 10k fine-tunes (Polish dev, 17d print gold, two staves, whole-page; OLiMPiC
+pages, v2 gold): control seeds 6.98 / 6.84 and 5.13 / 5.83; clock seeds 6.83 / 6.91 and **6.08 / 6.48**.
+Every fine-tune is worse on Polish than (l) itself (6.3): the tuplet-heavy mix costs plain pages.
+The clock is worse than its control on OLiMPiC pages in both seeds (+0.95, +0.65), though seed spread
+there is 0.7.
+
+**The masking idea trained, 1,500 steps locally** (`runs/hidden_debug_2026-11-20/masked_ft.py`; from (l)
+seed 0, tuplet crops from the often-hidden sets plus as many plain PDMX crops, half of each batch with a
+note's pixels erased ±4 columns and the loss there kept on lengths and ratios; the control is the
+same run with nothing erased):
+
+| | erase | control |
+|---|---|---|
+| erased hidden-number ratios right, ±3 / ±6 | 87.1 / 85.6 | 68.1 / 45.9 |
+| hidden-number ratios right, nothing erased | 89.2 | 88.4 |
+| probe 1, P(close) as labelled minus tuplets made plain | -0.002 | 0.000 |
+| rendered hidden-tuplet test (clean) | 73.8 | 71.8 |
+| false ratio after an erased plain note, ±3 / ±6 (`shortcut_check.py`) | 8.3 / 10.9 | 1.6 / 1.9 |
+
+The erased note was a ratio's whenever the crop had one, so half the gaps in training sat on a
+tuplet and a gap alone came to mean one: false ratios on erased plain notes rose five-fold. That
+explains part of the gain on erased ratios, not all of it (a guess from the gap alone would give
+far more false ratios). Nothing moved where nothing is erased: no counting in probe 1, the test set
+within seed noise. Rerun with the note chosen uniformly among the crop's lengths (`masked_ft_uniform`).
+
+`masked_ft_uniform` (the note erased chosen uniformly among the crop's lengths), against the two above:
+
+| | uniform | ratio-first erase | control |
+|---|---|---|---|
+| false ratio after an erased plain note, ±6 | 6.2 | 10.9 | 1.9 |
+| hidden-number ratio at a group's first note, erased ±6 / nothing erased (`first_ratio.py`) | 79.9 / 88.4 | 86.9 / 87.9 | 46.9 / 88.1 |
+| probe 1, P(close) as labelled minus made plain | -0.003 | -0.002 | 0.000 |
+| rendered hidden-tuplet test (clean) | 72.8 | 73.8 | 71.8 |
+
+Every note of a tuplet carries its ratio, so from a group's second note on the ratio is copied from
+the label fed in (99.8% in every model, erased or not); only the first note's is a reading, and
+`first_ratio.py` scores those alone. **Trained to fill an erased gap, the model does fill it: a
+group's opening ratio 80% right with the note gone, against 47% untrained, and not by the gap alone
+(false ratios at 6%).** But it reads the gap from what is next to it (the group's other notes, the
+beam), not from the bar's sum: probe 1 is unmoved. And the skill does not carry over to reading
+with nothing erased (88% in all three) or to the test set (within seed noise). Masking as tried here
+does not make the model count. Not taken further at this size.
+
+`masked_ft_runs` (`masked_ft.py --runs`): a whole run of notes erased instead, a tuplet group or three
+plain onsets in a row within one voice and bar, half each, so the group's neighbours are gone too and
+only the lengths fed in and the bar's sum say whether the run is a tuplet. Probe 1, P(close) as
+labelled minus made plain: +0.002 (no counting). Rendered hidden-tuplet test 72.4 (control 71.8).
+Single-note erasure at a group's first note: 85.4 at ±6. **Erasing whole groups did not make the model
+count either. The masking line is closed at this size**; the clock variants (30k steps, clock weight
+3, meter context, often-hidden data) are the counting path now, on Vast.
+
+**Is the clock counted or read off the page?** (2026-11-20 evening, `runs/hidden_debug_2026-11-20/`)
+
+Free reading (`clock_check.py`, the hidden-tuplet set, greedy): each bar's clock as written against
+the clock its own notes give. Seeds 0 / 1:
+
+| bars, by the model's reading | n | clock honest | clock as the label's | other |
+|---|---|---|---|---|
+| adds up | 863 / 852 | 95.6 / 95.2 | 0.6 / 0.8 | 3.8 / 4.0 |
+| overfull, by less than a quarter's crossing (an honest clock can't show it) | 142 / 138 | 78.2 / 83.3 | 1.4 / 2.2 | 20.4 / 14.5 |
+| overfull, the honest clock would show it | 86 / 103 | **8.1 / 7.8** | 23.3 / 25.2 | 68.6 / 67.0 |
+
+Where the overflow would show, the clock almost never does: it stalls or repeats (`clock:4 ... clock:4`)
+and still ends on the bar's last quarter. Seen by teacher forcing (`clock_corrupt.py`, stage 0 of
+clock-consistency training): the label corrupted one way per bar, the clock its corrupted notes give
+fed in with them; where that honest clock and the label's (the image's) differ, the model's first choice:
+
+| corruption | places (first after it) | honest | looks (the label's) | other |
+|---|---|---|---|---|
+| a tuplet group's ratio removed | 447 | 64.4 / 63.5 | 32.2 / 28.4 | 3.4 / 8.1 |
+| a note's length doubled | 1018 | 24.1 / 29.1 | 69.4 / 65.5 | 6.5 / 5.4 |
+| a dot removed | 491 | 5.9 / 6.5 | 89.2 / 88.8 | 4.9 / 4.7 |
+
+**The clock is mostly read off the page, not counted from the notes written.** It follows the notes
+only where a tuplet's ratio is dropped (64%), and hardly where a dot is (6%). This is the baseline
+for clock-consistency training (stage 1): corrupted inputs with honest clock targets, against a
+control, judged on a held-out corruption kind.
+
+**Clock-consistency training, stage 1** (`clock_consistency_ft.py`, 1,500 steps locally from
+`ft_l_clock_10k`; in half the crops one bar corrupted, a tuplet group's ratio removed or a note's
+length doubled, its clock recomputed from the corrupted notes and the corrupted notes left out of the
+loss; the control the same crops uncorrupted). Read by `clock_corrupt.py` (first choice where the
+honest clock and the image's differ; "dot removed" never trained, the held-out test of adding):
+
+| honest first choice | baseline (`ft_l_clock_10k`) | control | corrupted |
+|---|---|---|---|
+| ratio removed, first place | 64.4 | 56.6 | 74.0 |
+| length doubled, first place | 24.1 | 22.1 | 70.4 |
+| **dot removed, first place** | 5.9 | 8.8 | **9.2** |
+| dot removed, all places | 11.0 | 15.8 | 27.9 |
+
+**It learned the two corruptions it was shown, not to add**: on the held-out kind, the first place
+where the clock should move is level with the control. What does carry over: with an honest clock
+already in the sequence, it keeps counting from it (28% against 16% at later places): it trusts a
+clock written and adds to it, but does not write one that disagrees with the page. Not taken to 10k.
+
+## Three diagnostics without training: backtracking, the barline check, a lookahead probe (2026-11-20 night)
+
+All with (l) seed 0 at 100k on spec 4's hidden-tuplet set (271 systems, every tuplet number hidden),
+scripts in `runs/hidden_debug_2026-11-20/`.
+
+**Backtracking** (`backtrack.py`, TODO priority 1 item 1): read greedily; the first bar a voice
+overfills (its sum from the notes written, against the bar in force as at inference) decoded again
+from its `measure` by a beam of 8 that ends at the next `measure`; the most probable candidate that
+fills the bar replaces it (later bars kept as first read). Of 223 overfull bars, 123 had a candidate
+that fills. Hidden-number bars right (pieces' share): greedy 67.5%, **backtracked 69.0%**. With the
+beam spent on rhythm only (`--rhythm-only`: branching only where a length, dot, ratio, chord, grace,
+backup, forward or the bar's end is among the top 8, the first choice elsewhere): 125 fit, and
+**61.1%**, worse than greedy: given rhythm alternatives that fill the bar, the model's most probable
+is more often wrong than right. As the beam study found (2026-11-15), the right reading is mostly not
+what the model prefers among its own; a decoding fix is not the way. The two-voices harm check was
+not run (no gain to adopt).
+
+**The barline check** (`barline_check.py`, item 2): barlines found in the pixels
+(`barlines_found.py`: a column inked across 98% of the span from the top staff line to the bottom one;
+the system's opening line plus one per bar found in 239 of 271 systems, checked by eye), each one
+between two bars erased in turn (staff lines kept), the label fed in; at the place the next `measure`
+is due, the model's first choice:
+
+| | bar closed where due | `measure` chosen where not due |
+|---|---|---|
+| as printed | 97.9% | 42 |
+| barline erased | **17.8%** | 17 |
+| decoy (the same width erased mid-bar) | 97.9% | 45 |
+
+**The model ends a bar because it sees the barline, and nearly never because the notes add up**:
+with every note before it fed right, the bar's end is found 18% of the time without the line. The gap
+the line leaves is no cue (the decoy erasure changes nothing, and the erased barline's gap does not
+close the bar). Hiding barlines in training (item 4) has its full force: the line is the cue.
+
+**Lookahead probe** (`lookahead_probe.py`, item 2b): linear probes, held out by piece (5 folds, 1,141
+bars, 97 pieces), reading whether a bar holds a hidden tuplet and how many onsets it has:
+
+| features | hidden tuplet | onsets exact | onsets ±1 |
+|---|---|---|---|
+| (the commoner answer) | 58.0 | 13.1 | 26.6 |
+| encoder at the bar's first note | 63.0 | 13.0 | 32.4 |
+| encoder over the bar (mean and max) | 71.6 | 18.8 | 44.1 |
+| decoder as it reads the bar's `measure` | **57.9** | 11.7 | 28.3 |
+
+Before writing a bar, the decoder holds nothing linear about whether it holds a tuplet (chance) or
+how many notes it has; the encoder at the bar's first note little more. Even the whole bar's encoder
+features give the tuplet only weakly and the count barely (pooling loses counts: a caveat on that
+column). The bar is not planned ahead: rhythm is decided note by note, from the look of each.
+
+## Joined bars: barlines that never get drawn (2026-11-20 night)
+
+The barline check says the line is the model's only cue for a bar's end. Erasing barlines in the
+pixels was dropped (the user: too many edge cases: ties and slurs cut where they cross, paper texture
+on scans, and the engraver's extra space: Verovio pads each bar, so a boundary drawn with an invisible
+barline is still 26% wider than the space between two notes). Instead `build_seq_dataset.py
+--joined-bars` (seq.joined_bars) joins some boundaries of each system in the MusicXML before Verovio
+draws it; Verovio does not count beats and spaces an 8-beat bar under 4/4 evenly (690 units between
+every pair of quarters). The label keeps every bar. Engraved (Verovio) sets only.
+
+Three builds to get it right, each caught by looking at crops:
+- Whole-bar rests, made plain rests in a joined bar, are often written without a note type: Verovio
+  drew one rest for four bars. Boundaries beside a whole-bar rest are not joined.
+- Appending one bar's voices after another's (voice 1, backup, voice 2, voice 1 again, ...) is valid
+  MusicXML, but Verovio's import drew a voice after a mid-bar backup a bar late: by its timemap
+  against the plain drawing's, notes moved in **598 of 615** joined systems. Two first checks of this
+  passed falsely (a pitch pattern matching no notes compared empty lists; an alignment check compared
+  only notes Verovio itself thought simultaneous); a check must fail on a known bad case before its
+  pass means anything. The joined bar is now written voice by voice (each voice's notes in one run,
+  a `forward` where it is silent, one `backup` between voices), and bars with a clef change after
+  their first note or an ottava sign are not joined (written voice by voice, they acted on other
+  notes: octaves moved). `runs/hidden_debug_2026-11-20/joined_onsets_check.py`: over 120 tuplet
+  scores, 2,243 systems with every boundary joined, every note at its plain drawing's onset and
+  pitch, but for notes after grace notes, whose playback time Verovio sets differently (within 0.18
+  of a quarter; drawn the same).
+- Sets: `build_tuplet_experiments.sh joined_bars` builds `<set>_joined3_hidden_often` (hidden_often's
+  Verovio sets and synthetic pieces, the same scores and hiding); the earlier builds' sets are not
+  used. A held-out test, `data/cause_sets/held_out_2026-11-21/joined_test4` (`build_joined_test.py`):
+  146 systems of unseen scores with tuplets, every number hidden, drawn joined and printed, labels
+  identical, for probe 1 on each.
+
+## The night's runs, local (2026-11-21)
+
+**Onsets** (`ft_l_onsets_10k`, `--onsets`: each onset's place in the bar before it, `beat:N sub:P/Q`;
+10k steps from (l) seed 0, as the controls): hidden-tuplet test 66.2 (controls 67.3 / 65.2); OLiMPiC
+dev v2 scanned, hidden-number bars **58.4%** (controls 45.7 / 49.3), numbers shown 41.2 (48.1 / 48.8),
+no tuplets 77.4 (79.2 / 79.4); probe 1, P(close) as labelled minus made plain -0.003 (no counting);
+dev SER 0.0836. A gain on real scans' hidden-number bars beyond both controls, a loss where numbers
+are shown, nothing on the rendered test: seed 1 is queued (the clock's seed-0 real-scan gain did not
+repeat).
+
+**Stage 2 on gold symbols** (`runs/stage2_gold_2026-11-21/`, TODO item 7's first test): `extract.py`
+draws each system of the tuplet training scores (3,155 of 3,171; a Verovio crash stalled the last
+few) and the 935 unseen scores with Verovio and takes, per bar, one event per note, chord or rest
+with what a stage 1 could read (x in the bar, staff, pitches, value, dots, rest, grace, chord size,
+stem, beam group; never a ratio or number) and its onset and ratio from the MEI; 288,569 training
+bars, 30,190 test bars (1,516 with a tuplet). `train_stage2.py`: a 4-layer bidirectional transformer
+(dim 128) predicting each event's onset (beat, sub) and ratio. A bar is right when every event is.
+
+| after 8 epochs | events right | plain bars right | tuplet bars right |
+|---|---|---|---|
+| no context (each event alone) | 82.7 | 63.2 | 0.0 |
+| the whole bar, bidirectional | 95.4 | 93.7 | 39.8 (still rising) |
+
+Seeing the whole bar is what makes it work at all; with it, even on gold symbols, tuplet bars are far
+from solved at 8 epochs (tuplet bars are 5% of training). With them oversampled (5 times, 24 epochs,
+`run_layers4_tw5_e24`): **events 97.7, plain bars 96.4, tuplet bars 82.6** (still rising slowly). On
+gold symbols a bar's rhythm, numbers unseen, is mostly recoverable by a small bidirectional model;
+the end-to-end models are at about 66-71 on tuplet bars with the number hidden (spec 4 test).
+Ablations (same settings): with x blanked (no positions, only order) it ends at 41.3% of events,
+9.6% of plain bars and 0.9% of tuplet bars at epoch 24: the onsets come from where things stand,
+not from adding values in order. Correction (2026-11-21): the model has no position embedding, so
+without x it has neither the events' order nor which of them stand together, only a bag of symbols;
+this ablation says nothing about adding values in order.
+At 24 epochs, tuplet ×5:
+
+| inputs | events right | plain bars right | tuplet bars right |
+|---|---|---|---|
+| all | 97.7 | 96.4 | 82.6 |
+| beams blanked | 97.2 | 95.2 | 76.3 |
+| values and dots blanked (spacing alone) | 92.5 | 81.2 | 60.0 |
+| x blanked | 41.3 | 9.6 | 0.9 |
+| x and beams blanked | 29.4 | 8.2 | 0.4 |
+
+Position is the one input it cannot do without; spacing alone gets 60% of tuplet bars, and the
+written values add 23 points on top. Beams add 6 points on tuplet bars.
+
+**Joined bars, baseline:** probe 1 on the held-out joined test (146 systems, every number hidden),
+(l): P(close a bar) as labelled 0.582 joined / 0.878 printed (without the line it often does not
+close); with tuplets made plain 0.596 / 0.872: it closes overfull bars as readily either way.
+
+**Joined bars, trained** (`ft_l_joined_10k`: (l) + 10k steps on the five `*_joined3_hidden_often`
+sets, half the joinable boundaries joined; control `ft_l_hidden_often_10k`, same sets unjoined):
+
+| | joined | control |
+|---|---|---|
+| spec 4 hidden test, tuplet bars right | 69.7 | 71.2 |
+| dev v2 scanned, a number hidden | 55.9 | 49.1 |
+| dev v2 scanned, numbers shown | 47.2 | 45.6 |
+| dev v2 scanned, no tuplets | 79.0 | 78.9 |
+| dev SER | 0.0755 | |
+| probe 1 on the joined test: P(close) as labelled / made plain | 0.858 / 0.850 | 0.564 / 0.577 |
+| same, printed versions | 0.883 / 0.876 | 0.879 / 0.872 |
+| last note cut (joined) | 0.006 | 0.003 |
+
+It learned to close bars no line marks (0.56 → 0.86), and it closes one note early almost never,
+yet it closes a bar whose tuplets were made plain (overfull by the tuplets' difference) as readily as
+the right one. That fits counting notes or reading the spacing, not adding values: a cut bar has
+one note fewer, a made-plain bar the same notes in the same places. The counting-vs-spacing test
+(TODO item 4) is what separates those two. Dev hidden +6.8 is one seed; test -1.5.
+
+**Deeper encoder** (`ft_l_encoder4_10k`: (l) with two more encoder layers added as identity, 10k
+steps on the same sets as the onsets run): spec 4 hidden test 66.1 (controls 67.3 / 65.2); dev v2
+scanned, a number hidden 41.1 (45.7 / 49.3), shown 47.8, no tuplets 78.9; dev SER 0.0747; probe 1
+labelled minus made plain -0.001. No gain at 10k steps; a seed-1 run is queued.
+
+**DPO on made-plain hidden groups** (`dpo_ft.py`, from (l), 1,500 steps on masked_ft's crops that
+hold a hidden-number group; the control is the cross-entropy alone on the same crops):
+
+| | DPO | control |
+|---|---|---|
+| spec 4 hidden test | 75.7 | 74.4 |
+| dev v2 scanned, a number hidden | 68.0 | 71.6 |
+| dev v2 scanned, numbers shown | 35.3 | 48.8 |
+| dev v2 scanned, no tuplets | 51.2 | 73.6 |
+| probe 1, labelled minus made plain (mean) | 0.013 | 0.001 |
+
+The preference margin on its own pairs reached 5.4, yet probe 1 barely moved: it learned to prefer
+the ratio, not to refuse closing an overfull bar, and it now puts ratios where there are none (plain
+bars -22). Not adopted. The control itself is the stronger finding: 1,500 steps on hidden-group crops
+alone lift hidden bars (dev 71.6) at a cost on plain bars (73.6 vs 78.9 for the 10k fine-tunes); a mix is the obvious next
+step.
+
+
+**Onsets, seed 1** (`ft_l_onsets_10k_seed1`): spec 4 hidden test 64.8 (seed 0 66.2; controls 67.3 /
+65.2); dev v2 scanned, a number hidden 42.0 (seed 0 58.4; controls 45.7 / 49.3), shown 37.5, no
+tuplets 77.4; dev SER 0.0855. Seed 0's dev gain was noise: onset tokens do not help. Not adopted.
+
+**Stage 2 on columns, not positions** (`run_columns_alone25`: `--columns --staff-alone 0.25`, 24
+epochs, tuplets ×5). Each event gets its column, its onset's rank among the bar's onsets across all
+staves (what stands in line, never how far apart); x and the bar's width are blanked; a grace note
+takes the column of the note it precedes. A quarter of the two-staff training bars also appear as
+one staff alone. The counting check: 1,094 test staves that are one line of notes with a tuplet,
+and the same lines made plain (ratio gone, onsets the sums of the written values, the meter
+stretched to their total; values, beams, pitches unchanged): a model that adds up calls them plain.
+
+| epoch 24 | bars right | called a tuplet |
+|---|---|---|
+| full bars with a tuplet | 89.0 | 100.0 |
+| full bars without | 97.4 | 0.9 |
+| staves alone with a tuplet | 73.3 | 97.2 |
+| lines with a tuplet, as written | 88.9 | 98.9 |
+| the same lines made plain | 29.7 | 54.9 |
+
+Columns beat exact positions (89.0 / 97.4 vs 82.6 / 96.4): on gold symbols, what stands in line
+plus the written values is enough. But it does not count: made plain, it still calls a tuplet 55%
+of the time (about 52-64% from epoch 2 on, never trending down). 910 of the 1,094 stretched meters
+are common in training (9/8, 5/4, 3/2, 7/8...), so odd meters do not explain it; it knows tuplets
+by their look (values, beams). In real scores look and count always agree, so nothing asks it to
+prefer the count. Next: synthetic bars where the look predicts nothing, and masked values.
+
+**Deeper encoder, seed 1** (`ft_l_encoder4_10k_seed1`): spec 4 hidden test 65.9 (seed 0 66.1;
+controls 67.3 / 65.2); dev v2 scanned, a number hidden 44.8 (seed 0 41.1; controls 45.7 / 49.3),
+shown 47.8, no tuplets 79.5; dev SER 0.0745. Two seeds, no gain: not adopted at 10k steps.
+
+**Is the made-plain check testing the weak half?** (`diag_counting.py` on `run_columns_alone25`.) The
+worry: made plain, a tuplet reading leaves the bar short, and short bars might be common in training.
+They are not: of the training staves alone, 540,473 fill their bar, 6,758 end short (1.2%), 882 run over,
+12,728 are whole-bar rests. The reverse check, 3,777 real plain one-line staves with a beamed group of 3
+or 6 equal notes, that group made a tuplet (3in2, 6in4) and the meter shrunk to fit, so a plain reading
+overfills: as written, 95.6% right and 2.1% called a tuplet; made a tuplet, 10.9% right and 67.9% called
+a tuplet. Of the made-plain lines, the model's own reading ends short of the meter in 557 of 1,094 (full
+in 526). So it does not count in either direction: an overfull reading moves it more (68% vs 2%) than a
+short one (55% vs 99% the other way round), but neither decides it.
+
+**Synthetic bars + masks** (`run_columns_synth_mask2`: as `run_columns_alone25` plus 300,000 bars from
+`stage2_synthetic.py`, where a beamed group of 3 or 6 equal notes is plain or a tuplet 50/50 and looks
+the same, and `--mask 0.3`; saved every epoch; the reverse check in every epoch's report). Masks
+alone (`run_columns_mask`) do not help: made plain, called a tuplet 53-65% from epoch 3 to 12.
+Epoch 2 of the synthetic run: made plain called a tuplet 40.5%; reverse check called a tuplet 79.0%
+(the column run 67.9% after 24 epochs) but only 19.4% right. Where it goes wrong (`diag_reverse.py`,
+epoch 2, 3,777 lines): ratios and onsets all right 734; the group's ratio right but onsets wrong 592;
+the group plus other notes called tuplets 802; no tuplet at all 794; part of the group 587. Its onsets
+are not the sum of its own readings: with the triplet right in a 7/8 line, the notes after it are put
+half a beat late, where they stood before the group was made a tuplet. It places onsets by pattern,
+not by a running sum.
+
+Synthetic run, epochs 3-4: made plain called a tuplet 54.4%, 64.4% (rising again); reverse check 23.0%,
+18.2% right. Not counting by itself; the run continues (16 epochs) for its checkpoints.
+
+**Counting by arithmetic** (`decode_counting.py`, no training). The network gives each event's ratio
+probabilities only; for a choice of ratios each event's length is exact, each column starts where the
+earliest still-sounding event ends, and a choice is consistent when every event ends on a column or the
+barline and the bar fills. The most probable consistent choice is searched (a beam group shares a ratio).
+The model's own reading is kept where it says "other" anywhere, where there is a whole-bar rest, and
+where the counted reading is less probable than its own by more than a margin. The count cannot express
+20% of real tuplet bars (145 rarer ratios, 61 whole-bar rests, 59 with a voice falling silent, 31 whose
+consistent onsets differ from the truth); for plain bars 265 of 28,572 are not expressible.
+
+| bars right | model alone | margin 3 | margin 10 | no margin |
+|---|---|---|---|---|
+| column model (`run_columns_alone25`): full bars with a tuplet | 89.0 | 88.7 | 88.7 | 83.8 |
+| full bars without | 97.4 | 99.1 | 99.2 | 99.1 |
+| made-plain lines | 29.7 | 50.7 | 58.9 | 99.2 |
+| reverse check (group made a tuplet) | 10.9 | 37.3 | 51.7 | 68.8 |
+| synthetic run epoch 4: full bars with a tuplet | 66.6 | 73.3 | 74.7 | 71.2 |
+| full bars without | 93.3 | 98.1 | 98.6 | 98.7 |
+| made-plain lines | 22.6 | 49.4 | 68.9 | 99.5 |
+| reverse check | 18.2 | 48.2 | 66.1 | 83.6 |
+
+With no margin the counterfactuals are nearly solved (the count decides), and the synthetic run's
+probabilities rank the right reading higher than the column model's (reverse check 83.6 vs 68.8) even
+though its first choice does not count. The cost is on real tuplet bars the count cannot express: with
+no margin the search forces them into a wrong consistent reading (89.0 → 83.8). Next: make the count
+express voices falling silent and the rarer ratios, so no margin is needed.
+
+**Clock variants, quick reads** (the night queue's last step, done 14:40): spec 4 hidden test / dev v2
+scanned a number hidden / shown / no tuplets: `ft_l_clock_w3_10k` 69.3 / 55.5 / 42.8 / 78.4;
+`ft_l_clock_often_10k` 71.5 / 57.3 / 45.9 / 79.3; `ft_l_clock_30k` 69.3 / 51.8 / 46.6 / 80.7 (control
+`ft_l_hidden_often_10k` 71.2 / 49.1 / 45.6 / 78.9). Dev hidden moves by up to 16 points between seeds of
+one recipe (onsets: 58.4 and 42.0), so none of these differ from the control beyond noise.
+
+Gold onsets snapped (`train_stage2.snapped`, at load): sources that keep tuplet notes' lengths in whole
+ticks drift (481/480 for 1, 341/1024 for 1/3), 8% of test tuplet bars; each onset within 1/100 of a
+quarter of a fraction with denominator <= 48 is that fraction (2,075 test, 19,321 training onsets).
+
+Synthetic run, epoch 16 (`run_columns_synth_mask2`): model alone, tuplet bars 81.1, plain 97.6; made
+plain called a tuplet 53.0%. Counted, no margin: tuplet bars 81.0, made plain 99.3, reverse check 73.2
+(epoch 4: 83.6). Its ranking got worse as it trained on; it does not beat the column model on real bars.
+
+**The rule against the count** (`rule_baseline.py`: imply_tuplets' rule on the same gold bars, per staff
+that is one line; ratios read as plain, beamed groups of exactly 3/5/6 equal notes made tuplets where the
+staff overfills and that fills it exactly):
+
+| bars right | rule, unguarded | rule, guarded (needs a voice that fills) | count, column model |
+|---|---|---|---|
+| made-plain lines | 100.0 | 100.0 | 99.2 |
+| plain lines with a group | 99.4 | 99.4 | 99.4 |
+| reverse check | 64.2 | 0.0 | 68.8 (75.0 after the fixes below) |
+| real lines with a tuplet | 61.7 | 0.0 | 88.8 |
+| real full bars with a tuplet | 35.5 | 29.9 | 84.7 (83.6 strict after the fixes) |
+
+On the constructed checks the rule matches the count: clean input makes the arithmetic easy, and the
+count's 99% there is mostly the input. On real tuplets the count wins by 25-50 points: the rule cannot
+see quarter-and-eighth triplets, other beamings, or a staff with more than one line, and its guard
+stops it on any staff alone. (On full bars the rule is understated: stage 2 has no voices, so 542 tuplet
+bars have a staff it cannot split; imply_tuplets gets voices from the end-to-end output.)
+
+**What the count still gets wrong** (`decode_failures.py`, column model, no margin). First version, real
+tuplet bars: 73.2% right; not expressible: rarer ratios 9.2%, a beam group mixing a tuplet with plain
+notes 8.8% (the search gave a beam one ratio), whole-bar rests 4.0%, a voice falling silent 3.8%; a
+consistent wrong reading only 0.5%. Fixed: a beam group splits where the model's own first choice turns
+between tuplet and none; a whole-bar rest lasts the bar; ratios of equal length (two 3in2, one 6in4)
+score as the same rhythm. After: **83.6%** right; left: rarer ratios 10.2% (the wide-ratio run trains
+for them), a voice falling silent 4.2%, too many events 0.7%, a consistent wrong reading 1.1%. Reverse
+check 74.9%; 22.5% put the tuplet on another group that fits as well (often two identical groups: the
+check's truth is the first, arbitrarily).
+
+**The count on noisy symbols** (`decode_noisy.py`; every test tuplet bar and 5,000 plain ones).
+A. Unsure values: one note's written value (or one beamed group's) hidden; the masks-only run's value
+output proposes values (its 4 likeliest) and the search reads value and ratio together.
+
+| bars right | model alone | margin 3 | no margin |
+|---|---|---|---|
+| one note hidden, tuplet bars | 75.3 | 82.3 | 83.3 |
+| one note hidden, plain bars | 90.5 | 96.3 | 96.8 |
+| a group hidden, tuplet bars | 79.4 | 86.9 | 87.7 |
+| a group hidden, plain bars | 94.0 | 98.0 | 98.6 |
+
+The count resolves an unsure value well: +5 to +8 points.
+B. Misread values: in 4,758 plain bars one note's value doubled or halved, shown as certain (column
+model). With no margin the count makes a tuplet to fit in 14.3% (margin 3: 2.9%; margin 10: 5.5%); the
+model alone calls a tuplet in 9.2% (about 1% on clean bars). 24% of misread bars still pass the count
+without a tuplet: a voice may end short of the barline where it ends on a column (silent voices), so a
+halved last note goes unnoticed. A confident misread is the count's danger: with no margin it turns
+one wrong value into a wrong tuplet one bar in seven.
+
+**The count on the end-to-end model's readings** (`count_readings.py`; spec 4's hidden-tuplet test,
+`ft_l_hidden_often_10k`'s readings; stage 2 = the column model). Each bar of a reading taken apart into
+stage-2 events, columns from the reading's own onsets; the meter from the label (80% of the crops show
+none; guessed from the reading, a wrong length let the count make whole bars triplets). First version:
+every bar searched; it broke more than it mended (28 right bars made wrong, 12 wrong made right): 3in2
+written as 6in4 (same rhythm, but scored literally: now kept as read), and readings that already added
+up replaced by another that fits as well (five unbeamed quarters, any three a triplet: stage 2 does not
+see the reading's brackets). Now a bar is searched only where the reading does not add up.
+
+| bars right (clean crops) | reading (imply_tuplets as scored) | counted, no margin | margin 10 | margin 3 |
+|---|---|---|---|---|
+| tuplet, number hidden (39 pieces) | 71.2 | 72.3 | 72.2 | 71.0 |
+| chord of 3+ (51) | 79.0 | 77.1 | 78.2 | 79.0 |
+| two voices on a staff (23) | 53.9 | 54.3 | 53.9 | 53.9 |
+
+Of 2,282 bars, 1,801 add up as read, 319 cannot be made to (a value misread, a note missed: the count
+has nothing to choose), 162 are changed. Within noise of the reading with imply_tuplets. What remains
+breaking right bars is the guard's case: a reading with extra notes in both hands, made to fit by
+making both hands triplets. The count pays on clean symbols and on unsure ones; on the end-to-end
+model's output its errors are mostly not "a tuplet read plain where one fits".
+
+Why bars of the readings found no consistent reading (`unfixable_bars.py`, against the label's bar of
+the same index): first, two faults of the conversion, fixed: a whole-bar rest has no length token, so
+the parser's clock stayed put and the voice after it started a bar early; hidden notes and rests
+(print-object:no) were counted as drawn (stage 2's gold leaves them out). Then, of 149 unfixable bars:
+the reading's values right but its columns not the label's 58% (a triplet read plain puts the hands out
+of step, and the columns come from the reading's onsets), the label's own bar fails the count 17%, a
+note missed or extra 15%, a voice missing or extra 8%, a value or dot 1%. So where the whole bar finds
+no reading, each staff is now counted alone (within a staff the order holds). No consistent reading:
+301 → 138 bars; spec 4 hidden test, clean, `ft_l_hidden_often_10k`: tuplet with a hidden number 71.2 →
+**74.8** (no margin; 72.4 at margin 10), two voices 53.9 → 54.9, chord of 3+ 79.0 → 78.0. Over more
+models and OLiMPiC dev v2 next (`eval_count.sh`).
+
+**The count over four models' readings** (`eval_count.sh`, column model as stage 2, staff-by-staff
+fallback). Spec 4 hidden test, clean crops, tuplet with a hidden number (cause_bars applies imply_tuplets
+to every reading; "count" is count then imply_tuplets):
+
+| readings | as scored | count, margin 10 | count, no margin |
+|---|---|---|---|
+| ft_l_hidden_often_10k | 71.2 | 72.4 | 74.8 |
+| ft_l_joined_10k | 69.7 | 72.5 | 74.7 |
+| ft_l_control_10k | 67.3 | 68.7 | 66.9 |
+| l_system_100k | 67.5 | 69.3 | 69.4 |
+
+OLiMPiC dev v2, scanned (tuplet_bars.py applies no rule; bars right: number hidden 440 / numbers shown
+320 / no tuplets 4,654):
+
+| readings | raw | imply_tuplets | count then imply_tuplets |
+|---|---|---|---|
+| ft_l_hidden_often_10k | 49.1 / 45.6 / 78.9 | 50.7 / 47.5 / 79.2 | 51.8 / 46.9 / 78.9 |
+| ft_l_joined_10k | 55.9 / 47.2 / 79.0 | 57.7 / 50.3 / 79.2 | 59.1 / 49.4 / 78.9 |
+| ft_l_control_10k | 45.7 / 48.1 / 79.2 | 46.6 / 51.6 / 79.3 | 48.4 / 50.6 / 78.9 |
+| l_system_100k | 53.0 / 45.9 / 79.9 | 54.3 / 49.4 / 80.0 | 57.0 / 48.8 / 79.6 |
+
+Over imply_tuplets alone, the count adds +1.1 to +2.7 on hidden-number bars (about 8 bars a model) and
+loses 0.6-1.0 on shown-number bars and 0.3-0.4 on plain bars (about 16 bars a model: a plain bar that
+does not add up for another reason is made to fit with a tuplet). Net about even on dev v2; not adopted
+as a repair after the end-to-end model. Where it pays is symbols with honest uncertainty (above: +5 to
++8 points), so it belongs behind a stage 1 that gives value probabilities, not behind committed readings.
+
+**Every common ratio a class** (`run_columns_synth_wide`: columns, staves alone 0.25, 300,000 synthetic
+bars, snapped onsets, no masks, 16 epochs; ratio classes from the training bars, each in 100 or more:
+2in3 3in2 4in3 5in3 5in4 6in4 7in4 7in6 7in8 8in6 9in6 9in8, and other). Model alone: tuplet bars 83.0,
+plain 97.9. Counted (`decode_counting.py`):
+
+| bars right | model alone | margin 3 | no margin |
+|---|---|---|---|
+| full bars with a tuplet | 83.0 | 87.3 | 87.6 |
+| full bars without | 97.9 | 99.3 | 99.3 |
+| lines with a tuplet | 88.6 | 95.8 | 96.6 |
+| made-plain lines | 44.1 | 67.4 | 87.9 |
+| reverse check | 24.7 | 48.7 | 68.0 |
+
+Real tuplet bars counted: 86.7% right (`decode_failures.py`), the best yet on gold symbols; ratios outside
+the classes 10.2% → 1.5%. What is left: a voice falling silent or a short bar 6.3%, a consistent wrong
+reading 3.6%, no reading found 1.3%, too many events 0.7%. More classes also make more wrong readings
+fit: made-plain lines counted 99.2 → 87.9 (another ratio fits the stretched meter as well).
+
+**The end-to-end model's own value probabilities as stage 1** (`read_with_probs.py`: the readings as
+saved, identical, plus each duration token's probabilities over the written values from one more pass of
+the decoder over its own reading; `count_readings.py --unsure P`: a note below P is unsure and its value
+searched too). The model is sure of nearly everything: of 22,298 durations on spec 4's clean crops 0.46%
+have their top value below 0.9 and 1.7% below 0.99; of 101,046 on dev v2's scans 1.2% and 3.3%. Spec 4,
+clean, `ft_l_hidden_often_10k`, wide-ratio stage 2: the search changes a value in 4 bars (P 0.9) or 14
+(P 0.99), and the scores do not move (hidden number 71.9 either way, against 71.2 as scored). Its errors
+are not where it is unsure: the softmax does not carry the uncertainty the count needs. (Also: on these
+readings the wide-ratio stage 2 does worse than the column model: hidden number 71.9 vs 74.8, two voices
+50.1 vs 54.9.)
+Dev v2 scans, `ft_l_hidden_often_10k` (count then imply_tuplets; bars right, number hidden / shown / no
+tuplets; imply_tuplets alone 50.7 / 47.5 / 79.2): column stage 2, ratios only 51.8 / 46.9 / 78.9, values
+searched below 0.99 (a value changed in 93 bars) 51.8 / 47.2 / 79.1; wide-ratio stage 2 51.4 / 47.5 /
+78.5 and 51.4 / 47.8 / 78.7. The value search wins back a little of what the count cost on plain and
+shown bars; net, about even with imply_tuplets alone. The end-to-end model as stage 1 does not give the
+count what it needs: its value probabilities are sure where it is wrong.
+
+**Wide ratios without the synthetic bars** (`run_columns_wide`, as `run_columns_synth_wide` less the
+300,000 synthetic bars). Model alone: tuplet bars 87.2 (with synthetic 83.0), plain 96.7 (97.9). Counted,
+margin 3 / no margin: tuplet bars 89.4 / 89.4 (87.3 / 87.6), plain 99.2 / 99.2 (99.3 / 99.3); made-plain
+lines 51.1 / 73.4 (67.4 / 87.9); reverse check 38.8 / 65.9 (48.7 / 68.0). Real tuplet bars counted
+88.3% right (86.7%): the best on real bars. The synthetic bars help only the constructed checks, where a
+group's look is made to mislead; on real bars they cost 1.5-4 points. Not kept.
+
+**Is the end-to-end model's confidence honest?** (`confidence_check.py`: each duration token of a reading
+right or wrong by the token alignment to the label, against its probability renormalized over the
+durations.) Correcting the line above ("sure where it is wrong"), which was inferred, not measured:
+
+| | durations wrong | AUC | below 0.9: wrong flagged / right flagged | below 0.99 |
+|---|---|---|---|---|
+| spec 4, clean | 1.50% | 0.780 | 12.6% / 0.28% | 24.3% / 1.38% |
+| dev v2, scans | 2.86% | 0.830 | 22.6% / 0.53% | 39.2% / 2.20% |
+
+Partly honest: a wrong duration is much likelier to be unsure than a right one, and on scans a cut at
+0.99 flags 39% of the wrong ones at a third precision. But most wrong durations (60-75%) are as sure as
+the right ones, and "wrong" here is mostly structural (a note inserted or missed shifts the alignment),
+which no value probability can mend. The value search found little because the flagged notes sit mostly
+in bars that already add up (left as read) or that a missed note keeps from adding up.
+
+**Do seeds disagree where a reading is wrong?** (`seed_disagreement.py`, (l)'s three seeds on dev v2's
+scans; each label bar's paired bar per reading, by the scorer's alignment; judged: seed 0.)
+
+| label bars | all three agree: seed 0 wrong | any differs: seed 0 wrong | seed 0's wrong bars flagged |
+|---|---|---|---|
+| no tuplets (4,654) | 6.7% of 3,636 | 62.5% of 1,018 | 72.2% |
+| tuplet, number hidden (440) | 28.6% of 252 | 66.5% of 188 | 63.5% |
+| tuplet, numbers shown (320) | 16.7% of 138 | 71.4% of 182 | 85.0% |
+
+Disagreement between seeds is a far more honest flag than the softmax: it catches two thirds to five
+sixths of the wrong bars, structural errors included, and a flagged bar is wrong two times in three.
+Where all three agree on a hidden-number tuplet bar and are wrong (28.6%), they share the mistake.
+
+**The count as a referee between seeds** (`count_vote.py`: (l)'s three seeds' readings; wherever their
+bars differ, same bar count, by index, no label, seed 0's bar replaced by: "majority" the rhythm two
+share; "count" the first that adds up, seed 0 first; "both" majority, else count). imply_tuplets applied
+to every reading as scored.
+
+| bars right | seed 0 | majority | count | count, meter from the readings |
+|---|---|---|---|---|
+| dev v2 scans: tuplet, number hidden (440) | 54.3 | 56.6 | **65.5** | 63.0 |
+| numbers shown (320) | 49.4 | 50.0 | **51.9** | 51.9 |
+| no tuplets (4,654) | 80.0 | 81.5 | **82.0** | 81.9 |
+| spec 4 clean: tuplet, number hidden (39 pieces) | 67.5 | 69.7 | **71.0** | 70.8 |
+| chord of 3+ (51) | 75.0 | 76.1 | **79.8** | 79.8 |
+| two voices on a staff (23) | 55.0 | 55.6 | **57.7** | 58.2 |
+
+(spec 4 degraded: 67.4 / 68.7 / 71.8 hidden; 74.3 / 74.3 / 79.9 chords.) On dev v2's scans 1,410 bars
+differ between the seeds; the count takes another seed's bar in 314. Unlike the repair of one reading,
+the referee gains on every class, plain bars too: it chooses among whole readings, so a misread note or
+voice in one seed is mended by another's, and the count says which. With the meter from the readings
+alone (no label) most of the gain stays (hidden 63.0). The best result on real scans of the day: hidden-
+number tuplet bars 54.3 → 63-65.5, plain 80.0 → 82.0, at three readings' cost.
+
+**The referee on one model's beam** (`read_beams.py`: (l) seed 0's three best readings by beam search,
+width 3; `count_vote.py` on them as on the seeds; dev v2 scans, imply_tuplets applied; bars right,
+number hidden / shown / no tuplets): beam's best 51.8 / 51.9 / 80.3 (greedy 54.3 / 49.4 / 80.0);
+majority 54.3 / 51.2 / 79.8; **count 58.0 / 54.1 / 81.1**; the seeds' referee 65.5 / 51.9 / 82.0.
+1,211 bars differ between the beam's readings; the count takes another in 147. One model's beam gives
+about half the seeds' gain on hidden-number bars and most of it on plain ones; the seeds' readings
+differ in more useful ways. (Close to the backtracking of 2026-11-20, a beam on overfull bars: +1.5 on
+spec 4.)
+
+**Does the decoder already know where notes stand?** (`attention_columns.py`: (l) seed 0, the label fed
+in, each decoder layer's cross-attention as it writes a note's duration, summed over rows and heads;
+pairs of notes in one bar on different staves; spec 4 hidden-tuplet set, 150 clean crops; 2,363 pairs
+that start together, 18,752 that do not, 1,149 of them a 16th or less apart.) Weighted centre: best
+layer 2, median gap 3.3 vs 10.7 encoder columns, AUC 0.80. Peak column: layer 2, median 1 vs 16, AUC
+0.948; layers 3-6 put their peak on one fixed place (no position). Grouping by layer 2's peak within 1
+column: 84.4% of same-onset pairs together, 1.2% of different-onset pairs together, but 5.6% of the
+nearest ones (a 16th or less apart). Layer 2 locates notes, roughly; too roughly for exact columns (a bar
+has many pairs, so most bars would hold a misgrouping). Columns from the page need a trained position
+output; the attention says the decoder has the information to learn it.
+Six readings as candidates (the three seeds, then ft_l_joined_10k, ft_l_hidden_often_10k, ft_l_control_10k;
+`count_vote.py` now takes any number): dev v2 scans, count 65.5 / 52.8 / 82.2 (three seeds: 65.5 / 51.9 /
+82.0); majority 56.1 / 50.9 / 81.0. More candidates add little past three: the count saturates.
+
+**The referee on Polish dev pages** (`polish_referee.sh`: (l)'s three seeds read the 56 dev pages as
+benchmark_pages.sh reads them; `referee_pages.py` referees each system (count rule, the bar in force from
+the first reading's systems before it; no label); scored as benchmark_pages.sh scores ours; polish_report
+with the referee as "ours" against seed 0 alone, paired over pages, 95% range from 5,000 resamples).
+433 bars differ between the seeds; the count takes another seed's bar in 109.
+
+| OMR-NED (lower is better) | two staves (49) | all (56) | referee - seed 0, all |
+|---|---|---|---|
+| corrected, whole-page: seed 0 / referee | 11.32 / **10.58** | 21.27 / **20.62** | -0.65 [-1.46, -0.10] |
+| corrected, authors' alignment | 11.80 / 11.03 | 21.68 / 21.01 | -0.68 [-1.50, -0.13] |
+| print, whole-page | 5.99 / 5.16 | 16.63 / 15.89 | -0.73 [-1.51, -0.19] |
+| published, whole-page | 41.10 / 40.91 | 47.50 / 47.33 | -0.17 [-0.42, +0.03] |
+
+The referee improves the headline (corrected, whole page) by 0.65 points, outside chance; on two-staff
+pages 11.32 → 10.58 (7% fewer edits). Three-staff pages (90.9, unread) do not move. Cost: three readings
+of every page. Not yet weighed against the published model or the run behind the current benchmark
+numbers; nothing adopted.
+Two readings (seeds 0 and 1, `polish_referee_two.sh`, the same page readings): corrected whole-page
+21.27 → 20.75 (-0.52 [-1.31, -0.02]; two staves 11.32 → 10.74), print 16.63 → 16.14 (-0.49 [-1.24,
+-0.01]). Two readings keep about 80% of three's gain (-0.65); with two, a bar that differs has no
+majority, and the count alone decides (70 bars taken from seed 1).
+Within one model (`heights_referee.py`, `polish_heights.sh`): seq_pages reads each system at two crop
+heights and keeps the reading that fills its bars best; refereeing the bars between those two readings
+instead (no model or reading more; the base reading reproduces the earlier run's 56 pages exactly):
+291 bars differ, the count takes the other height's bar in 33; corrected whole-page 21.27 → 21.26
+(-0.01 [-0.05, +0.03]), print unchanged. Two crops of one model are too alike, and best_readings already
+takes the fuller one: the referee's gain needs separately trained models.
+
+**Fine-tunes as the other readings** (`polish_referee_ft.sh`; Polish dev, corrected whole-page, against
+seed 0 alone 21.27): seed 0 + ft_l_control_10k (10k steps on the base mix) 21.16 (-0.11 [-0.24, -0.01]):
+too like seed 0, 29 bars taken. Seed 0 + ft_l_hidden_often_10k (10k steps with hidden tuplets often)
+20.67 (-0.60 [-1.38, -0.11]), 51 bars taken; that fine-tune alone 21.09 (-0.18 [-1.04, +0.53]): the pair's
+gain is the referee's, not a better model's. All three 20.65 (-0.62); three seeds 20.62, two seeds 20.75.
+A fine-tune on a different mix, a few hours from seed 0, is as good a second reading as a second seed
+(days of training): what matters is that the two read differently.
+Another mix (`polish_referee_joined.sh`): ft_l_joined_10k alone 22.03 (+0.76 [-0.10, +1.94]: worse than
+seed 0); seed 0 + it 21.08 (-0.18 [-0.44, +0.02]), 38 bars taken. Not any fine-tune on a different mix:
+the hidden-tuplet one pairs well (-0.60), the joined-bars one barely (-0.18), the base-mix one barely
+(-0.11). A second reading has to be about as good as the first and wrong in other places; which fine-tune
+does that is found by measuring, not assumed. Seeds are the safe choice (-0.52 for two).
+The cheapest hidden-tuplet model (`polish_referee_dpo.sh`: dpo_control, (l) + 1,500 steps of cross-entropy
+on hidden-group crops only, about 25 minutes of training): alone 21.23 (-0.04 [-0.97, +0.74]: as good as
+seed 0); seed 0 + it **20.68 (-0.59 [-1.37, -0.11])**, 92 bars taken: as good a second reading as the 10k
+hidden-tuplet fine-tune (-0.60) and better than a second seed (-0.52). What pairs: a model as good as the
+first, trained to lean on hidden tuplets, so it reads those bars differently. The referee's practical form:
+the release model plus a 25-minute fine-tune of it, two readings of every page.
+Checked on the crop sets (meter from the readings; imply_tuplets applied). Dev v2 scans, hidden / shown /
+plain: seed 0 54.3 / 49.4 / 80.0; dpo_control alone 73.6 / 50.0 / 75.9; seed 0 first + dpo_control
+65.0 / 52.8 / 80.4; dpo_control first + seed 0 74.8 / 52.5 / 79.0. Spec 4 clean, hidden / chord of 3+ /
+two voices: seed 0 67.5 / 75.0 / 55.0; dpo_control alone 74.4 / 80.2 / 56.6; seed 0 first + it 73.0 / 81.1
+/ 58.1. Polish dev with dpo_control first: 20.97 (-0.30 [-1.18, +0.38]) against seed 0 first's 20.68
+(-0.59). The order matters: the first reading is kept wherever it adds up, so it should be the one best
+on plain bars (seed 0); the hidden-tuplet model is the second reading, not the first.
+The recipe again with seed 1 (`second_reading_seed1.sh`; dpo_ft.py --no-dpo --seed 1, other batches and
+dropout): alone 21.19 (-0.08); seed 0 + it **20.66 (-0.61 [-1.38, -0.12])**, 91 bars taken (seed 0's run:
+20.68, -0.59, 92). A recipe, not a lucky checkpoint: (l) + 1,500 steps of cross-entropy on hidden-group
+crops as the second reading, refereed after the first, gives Polish dev -0.6 OMR-NED, twice.
+Mutopia dev (`mutopia_referee.py`: 10 pieces, note F1 as seq_pages.py mutopia scores; seed 0 first, the
+25-minute model second): 110 bars differ, the count takes the second's in 11; F1 0.873 → 0.870 (correct
+notes 7,226 → 7,203; extra 360 → 373, missed 158 → 172). Slightly worse on these engraved pieces (few hidden
+tuplets; where the first does not add up, the second's bar that does is not always better note by note).
+Small (11 bars, 10 pieces), but not free: adopting the referee should be weighed on every benchmark set.
+OLiMPiC dev pages (`olimpic_referee.sh`: layouts as benchmark_pages.sh finds them; 46 songs, note F1 as
+seq_pages.py olimpic scores; seed 0 first, the 25-minute model second): 351 bars differ, the second's taken
+in 49; F1 0.931 → **0.937** (correct notes 32,035 → 32,233; onset+duration errors 840 → 680). Over the
+three page sets: Polish -0.6 OMR-NED (better), OLiMPiC +0.006 F1 (better), Mutopia -0.003 F1 (slightly
+worse, 11 bars changed).
+
+**One model, two readings.** Dropout left on at reading time (`dropout_reading.py`, `polish_dropout.sh`;
+seed 0 read again with dropout on, refereed after its plain reading): the dropout reading alone 23.20
+(+1.93 [+0.95, +3.10]: dropout makes it read worse); refereed 21.04 (-0.23 [-0.67, +0.13]), 58 bars taken
+of 369 that differ. Random noise gives a weaker second reading, and a weaker one helps less: not a
+substitute for a model trained to read differently. The mode token (`mode_ft.py`) runs next.
+The mode token (`mode_ft.py`: (l) + 3,000 steps on masked_ft's mix, 7,395 of 22,352 crops marked with
+tuplet:hidden as a start token; `mode_reading.py`, `polish_mode.sh`): read with and without the token, the
+pages differ in 96 bars only (two models: 369-433); the plain reading alone 21.52 (+0.26 [-0.71, +1.10]),
+refereed 21.43 (+0.16 [-0.79, +0.98]). The token barely moves the reading: the model learned it as a weak
+hint, not a second way of reading. A one-model referee needs more than a start token (an adapter, or a
+second set of weights); the 25-minute second model stays the recipe.

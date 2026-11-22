@@ -26,6 +26,10 @@ from enum import Enum
 # hiding, since the model meets the passages that hide far more often than PDMX's share says.
 SHOW_ALL, BY_RUN, HIDE_ALL = "show all", "by run", "hide all"
 SCORE_HIDING = {SHOW_ALL: 0.65, BY_RUN: 0.28, HIDE_ALL: 0.07}
+# A mix for teaching that a number may or may not be drawn: half the scores hide by run, so most
+# of their systems show some groups' numbers and hide others' (TODO, hidden-tuplet fine-tunes).
+OFTEN_HIDING = {SHOW_ALL: 0.25, BY_RUN: 0.5, HIDE_ALL: 0.25}
+HIDING_MIXES = {"engravers": SCORE_HIDING, "often": OFTEN_HIDING}
 # Within the scores that hide some (PDMX / ASAP / OLiMPiC agree to a few points):
 HIDDEN_BY_RUN_PLACE = (0.50, 0.65, 0.72, 0.78, 0.87)  # the 1st, 2nd, 3rd, 4th, 5th and later group
 HIDDEN_AT_VOICES_FIRST_IN_SYSTEM = 0.58  # against 0.77 later
@@ -95,8 +99,8 @@ def new_group(start: ET.Element, note: ET.Element, measure: int, staff: str) -> 
 
 # ---- hiding ----------------------------------------------------------------------------------
 
-def score_hiding(rng: random.Random) -> str:
-    return rng.choices(list(SCORE_HIDING), weights=list(SCORE_HIDING.values()))[0]
+def score_hiding(rng: random.Random, mix: dict[str, float] = SCORE_HIDING) -> str:
+    return rng.choices(list(mix), weights=list(mix.values()))[0]
 
 
 def hidden_share(group: TupletGroup) -> float:
@@ -159,13 +163,14 @@ def set_look(part: ET.Element, look: TupletLook) -> None:
 
 @dataclass(frozen=True)
 class TupletDrawing:
-    """A builder's tuplet options: engravers' hiding (else the builder's own rule), and varied looks."""
-    engraver_hiding: bool = False
+    """A builder's tuplet options: a hiding mix of HIDING_MIXES (None: the builder's own rule),
+    and varied looks."""
+    hiding: str | None = None
     varied_looks: bool = False
 
     @property
     def changed(self) -> bool:
-        return self.engraver_hiding or self.varied_looks
+        return self.hiding is not None or self.varied_looks
 
 
 @dataclass(frozen=True)
@@ -179,5 +184,5 @@ class ScoreTuplets:
     def drawn(drawing: TupletDrawing, rng: random.Random) -> ScoreTuplets:
         """Draws from rng only what the drawing changes, so a builder without either option makes
         the crops it made before."""
-        return ScoreTuplets(score_hiding(rng) if drawing.engraver_hiding else None,
+        return ScoreTuplets(score_hiding(rng, HIDING_MIXES[drawing.hiding]) if drawing.hiding else None,
                             tuplet_look(rng) if drawing.varied_looks else PLAIN_LOOK)

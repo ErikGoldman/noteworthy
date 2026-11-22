@@ -33,7 +33,7 @@ from torch.nn import functional as F
 
 from seq.data import SystemDataset, collate, samples, split_names
 from seq.bar_voices import has_two_voices_on_a_staff
-from seq.label_form import LabelForm, bars_of
+from seq.label_form import CLOCK_TOKENS, LabelForm, bars_of
 from seq.meter import METER, PREFIX_LENGTH, without_meter
 from seq.model import Seq2Seq, StaffSeq2Seq
 from seq.ottava import sounding
@@ -100,6 +100,21 @@ def targets_of(tokens: torch.Tensor, vocab: Vocab) -> torch.Tensor:
     return targets
 
 
+def token_weights(vocab: Vocab, clock_weight: float) -> torch.Tensor:
+    """(vocab,) each target token's weight in the loss: 1, but clock_weight for the clock tokens."""
+    weights = torch.ones(len(vocab.tokens))
+    weights[[vocab.index[t] for t in CLOCK_TOKENS]] = clock_weight
+    return weights
+
+
+def weighted_loss(logits: torch.Tensor, targets: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
+    """Cross-entropy (label smoothing 0.1) with each target token weighted, over the count of
+    targets, so a weight of 1 everywhere is the plain mean."""
+    each = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), targets.reshape(-1),
+                           ignore_index=PAD, label_smoothing=0.1, reduction="none")
+    return (each * weights[targets.reshape(-1)]).sum() / (targets != PAD).sum()
+
+
 def with_own_readings(model, memory, padding, tokens: torch.Tensor, vocab: Vocab, share: float) -> torch.Tensor:
     """The decoder's input (tokens[:, :-1]) with `share` of its label tokens replaced by tokens
     sampled from the model's own reading of the batch, labels fed: training on its own mistakes, so
@@ -131,13 +146,28 @@ def plain(options: dict) -> dict:
 
 
 def weights_for_model(weights: dict, model: Seq2Seq) -> dict:
-    """Weights of another run, its row embedding stretched to this model's rows, and tokens
-    added to the vocabulary since then keeping this model's fresh embedding."""
+    """Weights of another run, its row embedding stretched to this model's rows, tokens added to the
+    vocabulary since then keeping this model's fresh embedding, and encoder layers it lacks added as
+    identities (new_layers_as_identity)."""
     rows = model.row_embedding.shape[0]
     stretched = F.interpolate(weights["row_embedding"].T[None], size=rows, mode="linear", align_corners=True)[0].T
     embedding = model.token_embedding.weight.detach().clone()
     embedding[:len(weights["token_embedding.weight"])] = weights["token_embedding.weight"]
-    return {**weights, "row_embedding": stretched, "token_embedding.weight": embedding, "out.weight": embedding}
+    return {**new_layers_as_identity(weights, model), "row_embedding": stretched, "token_embedding.weight": embedding,
+            "out.weight": embedding}
+
+
+def new_layers_as_identity(weights: dict, model: Seq2Seq) -> dict:
+    """The model's encoder layers that the weights lack (a deeper encoder than the run's), each with
+    its attention's and feed-forward's output projections at zero: in a norm-first layer each branch
+    then adds nothing to the residual, so the model starts reading exactly as the run did, and the
+    projections' gradients are not zero, so the layers learn from there."""
+    out = dict(weights)
+    for name, value in model.state_dict().items():
+        if name.startswith("encoder.layers.") and name not in weights:
+            zeroed = name.endswith(("self_attn.out_proj.weight", "self_attn.out_proj.bias", "linear2.weight", "linear2.bias"))
+            out[name] = torch.zeros_like(value) if zeroed else value.detach().clone()
+    return out
 
 
 # The weights' moving average, about the last 2,000 steps: a run's checkpoints swing in dev SER
@@ -216,6 +246,17 @@ def main() -> None:
     ap.add_argument("--meter-context", action="store_true", help="labels start with the meter in force (seq.meter)")
     ap.add_argument("--voice-counts", action="store_true",
                     help="labels say how many voices each staff holds after each measure (seq.label_form)")
+    ap.add_argument("--clock", action="store_true",
+                    help="labels mark each whole quarter a voice reaches in its bar (seq.label_form, clock)")
+    ap.add_argument("--encoder-layers", type=int, default=2,
+                    help="the encoder's depth; from a shallower --init run the layers added start as identities")
+    ap.add_argument("--interleaved", action="store_true",
+                    help="labels give each bar's voices in time order, lane:K between them (seq.label_form, "
+                         "with_interleaving); needs --canonical-gaps")
+    ap.add_argument("--onsets", action="store_true",
+                    help="labels give each onset's place in the bar before it, beat:N sub:P/Q (seq.label_form, onsets)")
+    ap.add_argument("--clock-weight", type=float, default=1.0,
+                    help="each clock token's share of the loss, as a multiple of any other token's")
     ap.add_argument("--canonical-gaps", action="store_true",
                     help="labels write each gap and each return to the bar's start one way (seq.label_form)")
     ap.add_argument("--two-voice-repeat", type=int, default=1,
@@ -283,6 +324,8 @@ def main() -> None:
     # cached blocks instead.
     torch.cuda.set_per_process_memory_fraction(GPU_MEMORY_FRACTION)
     vocab = Vocab.load(VOCABULARY)
+    if args.clock_weight != 1 and not args.clock:
+        ap.error("--clock-weight weights the clock tokens, which only --clock writes")
     positions = args.staves or args.staff_samples_only
     train_items = training_items(args.data, args.two_voice_repeat, positions)
     dev_root, dev_split = args.dev.split(":")
@@ -292,7 +335,8 @@ def main() -> None:
         dev_items = with_staves(dev_items, Path(dev_root), positions)
     if args.staff_samples_only and not args.interline_scale:
         train_items, dev_items = [s for s, _ in train_items], [s for s, _ in dev_items]
-    form = LabelForm(voice_counts=args.voice_counts, canonical_gaps=args.canonical_gaps)
+    form = LabelForm(voice_counts=args.voice_counts, canonical_gaps=args.canonical_gaps, clock=args.clock,
+                     onsets=args.onsets, interleaved=args.interleaved)
     if args.staves:
         dataset = lambda items, train: StaffDataset(items, vocab, train, args.max_tokens, outward=args.staff_outward,
                                                     meter_context=args.meter_context, jitter=args.staff_jitter,
@@ -308,6 +352,7 @@ def main() -> None:
         model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
                         meter_context=args.meter_context, relative_rows=args.relative_rows,
                         row_windows=args.row_windows, interline_scaled=True, staff_anchored=args.staff_anchored,
+                        encoder_layers=args.encoder_layers,
                         staff_bands=args.staff_bands, staff_windows=args.staff_windows, label_form=form)
     else:
         dataset = lambda items, train: SystemDataset(items, vocab, train, args.max_tokens, args.height, args.meter_context,
@@ -315,7 +360,7 @@ def main() -> None:
         batched = collate
         model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
                         meter_context=args.meter_context, relative_rows=args.relative_rows, row_windows=args.row_windows,
-                        label_form=form)
+                        encoder_layers=args.encoder_layers, label_form=form)
     train = torch.utils.data.DataLoader(dataset(train_items, True), batch_size=args.batch,
                                         shuffle=True, num_workers=args.workers, collate_fn=batched, drop_last=True,
                                         persistent_workers=True)
@@ -343,6 +388,7 @@ def main() -> None:
     print(f"{len(train_items)} training samples, {sum(p.numel() for p in model.parameters()) / 1e6:.1f}M parameters")
 
     log = (args.out / "log.jsonl").open("a")
+    weights = token_weights(vocab, args.clock_weight).to(device)
     started, seen = time.time(), 0
     while step < args.steps:
         for images, widths, tokens in train:
@@ -353,8 +399,7 @@ def main() -> None:
                                             own_readings_share(step, args.steps, args.own_readings))
                           if args.own_readings else tokens[:, :-1])
                 logits = model.decode(inputs, memory, padding)
-            loss = F.cross_entropy(logits.float().reshape(-1, logits.shape[-1]), targets_of(tokens, vocab).reshape(-1),
-                                   ignore_index=PAD, label_smoothing=0.1)
+            loss = weighted_loss(logits, targets_of(tokens, vocab), weights)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)

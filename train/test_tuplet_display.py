@@ -5,8 +5,11 @@ import random
 import unittest
 import xml.etree.ElementTree as ET
 
-from seq.tuplet_display import (BY_RUN, HIDDEN_BY_RUN_PLACE, HIDE_ALL, SHOW_ALL, TupletLook, hidden_share,
-                                hide_as_engravers_do, set_look, tuplet_groups)
+from collections import Counter
+
+from seq.tuplet_display import (BY_RUN, HIDDEN_BY_RUN_PLACE, HIDE_ALL, OFTEN_HIDING, PLAIN_LOOK, SHOW_ALL,
+                                ScoreTuplets, TupletDrawing, TupletLook, hidden_share, hide_as_engravers_do,
+                                set_look, tuplet_groups)
 
 
 def note(step: str, kind: str = "eighth", tuplet: str | None = None, voice: str = "1", ratio=(3, 2)) -> str:
@@ -85,6 +88,20 @@ class Hiding(unittest.TestCase):
         starts = [g.start for g in tuplet_groups(p)]
         self.assertEqual([s.get("show-number") for s in starts], ["none", "both"])
         self.assertEqual(starts[1].get("placement"), "above")
+
+
+
+class Drawing(unittest.TestCase):
+    def test_no_options_draw_nothing(self):
+        rng = random.Random(0)
+        self.assertEqual(ScoreTuplets.drawn(TupletDrawing(), rng), ScoreTuplets(None, PLAIN_LOOK))
+        self.assertEqual(rng.random(), random.Random(0).random())  # and take nothing from the rng
+
+    def test_the_often_mix_draws_each_score_hiding_by_its_weights(self):
+        rng = random.Random(0)
+        drawn = Counter(ScoreTuplets.drawn(TupletDrawing(hiding="often"), rng).hiding for _ in range(4000))
+        for hiding, weight in OFTEN_HIDING.items():
+            self.assertAlmostEqual(drawn[hiding] / 4000, weight, delta=0.03)
 
 
 if __name__ == "__main__":

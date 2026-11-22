@@ -3,7 +3,7 @@ sequence model (train_seq.py).
 
 usage: build_seq_dataset.py --scores LIST.txt --out DIR [--systems-per-score K] [--workers W]
                             [--unmarked-tuplets] [--thick-beams] [--round-heads] [--marks]
-                            [--engraver-hiding] [--varied-tuplet-looks]
+                            [--tuplet-hiding {engravers,often}] [--varied-tuplet-looks]
 
 Held-out scores (omr.held_out) and PDMX scores with a license conflict are left out. Each two-staff (piano) part is cut into systems of a few measures, which OLiMPiC's code
 turns into self-contained parts: clefs and key repeated at each system start, the time
@@ -17,8 +17,8 @@ With --unmarked-tuplets only systems with tuplets are taken, drawn without their
 and a model that only ever saw numbers reads the others as plain notes.
 
 Otherwise one system in five with tuplets hides every number (the first may stay), unless
---engraver-hiding hides them as real scores do: by score, then by place in a run of like groups
-(seq.tuplet_display). --varied-tuplet-looks sets each score's printed numbers its own way: above
+--tuplet-hiding hides them by one of seq.tuplet_display's mixes: engravers, as real scores do (by
+score, then by place in a run of like groups), or often, the same rule with far more scores hiding. --varied-tuplet-looks sets each score's printed numbers its own way: above
 or below, bracketed or not, 3 or 3:2, some far from their notes, small, or in an arc (TODO 3c).
 
 With --thick-beams beams are drawn heavier, as on old plates and in copyists' hands, where
@@ -67,10 +67,12 @@ from omr.held_out import is_held_out
 from omr.pieces import pdmx_license_conflicts
 from omr.render import FONTS, SVG_NS, UNITS_PER_INTERLINE_PER_UNIT, layout_svg
 from seq.staff_positions import Staves, staff_count
+from seq.joined_bars import with_bars_joined
+from seq.note_x import head_x
 from seq.ottava import TOKEN_ATTRIBUTE, move_octaves, notes_under_ottavas, written_part
 from seq.barlines import barline_tokens_of, with_barline_tokens
 from seq.time_symbols import TOKEN_OF_SYMBOL, token_of, with_time_symbol
-from seq.tuplet_display import PLAIN_LOOK, ScoreTuplets, TupletDrawing, TupletLook, hide_as_engravers_do, set_look
+from seq.tuplet_display import HIDING_MIXES, PLAIN_LOOK, ScoreTuplets, TupletDrawing, TupletLook, hide_as_engravers_do, set_look
 from seq.tuplet_numbers import HIDDEN, START, starts_hidden_tuplet
 from seq.tuplet_svg import restyle_tuplets
 
@@ -143,6 +145,7 @@ class Style:
     thick_beams: bool = False
     round_heads: bool = False
     marks: bool = False
+    joined_bars: bool = False  # some bars drawn as one, the label keeping them (seq.joined_bars)
 
 
 def is_training_score(source: str, conflicts: set[str]) -> bool:
@@ -685,10 +688,13 @@ def rasterized(svg: bytes) -> np.ndarray:
 
 
 def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style: Style = Style(),
-                  line: int | None = None, look: TupletLook = PLAIN_LOOK) -> tuple[np.ndarray, Staves | None] | None:
-    """The system as a grayscale image cropped to its ink plus a random margin, and its staves
-    there, from the drawing (None if its lines do not come in fives). With line, the score holds
-    neighbouring measures on lines of their own (with_neighbours), and only that line is drawn."""
+                  line: int | None = None, look: TupletLook = PLAIN_LOOK, label_part: ET.Element | None = None
+                  ) -> tuple[np.ndarray, Staves | None, list[float | None] | None] | None:
+    """The system as a grayscale image cropped to its ink plus a random margin, its staves there, from
+    the drawing (None if its lines do not come in fives), and with label_part (the part the label was
+    written from, drawn as it is) each label head's x across the crop (seq.note_x.head_x). With line,
+    the score holds neighbouring measures on lines of their own (with_neighbours), and only that line is
+    drawn."""
     options = engraving_options(rng)
     if style.marks:
         options |= ottava_options(rng)
@@ -727,14 +733,19 @@ def render_system(tk: verovio.toolkit, musicxml: str, rng: random.Random, style:
     crop = image[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
     staves = drawn_staves(rasterized(staff_lines_only(svg)))
     in_crop = staves and Staves(tuple(c - ys.min() + m[0] for c in staves.centres), staves.interline)
-    return cv2.copyMakeBorder(crop, m[0], m[1], m[2], m[3], cv2.BORDER_CONSTANT, value=255), in_crop
+    x = (head_x(label_part, tk.getMEI(), svg, xs.min() - m[2], crop.shape[1] + m[2] + m[3])
+         if label_part is not None else None)
+    return cv2.copyMakeBorder(crop, m[0], m[1], m[2], m[3], cv2.BORDER_CONSTANT, value=255), in_crop, x
 
 
-def write_sample(stem: Path, image: np.ndarray, staves: Staves, lmx: str) -> None:
-    """A crop, its label, and its staves as drawn (find_staff_positions.py reads them)."""
+def write_sample(stem: Path, image: np.ndarray, staves: Staves, x: list[float | None] | None, lmx: str) -> None:
+    """A crop, its label, its staves as drawn (find_staff_positions.py reads them), and where given each
+    label head's x across the crop (<stem>.x.json, seq.note_x)."""
     cv2.imwrite(str(stem.with_suffix(".png")), image)
     stem.with_suffix(".lmx").write_text(lmx + "\n")
     stem.with_suffix(".staves.json").write_text(json.dumps([*staves.centres, staves.interline]))
+    if x is not None:
+        stem.with_suffix(".x.json").write_text(json.dumps(x))
 
 
 def row_resized(row: float, factor: float) -> float:
@@ -743,9 +754,9 @@ def row_resized(row: float, factor: float) -> float:
     return (row + 0.5) * factor - 0.5
 
 
-def build_score(job: tuple[int, str, Path, int, bool, Style, TupletDrawing]) -> int:
+def build_score(job: tuple[int, str, Path, int, bool, Style, TupletDrawing, bool]) -> int:
     """Renders up to K systems of one score; returns how many."""
-    index, source, out, k, unmarked_tuplets, style, drawing = job
+    index, source, out, k, unmarked_tuplets, style, drawing, note_x = job
     target = out / "samples" / f"{index:06d}"
     if target.exists():
         return len(list(target.glob("*.lmx")))
@@ -781,12 +792,19 @@ def build_score(job: tuple[int, str, Path, int, bool, Style, TupletDrawing]) -> 
             lmx = linearize(system.part)
             drawn, neighbours = (with_neighbours(in_order, in_order.index(system)) if open_at_an_edge(lmx)
                                  else (system.part, None))
+            if style.joined_bars:
+                drawn = copy.deepcopy(drawn)  # system.part is the label's, and the ottava check reads it
+                if not with_bars_joined(drawn, rng, neighbours or (0, 0)):
+                    continue  # nothing joinable: a set of joined bars holds none without
             score = part_to_score(drawn).getroot()
             if rng.random() < PART_NAME_HIDDEN:
                 hide_part_name(score)
             musicxml = ET.tostring(score, encoding="unicode", xml_declaration=True)
             line = neighbours[0] if neighbours else None
-            rendered = render_system(tk, musicxml, rng, style, line, tuplets.look) if 10 <= len(lmx.split()) <= MAX_TOKENS else None
+            drawn_as_labelled = neighbours is None and not style.joined_bars  # the drawing holds the label's measures only
+            rendered = (render_system(tk, musicxml, rng, style, line, tuplets.look,
+                                      system.part if note_x and drawn_as_labelled else None)
+                        if 10 <= len(lmx.split()) <= MAX_TOKENS else None)
             # A system Verovio broke over several lines draws more staves than the label has.
             drawn_right = (rendered is not None and rendered[1] is not None
                            and len(rendered[1].centres) == staff_count(lmx)
@@ -813,16 +831,22 @@ def main() -> None:
     ap.add_argument("--thick-beams", action="store_true")
     ap.add_argument("--round-heads", action="store_true")
     ap.add_argument("--marks", action="store_true")
-    ap.add_argument("--engraver-hiding", action="store_true", help="hide tuplet numbers as engravers do")
+    ap.add_argument("--tuplet-hiding", choices=sorted(HIDING_MIXES),
+                    help="hide tuplet numbers by a mix of seq.tuplet_display: as engravers do, or often")
     ap.add_argument("--varied-tuplet-looks", action="store_true", help="set printed tuplet numbers in varied ways")
+    ap.add_argument("--joined-bars", action="store_true",
+                    help="draw some bars of each system as one, the label keeping them (seq.joined_bars)")
+    ap.add_argument("--note-x", action="store_true",
+                    help="write each label head's x across its crop (<sample>.x.json, seq.note_x) where the drawing "
+                         "holds the label's measures only")
     args = ap.parse_args()
     sources = args.scores.read_text().split("\n")
     hung_log = args.out / "hung.txt"
     hung = set(hung_log.read_text().split("\n")) if hung_log.exists() else set()
     conflicts = pdmx_license_conflicts(DATA / "raw" / "pdmx")
-    style = Style(args.thick_beams, args.round_heads, args.marks)
-    drawing = TupletDrawing(args.engraver_hiding, args.varied_tuplet_looks)
-    jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets, style, drawing)
+    style = Style(args.thick_beams, args.round_heads, args.marks, args.joined_bars)
+    drawing = TupletDrawing(args.tuplet_hiding, args.varied_tuplet_looks)
+    jobs = [(i, s, args.out, args.systems_per_score, args.unmarked_tuplets, style, drawing, args.note_x)
             for i, s in enumerate(sources)
             if s not in hung and is_training_score(s, conflicts)]
     total = 0

@@ -37,9 +37,11 @@ class PageRule(Enum):
     WRONG_MARKS_CLEARED = "wrong_marks_cleared"
     EXTRA_BEAMS_DROPPED = "extra_beams_dropped"
     DOTS_MENDED = "dots_mended"
+    RUNS_OF_THREE = "runs_of_three"
 
 
-ALL_RULES = frozenset(PageRule)
+# RUNS_OF_THREE is on trial (TODO, priority 1): applied only where asked for until it is measured on pages.
+ALL_RULES = frozenset(PageRule) - {PageRule.RUNS_OF_THREE}
 
 
 @dataclass
@@ -464,9 +466,88 @@ def dots_mended(lmx: str, bar: Fraction | None = None) -> str:
     return " ".join(tokens)
 
 
+def onset_groups(voice: Voice) -> list[list[Note]]:
+    """The voice's notes by onset: each advancing note with the chord members after it."""
+    groups: list[list[Note]] = []
+    for note in voice.notes:
+        if note.advances:
+            groups.append([note])
+        elif groups and not note.grace:
+            groups[-1].append(note)
+    return groups
+
+
+def runs_of_three(voice: Voice) -> list[list[list[Note]]]:
+    """Runs of three unmarked onsets of one length that, read as a triplet, start on a multiple of
+    its span, each earlier run counted as a triplet (time as it would be once repaired)."""
+    onsets, found, position, k = onset_groups(voice), [], voice.skipped, 0
+    while k < len(onsets):
+        run = onsets[k:k + 3]
+        length = run[0][0].length
+        if (len(run) == 3 and {o[0].length for o in run} == {length}
+                and not any(n.marked for o in run for n in o) and position % (2 * length) == 0):
+            found.append(run)
+            position += 2 * length
+            k += 3
+        else:
+            position += onsets[k][0].length
+            k += 1
+    return found
+
+
+def sextuplet(voice: Voice, runs: list[list[list[Note]]]) -> bool:
+    """Two runs that make up one whole beam group: a sextuplet (6in4), as labels write it."""
+    notes = [n for run in runs for o in run for n in o]
+    beams = {n.beam_group for n in notes}
+    return len(runs) == 2 and len(beams) == 1 and None not in beams and \
+        len(voice.beam_groups()[next(iter(beams))]) == len(notes)
+
+
+def runs_marked(voice: Voice, runs: list[list[list[Note]]]) -> dict[int, str]:
+    """{duration-token index: ratio token} for the runs: 6in4 for a sextuplet's pair, else 3in2."""
+    out, k = {}, 0
+    while k < len(runs):
+        group = runs[k:k + 2] if sextuplet(voice, runs[k:k + 2]) else runs[k:k + 1]
+        out.update({n.duration_at: "6in4" if len(group) == 2 else "3in2" for run in group for o in run for n in o})
+        k += len(group)
+    return out
+
+
+def runs_for(voice: Voice, bar: Fraction) -> dict[int, str]:
+    """Ratio tokens for the first or last runs of three that make an overfull voice fill the bar."""
+    excess = voice.total() - bar
+    if voice.measure_rest or excess <= 0:
+        return {}
+    runs = runs_of_three(voice)
+    for count in range(1, len(runs) + 1):
+        for chosen in (runs[:count], runs[-count:]):
+            if sum(o[0].length for run in chosen for o in run) / 3 == excess:
+                return runs_marked(voice, chosen)
+    return {}
+
+
+def runs_as_tuplets(lmx: str, bar: Fraction | None = None) -> str:
+    """The LMX with runs of three equal notes read as triplets where that makes an overfull voice
+    fill the bar exactly: imply_tuplets' arithmetic without its beam groups, and without a voice that
+    fills the bar to confirm it. The model drops hidden-number triplets this way whatever the beaming,
+    in both hands at once (EXPERIMENTS.md, "Hidden tuplets: what goes wrong"). bar as for imply_tuplets."""
+    tokens = lmx.split()
+    measures = measures_of(tokens)
+    edits: dict[int, str] = {}
+    for measure, b in zip(measures, bars_in_force(tokens, bar, measures)):
+        if b is not None:
+            for voice in measure:
+                edits.update(runs_for(voice, b))
+    for at in sorted(edits, reverse=True):
+        tokens.insert(at + 1, edits[at])
+    return " ".join(tokens)
+
+
 def with_page_rules(lmx: str, bar: Fraction | None = None, rules: frozenset[PageRule] = ALL_RULES) -> str:
     """A reading with the page rules in rules applied, in the order they were measured in."""
     lmx = imply_tuplets(lmx, bar, rules)
+    if PageRule.RUNS_OF_THREE in rules:
+        lmx = runs_as_tuplets(lmx, bar)
     if PageRule.EXTRA_BEAMS_DROPPED in rules:
         lmx = extra_beams_dropped(lmx, bar)
     if PageRule.DOTS_MENDED in rules:

@@ -100,7 +100,7 @@ def load_model(checkpoint: Path, device) -> Seq2Seq | StaffSeq2Seq:
                         row_windows=args.get("row_windows", 0), interline_scaled=args.get("interline_scale", False),
                         staff_anchored=args.get("staff_anchored", False),
                         staff_bands=args.get("staff_bands", False),
-                        staff_windows=args.get("staff_windows", False),
+                        staff_windows=args.get("staff_windows", False), encoder_layers=args.get("encoder_layers", 2),
                         label_form=LabelForm.from_options(args)).to(device)
     model.load_state_dict(state["model"])
     return model.eval()
