@@ -136,7 +136,7 @@ def read(args) -> list[dict]:
         with torch.no_grad():
             for images, widths, tokens in loader:
                 with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):
-                    predicted = model.generate(images.to(device), widths, starts=meter_starts(tokens, vocab))
+                    predicted = model.generate(images.to(device), widths, starts=meter_starts(tokens, vocab), beam=args.beam)
                 for sample, p, g in zip(items[done:], predicted, tokens.tolist()):
                     rows.append({"source": source, "name": str(sample.image.relative_to(root).with_suffix("")),
                                  "reading": as_lmx(model, vocab, p), "label": as_lmx(model, vocab, g[1:])})
@@ -154,6 +154,7 @@ def main() -> None:
     ap.add_argument("--sources", nargs="+", default=SOURCES, help="the set's subdirectories to read")
     ap.add_argument("--limit", type=int, help="the first N crops of each source only (a quick check)")
     ap.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
+    ap.add_argument("--beam", type=int, default=1, help="readings kept side by side (beam search); 1: greedy")
     args = ap.parse_args()
     if args.report:
         rows = [json.loads(line) for line in args.report.open()]

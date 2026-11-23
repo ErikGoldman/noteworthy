@@ -166,6 +166,24 @@ class StaffMoves(unittest.TestCase):
         self.assertEqual(columns(text, 7), ["4ryy", "4f", "4E 4e"])
         self.assertEqual(columns(text, 8), ["4E", "4g", "4ryy"])
 
+    def test_move_up_takes_notes_from_a_named_lower_column(self):
+        # 077 bars 18-20: a spine split from the lower staff carries the upper staff's melody
+        page = MOVES.replace("*clefF4\t*clefG2", "*clefF4\t*clefG2\n*^\t*").replace(
+            "8C 8cL\t4e", "8C\t4aa\t4e").replace("8D 8dJ\t.", "8D\t.\t.").replace("4E 4e\t4f", "4E\t4gg\t4f").replace(
+            "=1\t=1", "=1\t=1\t=1").replace("=2\t=2", "*v\t*v\t*\n=2\t=2")
+        text = corrected(page, [override(5, move_up={"last_line": 7, "notes": {"5": [0], "7": [0]}, "column": 1})])
+        self.assertTrue(spines_consistent(text))
+        self.assertEqual(columns(text, 6), ["8C", "4ryy", "4e", "4aa"])
+        self.assertEqual(columns(text, 8), ["4E", "4ryy", "4f", "4gg"])
+
+    def test_a_split_chord_keeps_its_one_slur_with_the_notes_that_stay(self):
+        # 030 bars 17-18: octaves joined by one stem across the staves, one slur over the chord
+        page = MOVES.replace("4E 4e\t4f", "4E 4e\t4f( 4a(")
+        text = corrected(page, [override(6, move_down={"last_line": 6, "notes": {"6": [0]}, "column": 1})])
+        self.assertTrue(spines_consistent(text))
+        self.assertEqual(columns(text, 7)[1], "4f")
+        self.assertEqual(columns(text, 7)[2], "4a(")
+
     def test_move_down_puts_upper_notes_in_a_new_lower_voice(self):
         text = corrected(MOVES, [override(4, move_down={"last_line": 6})])
         self.assertTrue(spines_consistent(text))

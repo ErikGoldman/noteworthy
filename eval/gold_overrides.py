@@ -17,9 +17,10 @@ One override per line of OVERRIDES.jsonl:
   reason       what is wrong, as seen on the print
 and one of:
   insert_after lines to add after `line` (tabs between columns)
-  move_up      {"last_line": n, "notes": {"<gold line>": [i, ...]}}: from `line` to `last_line`, the
-               listed notes (by place in the left spine's field, from 0) are drawn on the upper staff
-               and go to a new voice there
+  move_up      {"last_line": n, "notes": {"<gold line>": [i, ...]}, "column": c}: from `line` to
+               `last_line`, the listed notes (by place in column c's field, from 0; c is the left
+               spine if left out) are drawn on the upper staff and go to a new voice there, after
+               the last column; a lower staff split into several spines names the one that holds them
   move_down    {"last_line": n, "notes": {"<gold line>": [i, ...]}, "column": c}: from `line` to
                `last_line`, the listed notes (every note if "notes" is left out) of column c (the
                last if left out; columns as on `line`) are drawn on the staff below its own and go
@@ -67,6 +68,7 @@ SEMITONE = {"c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11}
 NOTE = re.compile(r"([a-g]+|[A-G]+)(#+|-+|n)?")
 RHYTHM = re.compile(r"\d+(?:%\d+)?\.*")
 BEAM_MARKS = re.compile(r"[LJKk]")
+SLUR_MARKS = re.compile(r"[()]")
 # Humdrum's way to flag single notes; the scorer's parser turns it into the note's colour.
 AMBIGUOUS_SIGNIFIER = "i"
 AMBIGUOUS_COLOR = "#abcdef"
@@ -108,17 +110,25 @@ def with_rests_hidden(line: str) -> str:
 def divided(field: str, moves: set[int], keep_beams: bool) -> tuple[str, str]:
     """A spine field as what stays and what moves, each a hidden rest if it would be empty. A beam the
     move splits between the staves goes from both sides: no kern spine can hold it. A field
-    that goes whole keeps it, when its group goes the same way (`keep_beams`)."""
+    that goes whole keeps it, when its group goes the same way (`keep_beams`). A chord's slur is
+    one arc: when the chord splits, it stays with the notes that stay."""
     if field == ".":
         return ".", "."
     notes = BEAM_MARKS.sub("", field).split()
     moving = [note for i, note in enumerate(notes) if i in moves]
     staying = [note for i, note in enumerate(notes) if i not in moves]
+    moving = without_slurs_staying_has(moving, staying)
     if keep_beams and not staying:
         return hidden_rest_like(field), field
     if keep_beams and not moving:
         return field, hidden_rest_like(field)
     return " ".join(staying) or hidden_rest_like(field), " ".join(moving) or hidden_rest_like(field)
+
+
+def without_slurs_staying_has(moving: list[str], staying: list[str]) -> list[str]:
+    """The moving notes without the slur marks a staying note of the same chord already carries."""
+    marks = {mark for note in staying for mark in SLUR_MARKS.findall(note)}
+    return [SLUR_MARKS.sub(lambda m: "" if m[0] in marks else m[0], note) for note in moving]
 
 
 def every_note(field: str) -> set[int]:
@@ -156,13 +166,13 @@ def beams_kept(fields: list[str], moves: list[set[int]]) -> list[bool]:
     return kept
 
 
-def moved_up(lines: list[str], moves: list[set[int]]) -> list[str]:
-    """The lines with the chosen left-spine notes (moves, per line) in a new last column, opened and
+def moved_up(lines: list[str], moves: list[set[int]], column: int = 0) -> list[str]:
+    """The lines with the chosen notes of `column` (moves, per line) in a new last column, opened and
     closed around them."""
     width = len(lines[0].split("\t"))
     keep = ["*"] * (width - 1)
     out = ["\t".join([*keep, "*^"])]
-    kept = beams_kept([line.split("\t")[0] for line in lines], moves)
+    kept = beams_kept([line.split("\t")[column] for line in lines], moves)
     for line, line_moves, keep_beams in zip(lines, moves, kept):
         fields = line.split("\t")
         if line.startswith("="):
@@ -170,7 +180,7 @@ def moved_up(lines: list[str], moves: list[set[int]]) -> list[str]:
         elif line.startswith("*"):
             out.append("\t".join([*fields, "*"]))
         else:
-            fields[0], upper = divided(fields[0], line_moves, keep_beams)
+            fields[column], upper = divided(fields[column], line_moves, keep_beams)
             out.append("\t".join([*fields, upper]))
     out.append("\t".join([*keep, "*v", "*v"]))
     return out
@@ -485,7 +495,8 @@ def corrected(text: str, overrides: list[dict]) -> str:
             lines[first:last] = moved_down(lines, first, last, moves, override["move_down"].get("column"))
         else:
             last = override["move_up"]["last_line"]
-            lines[first:last] = moved_up(lines[first:last], listed_moves(override["move_up"]["notes"], first, last))
+            lines[first:last] = moved_up(lines[first:last], listed_moves(override["move_up"]["notes"], first, last),
+                                         override["move_up"].get("column", 0))
     if any(o.get("articulate", {}).get("ambiguous") for o in overrides):
         lines = [*[line for line in lines if line], AMBIGUOUS_DECLARATION, ""]
     return "\n".join(lines)

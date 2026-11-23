@@ -19,12 +19,22 @@ synthetic. No labelled real scans." until then.*
   2026-11-08), the final step of its fixed schedule, with no checkpoint selection: `best.pt` is
   chosen on real scans (OLiMPiC scanned dev), so it is not used. Here they differ: best.pt is
   step 160,000. seq512 (`runs/seq512/last.pt`) was the candidate before it.
-- Experiment runs (an A/B of data or model, not the published model) may stop early on Polish
-  dev, to leave more time for iterating: once a run is reasonably trained, its averaged weights
-  are scored on the Polish dev pages at each 10,000-step snapshot, and the run stops when the
+- Dev sets: Polish dev (the dev half, two-staff pages, Print gold) and, from 2026-11-22, Spec 5
+  (90 pages of other public-domain piano editions, `runs/spec5/val_2026-11-22`, gold reviewed
+  from the images, about 0.8% wrong in an audit, with `eval/spec5_print_fixes.jsonl` for what
+  the print draws and kern cannot say). Decisions use both: each set is reported, with a pooled
+  figure (the two sets' page means averaged, since Spec 5's pages carry about twice the errors),
+  and a change is adopted only when the pooled paired interval excludes zero and neither set gets
+  clearly worse. *Amended 2026-11-23, before any test run; Polish dev alone until then. Why: per
+  page the two sets are equally noisy, but Spec 5 separates real gains better and the seeds'
+  order flips between them.* Spec 5 is a dev set, not an untouched check; the sealed sets stay
+  sealed.
+- Experiment runs (an A/B of data or model, not the published model) may stop early on the dev
+  sets, to leave more time for iterating: once a run is reasonably trained, its averaged weights
+  are scored on the dev pages at each 10,000-step snapshot, and the run stops when the pooled
   score has flattened (no gain beyond page noise over a few snapshots). Runs being compared are
-  compared at the same step. The published model is never stopped, chosen or tuned on Polish;
-  it trains its fixed schedule, and the sealed half is scored once, for the claim.
+  compared at the same step. The published model is never stopped, chosen or tuned on the dev
+  sets; it trains its fixed schedule, and the sealed half is scored once, for the claim.
 - Training data: OLiMPiC synthetic, GrandStaff, PDMX crops without held-out scores or
   `license_conflict` scores (all synthetic for seq513-515). From seq516 on, also handwritten crops
   drawn by Smashcima and 53 real piano grand staves from MusiCorpus 1.0's OmniOMR training split
@@ -40,8 +50,10 @@ synthetic. No labelled real scans." until then.*
 
 No model weights were fitted to real scans, but these choices were made looking at OLiMPiC's
 scanned dev split and Mutopia dev: `CROP_HEIGHT_RATIOS`, the rules in `lmx_tuplets.py`,
-`rewind_to_measure_start`, and the decision to read twice. On the 56 Polish dev pages: the
-crop cut at the gap's middle, `extra_beams_dropped`, and every rule in `eval/page_musicxml.py`. The U-Net model was trained with
+`rewind_to_measure_start`, and the decision to read twice. On the 56 Polish dev pages (and,
+from 2026-11-22, Spec 5's 90): the crop cut at the gap's middle, `extra_beams_dropped`, and every
+rule in `eval/page_musicxml.py`, the referee choosing among several readings (2026-11-22) and its
+order of readings. The U-Net model was trained with
 PDMX scores flagged `license_conflict`, and on handwritten pages (MUSCIMA++).
 
 Earlier looks at held-out data: Polish was run once with run C (OMR-NED 37.24). The final

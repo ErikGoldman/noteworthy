@@ -153,8 +153,14 @@ def weights_for_model(weights: dict, model: Seq2Seq) -> dict:
     stretched = F.interpolate(weights["row_embedding"].T[None], size=rows, mode="linear", align_corners=True)[0].T
     embedding = model.token_embedding.weight.detach().clone()
     embedding[:len(weights["token_embedding.weight"])] = weights["token_embedding.weight"]
-    return {**new_layers_as_identity(weights, model), "row_embedding": stretched, "token_embedding.weight": embedding,
-            "out.weight": embedding}
+    return {**new_layers_as_identity(weights, model), **new_modules_as_built(weights, model), "row_embedding": stretched,
+            "token_embedding.weight": embedding, "out.weight": embedding}
+
+
+def new_modules_as_built(weights: dict, model: Seq2Seq) -> dict:
+    """The model's inputs the run lacks (the beat clock's projection), as the model built them: they start at
+    zero, so the model starts reading as the run did."""
+    return {name: value for name, value in model.state_dict().items() if name.startswith("clock_proj.") and name not in weights}
 
 
 def new_layers_as_identity(weights: dict, model: Seq2Seq) -> dict:
@@ -257,6 +263,9 @@ def main() -> None:
                     help="labels give each onset's place in the bar before it, beat:N sub:P/Q (seq.label_form, onsets)")
     ap.add_argument("--clock-weight", type=float, default=1.0,
                     help="each clock token's share of the loss, as a multiple of any other token's")
+    ap.add_argument("--beat-clock", action="store_true",
+                    help="the decoder is told at every token where the voice stands in its bar and how much is left, "
+                         "computed from the tokens so far (seq.beat_clock); pair with --meter-context")
     ap.add_argument("--canonical-gaps", action="store_true",
                     help="labels write each gap and each return to the bar's start one way (seq.label_form)")
     ap.add_argument("--two-voice-repeat", type=int, default=1,
@@ -361,6 +370,8 @@ def main() -> None:
         model = Seq2Seq(len(vocab), max_tokens=args.max_tokens, height=args.height, row_stride=args.row_stride,
                         meter_context=args.meter_context, relative_rows=args.relative_rows, row_windows=args.row_windows,
                         encoder_layers=args.encoder_layers, label_form=form)
+    if args.beat_clock:
+        model.enable_beat_clock(vocab.tokens)
     train = torch.utils.data.DataLoader(dataset(train_items, True), batch_size=args.batch,
                                         shuffle=True, num_workers=args.workers, collate_fn=batched, drop_last=True,
                                         persistent_workers=True)

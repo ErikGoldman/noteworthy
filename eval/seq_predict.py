@@ -102,6 +102,9 @@ def load_model(checkpoint: Path, device) -> Seq2Seq | StaffSeq2Seq:
                         staff_bands=args.get("staff_bands", False),
                         staff_windows=args.get("staff_windows", False), encoder_layers=args.get("encoder_layers", 2),
                         label_form=LabelForm.from_options(args)).to(device)
+    if args.get("beat_clock"):
+        model.enable_beat_clock(Vocab.load(VOCABULARY).tokens)
+        model.to(device)
     model.load_state_dict(state["model"])
     return model.eval()
 

@@ -1,6 +1,6 @@
 # To do
 
-Status as of 2026-11-20. The reader is Seq2Seq; StaffSeq2Seq was retired on 2026-11-15
+Status as of 2026-11-22. The reader is Seq2Seq; StaffSeq2Seq was retired on 2026-11-15
 (EXPERIMENTS.md, "(l): Seq2Seq matched to T7"), and its own experiment list is in git history
 (`TODO_STAFF_MODEL.md` before this commit). Results and evidence are in `EXPERIMENTS.md`. The
 list from before the staff model (seq512 to seq516, 2026-11-06 onward) is
@@ -25,6 +25,26 @@ tuplets, no counting); masking, three ways (closed at this size); clock tokens a
 
 **Order.** No-training diagnostics first, as they decide which training bets are worth making;
 then the bets, the best-founded first; the biggest build last.
+
+**Results of the night of 2026-11-21/22** (EXPERIMENTS.md, from "Polish dev costs after the referee"):
+- **Best recipe so far: the engraver-hiding run first, the 25-minute second reader (dpo_control) second,
+  the count as referee with keep_filled.** Polish dev corrected 21.27 → **20.32 (−0.95 [−1.84, −0.25])**;
+  OLiMPiC pages F1 0.931 → 0.940; Mutopia 0.873 → 0.872 (the guard removes the referee's Mutopia loss).
+  One seed of the engraver run (alone 20.79): **a second seed of l_system_engraver_hiding_100k on Vast
+  (~$4-5) is the next spend to ask for.** A second reader made from the engraver run itself does worse
+  (20.58): readers from different trainings disagree more.
+- **keep_filled** (count_vote.voices_fill): the first's bar is kept where each voice fills it. Free on Polish
+  and OLiMPiC; Mutopia 0.870 → 0.874 for seed 0 first. Adopt with the referee.
+- After the referee, Polish cost has no dominant cause: later voice 10.6%, whole bars replaced 10.0%,
+  tuplets 9.5%, chord notes 7.7%, off the staff 7.0%.
+- Not adopted: tuplet looks (21.68), the plain-tuplets first reader, interleaved labels (fine-tune 24.23 against its
+  control's 21.95; from scratch at 100k 22.12, hidden-tuplet test 51.4 against 67.5), the position head (columns from
+  x too imprecise; the fine-tune costs reading, both through its narrow mix and its loss).
+
+**Decided 2026-11-22 (day):** interleaving dropped (EXPERIMENTS.md, "Interleaving: dropped"); canonical gaps alone
+were already tested from scratch, run (p), three seeds, not adopted (2026-11-17). The position head lives on as a pointer over the frozen reader's
+memory (`runs/position_2026-11-21/pointer_x.py`, x median error 0.0007 of the width); its test is the count
+with page columns (`pointer_count.sh`).
 
 **Results of 2026-11-21, and what they leave open** (EXPERIMENTS.md, from "The night's runs, local"):
 - Not adopted: onset tokens (two seeds), the deeper encoder (two seeds), DPO, the clock variants,
@@ -693,6 +713,17 @@ from saved readings). Built by `scripts/build_seq_data.sh` with the rest (always
   the target is what's printed, and MusicXML can record the hidden number
   (`<tuplet show-number="none">`), so a hidden 3 is the faithful transcription and the rhythm is
   unchanged. Quantify how much of the gap comes from this when seq514 is scored.
+
+- Rhythm-only beam search (2026-11-22, the user): branch only at duration, dot and tuplet-ratio tokens, greedy
+  elsewhere, so the four slots compete on timing; with the beat clock, or a hard "bar must add up" rule. After the
+  full-beam clock results (runs/beat_clock_2026-11-22/report.txt).
+- Marks spec (doc "Slurs, ties and marks"): scorer rule for beams across spines (user's call); Spec 5 Op. 53 p017 beam
+  marks (gold edit, approval); Polish grace-note slurs; by-eye samples of skipped ties, staccatos, Polish beams.
+
+- Overnight 2026-11-23 (runs/overnight_2026-11-14/overnight_2026-11-23.sh): engraver seed 1 evaluated (Polish, Spec 5
+  with print fixes, OLiMPiC quick evals); beam evals rerun with the fixed beam search (beat_clock_2026-11-22/beam_fixed).
+  Then: does the clock help under the fixed beam (clock against control, both beam 4)? Does beam 4 beat greedy on
+  hidden tuplets at all?
 
 ## Last: the email to the Transcoda authors (decided 2026-11-18, user: after everything else)
 

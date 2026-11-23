@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import torch
 from torch import nn
 
+from .beat_clock import FEATURES as CLOCK_FEATURES, BeatClock
 from .label_form import LabelForm
 from .staves import STAFF_INTERLINES
 from .vocab import BOS, EOS, PAD
@@ -79,10 +80,21 @@ class _TokenDecoder(nn.Module):
         self.out = nn.Linear(dim, vocab_size, bias=False)
         self.out.weight = self.token_embedding.weight
         self.max_tokens = max_tokens
+        self.beat_clock: BeatClock | None = None
+
+    def enable_beat_clock(self, tokens_by_id: list[str]) -> None:
+        """Give the decoder the beat clock (seq.beat_clock) at every token, through a projection that starts at
+        zero: a model fine-tuned with it starts out reading exactly as the run it came from."""
+        self.beat_clock = BeatClock(tokens_by_id)
+        self.clock_proj = nn.Linear(CLOCK_FEATURES, self.token_embedding.embedding_dim)
+        nn.init.zeros_(self.clock_proj.weight)
+        nn.init.zeros_(self.clock_proj.bias)
 
     def decode(self, tokens: torch.Tensor, memory: torch.Tensor, memory_padding: torch.Tensor) -> torch.Tensor:
         n = tokens.shape[1]
         x = self.token_embedding(tokens) + self.position_embedding(torch.arange(n, device=tokens.device))[None]
+        if self.beat_clock is not None:
+            x = x + self.clock_proj(self.beat_clock(tokens))
         causal = torch.triu(torch.ones(n, n, dtype=torch.bool, device=tokens.device), 1)
         x = self.decoder(x, memory, tgt_mask=causal, tgt_key_padding_mask=tokens == PAD,
                          memory_key_padding_mask=memory_padding, tgt_is_causal=True)
@@ -118,10 +130,14 @@ class _TokenDecoder(nn.Module):
 
     def beam_readings(self, memory, padding, max_tokens, start: list[int], width: int) -> list[list[int]]:
         """Readings of one crop, the best mean log-probability per token first, among `width` kept
-        at each step; a reading that ends stops there, and the search when `width` have ended."""
+        at each step; a reading that ends stops there, and the search when twice `width` have ended.
+        Stopping at `width` ended let short readings win by finishing first: one that leaves out the
+        tuplet ratios is shorter, and on OLiMPiC dev the search returned readings worse by its own
+        mean than ones still running (2026-11-23: 353 ratio tokens on 20 crops against the label's
+        661; 566 stopping at twice `width`, 568 at four times)."""
         prefix = [BOS] + start
         live, ended = [(prefix, 0.0)], []
-        while live and len(live[0][0]) < (max_tokens or self.max_tokens) and len(ended) < width:
+        while live and len(live[0][0]) < (max_tokens or self.max_tokens) and len(ended) < 2 * width:
             tokens = torch.tensor([seq for seq, _ in live], device=memory.device)
             n = len(live)
             logits = self.decode(tokens, memory.expand(n, -1, -1), padding.expand(n, -1))[:, -1].float()

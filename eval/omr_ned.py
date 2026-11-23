@@ -242,7 +242,16 @@ def with_accidental_hidden(found, note: dict, m21) -> None:
     pitch.accidental.displayStatus = False
 
 
-PRINT_FIXES = {"beams": with_beams_set, "hide_accidental": with_accidental_hidden}
+def with_strong_accent(found, note: dict, m21) -> None:
+    """The print draws a strong accent (a vertical wedge) where the gold has kern's plain accent `^`, which converter21
+    reads as an accent (Spec 5's Heller and Trente etudes, 2026-11-22)."""
+    accents = [a for a in found.articulations if type(a) is m21.articulations.Accent]
+    if not accents:
+        raise ValueError(f"{note['pitch']} at {note['onset']}: no accent to make strong")
+    found.articulations = [a for a in found.articulations if a not in accents] + [m21.articulations.StrongAccent()]
+
+
+PRINT_FIXES = {"beams": with_beams_set, "hide_accidental": with_accidental_hidden, "strong_accent": with_strong_accent}
 
 
 def with_print_fixes(score, fixes: list[dict], m21) -> None:

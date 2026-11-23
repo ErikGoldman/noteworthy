@@ -11,7 +11,7 @@ unmarked is closed, with no number.
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 MAX_SLUR_NUMBER = 16  # MusicXML's number-level
 
@@ -91,17 +91,49 @@ def mend_ties(part: ET.Element) -> None:
     A tie in the page's last bar may run on to the next page, as gold has it (081), and stays."""
     measure_of = measure_index(part)
     last_bar = len(part.findall("measure")) - 1
+    switching = {note for pair in voice_switches_over_breaks(part) if has_tie(pair[0], "start") and has_tie(pair[1], "stop")
+                 for note in pair}
     for events in events_by_voice(part).values():
         for before, after in zip([[]] + events, events + [[]]):
             in_before = {pitch_of(n): n for n in before}
             in_after = {pitch_of(n): n for n in after}
             runs_off_page = not after and bool(before) and measure_of[before[0]] == last_bar
             for note in before:
-                if has_tie(note, "start") and not runs_off_page:
+                if has_tie(note, "start") and not runs_off_page and note not in switching:
                     mend(note, in_after.get(pitch_of(note)), "start", "stop")
             for note in after:
-                if has_tie(note, "stop"):
+                if has_tie(note, "stop") and note not in switching:
                     mend(note, in_before.get(pitch_of(note)), "stop", "start")
+
+
+def slurs_from_ties_between_chords(part: ET.Element) -> None:
+    """Two chords joined by a slur the print draws as one arc above and one below (Polish 057 bar 10) are read as
+    ties from each note. A tie joins one pitch, so where every note of a chord is tied on and the voice's next chord
+    shares none of its pitches (step and octave), the ties were the slur: they become one slur from the first chord
+    to the second. Ties to a single note are left to mend_ties: there a misread pitch is as likely as a misread arc."""
+    for events in events_by_voice(part).values():
+        for before, after in zip(events, events[1:]):
+            if len(before) < 2 or len(after) < 2 or any(pitch_of(n) is None for n in before + after):
+                continue
+            if not all(has_tie(n, "start") for n in before):
+                continue
+            if {staff_place(n) for n in before} & {staff_place(n) for n in after}:
+                continue
+            for note in before:
+                remove_tie(note, "start")
+            for note in after:
+                remove_tie(note, "stop")
+            if not slur_ends([before[0]], "start"):
+                add_slur(before[0], "start")
+            if not slur_ends([after[0]], "stop"):
+                add_slur(after[0], "stop")
+
+
+def add_slur(note: ET.Element, kind: str) -> None:
+    notations = note.find("notations")
+    if notations is None:
+        notations = ET.SubElement(note, "notations")
+    notations.append(ET.Element("slur", type=kind))
 
 
 def mend(note: ET.Element, partner: ET.Element | None, kind: str, partner_kind: str) -> None:
@@ -155,6 +187,124 @@ def ties_across_system_breaks(part: ET.Element) -> None:
                 for notations, slur in [*slur_ends(before, "start").values(), *slur_ends(after, "stop").values()]:
                     notations.remove(slur)
                 tie_pairs(partners)
+
+
+    ties_switching_voice(part)
+
+
+def ties_switching_voice(part: ET.Element) -> None:
+    """A tie over a system break whose second note is in another voice, as where a staff splits into two voices
+    at the break (Polish 030 bars 26-27: G3 ends the system in the staff's one voice and holds on in the second voice
+    of the next). The model reads the first half arc as a slur start and, seeing the whole of the second half, writes
+    the tie's stop. A slur start on the voice's last note becomes a tie when such a stop answers it. The slur goes
+    only if every note of its chord is tied on and no slur on that staff carries on into the next system: else it is
+    also a phrase slur, and stays."""
+    event_of = {note: event for events in events_by_voice(part).values() for event in events for note in event}
+    by_event = defaultdict(list)
+    for before, after in voice_switches_over_breaks(part):
+        by_event[id(event_of[before])].append((before, after))
+    for pairs in by_event.values():
+        answered = [(b, a) for b, a in pairs if has_tie(a, "stop")]
+        if not answered:
+            continue
+        event = event_of[answered[0][0]]
+        tied_on = {b for b, _ in answered} | {n for n in event if has_tie(n, "start")}
+        slurs = slur_ends(event, "start")
+        if slurs and all(n in tied_on for n in event) and not slur_carries_on(part, answered[0][1]):
+            for notations, slur in slurs.values():
+                notations.remove(slur)
+        if slurs or any(has_tie(b, "start") for b, _ in answered):
+            tie_pairs(answered)
+
+
+def voice_switches_over_breaks(part: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
+    """Each note ending its voice just before a system break, with the note of the same pitch (or, the bar's
+    accidental carried over, the same staff place) that opens another voice of its staff at the next system's start:
+    where a tie over the break changes voice. A note with two such partners, or a partner claimed by two notes, is
+    ambiguous and left out. Grace notes and rests are never partners."""
+    measures = part.findall("measure")
+    measure_of = measure_index(part)
+    by_voice = events_by_voice(part)
+    candidates = []
+    for index in range(1, len(measures)):
+        if not starts_system(measures[index]):
+            continue
+        onset = onsets(measures[index])
+        endings = [(key, events[-1]) for key, events in voice_events_in(by_voice, measure_of, index - 1).items()]
+        openings = [(key, events[0]) for key, events in voice_events_in(by_voice, measure_of, index).items()
+                    if onset[events[0][0]] == 0]
+        for key, before in endings:
+            for other, after in openings:
+                if other[0] == key[0] and other[1] != key[1] and tieable(before) and tieable(after):
+                    candidates += tie_partners_by_note(before, after)
+    befores = Counter(b for b, _ in candidates)
+    afters = Counter(a for _, a in candidates)
+    return [(b, a) for b, a in candidates if befores[b] == 1 and afters[a] == 1]
+
+
+def tieable(event: list[ET.Element]) -> bool:
+    return all(note.find("grace") is None for note in event) and any(pitch_of(note) for note in event)
+
+
+def tie_partners_by_note(before: list[ET.Element], after: list[ET.Element]) -> list[tuple[ET.Element, ET.Element]]:
+    """Each pitched note of `before` with its partner in `after` (tie_partners' match over a barline), where it has one;
+    unlike tie_partners, notes without a partner are left out rather than voiding the rest."""
+    out = []
+    for note in before:
+        if pitch_of(note) is not None:
+            out += tie_partners([note], [n for n in after if pitch_of(n) is not None], across_barline=True)
+    return out
+
+
+def voice_events_in(by_voice: dict, measure_of: dict, index: int) -> dict[tuple, list[list[ET.Element]]]:
+    out = {}
+    for key, events in by_voice.items():
+        inside = [event for event in events if measure_of[event[0]] == index]
+        if inside:
+            out[key] = inside
+    return out
+
+
+def onsets(measure: ET.Element) -> dict[ET.Element, int]:
+    """Each note's onset in the measure, in <duration> units: backups and forwards move the time, chord notes share
+    their head's, grace notes take none."""
+    out, time, head = {}, 0, 0
+    for element in measure:
+        if element.tag == "note":
+            if element.find("chord") is not None:
+                out[element] = head
+                continue
+            out[element], head = time, time
+            if element.find("grace") is None:
+                time += int(element.findtext("duration", "0"))
+        elif element.tag == "backup":
+            time -= int(element.findtext("duration", "0"))
+        elif element.tag == "forward":
+            time += int(element.findtext("duration", "0"))
+    return out
+
+
+def slur_carries_on(part: ET.Element, after: ET.Element) -> bool:
+    """Whether the system that `after` opens closes, on its staff, a slur it never started: a phrase slur over
+    the break."""
+    staff = after.findtext("staff", "1")
+    measures = part.findall("measure")
+    start = next(i for i, m in enumerate(measures) if after in m.iter("note"))
+    depth = 0
+    for measure in measures[start:]:
+        if measure is not measures[start] and starts_system(measure):
+            break
+        for note in measure.iter("note"):
+            if note.findtext("staff", "1") != staff:
+                continue
+            for slur in note.iterfind("notations/slur"):
+                if slur.get("type") == "start":
+                    depth += 1
+                elif depth:
+                    depth -= 1
+                else:
+                    return True
+    return False
 
 
 def half_arc_drawn(before: list[ET.Element], after: list[ET.Element]) -> bool:
@@ -388,6 +538,7 @@ def finish_score(score: ET.Element) -> None:
     for name in score.iter("part-name"):
         name.text = ""
     for part in score.findall("part"):
+        slurs_from_ties_between_chords(part)
         ties_across_system_breaks(part)
         pair_slurs(part)
         ties_from_slurs(part)

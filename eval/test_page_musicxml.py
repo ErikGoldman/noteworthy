@@ -4,8 +4,8 @@ from __future__ import annotations
 import unittest
 import xml.etree.ElementTree as ET
 
-from page_musicxml import (clefs_before_barlines, mend_ties, pair_slurs, shared_heads_shown_alike, state_tuplet_brackets,
-                           ties_across_system_breaks, ties_from_slurs, tuplets_closed)
+from page_musicxml import (clefs_before_barlines, mend_ties, pair_slurs, shared_heads_shown_alike, slurs_from_ties_between_chords,
+                           state_tuplet_brackets, ties_across_system_breaks, ties_from_slurs, tuplets_closed)
 
 
 def note(pitch: str, *, chord: bool = False, staff: int = 1, voice: int = 1, grace: bool = False,
@@ -61,6 +61,7 @@ def slur_count(element: ET.Element) -> int:
 
 def finished(p: ET.Element) -> ET.Element:
     """The slur and tie rules in finish_score's order."""
+    slurs_from_ties_between_chords(p)
     ties_across_system_breaks(p)
     pair_slurs(p)
     ties_from_slurs(p)
@@ -187,6 +188,252 @@ class TiesAcrossSystemBreaks(unittest.TestCase):
     def test_same_stray_stop_inside_a_system_is_left_to_pair_slurs(self):
         p = finished(part(note("B1"), note("B1", slur="stop")))
         self.assertEqual(ties(p, "start"), [])
+
+
+def backup(duration: int = 2) -> str:
+    return f"<backup><duration>{duration}</duration></backup>"
+
+
+def forward(duration: int = 2) -> str:
+    return f"<forward><duration>{duration}</duration></forward>"
+
+
+def rest(*, staff: int = 1, voice: int = 1) -> str:
+    return f"<note><rest/><duration>2</duration><voice>{voice}</voice><staff>{staff}</staff></note>"
+
+
+def tie_marks(element: ET.Element) -> int:
+    """Every <tie> and <tied> on the page: a rule must not write a tie twice."""
+    return len(element.findall(".//tie")) + len(element.findall(".//tied"))
+
+
+class TiesSwitchingVoice(unittest.TestCase):
+    """A tie over a system break whose second note opens another voice of the staff (Polish 030 bars 26-27)."""
+
+    def break_into_two_voices(self, before: str, voice1: str, voice2: str) -> ET.Element:
+        """`before` ends the system in voice 1; the next system opens with voice1 and, after a backup, voice2."""
+        return part(before, new_system(voice1 + backup() + voice2))
+
+    def test_polish_030_open_slur_into_the_second_voice_becomes_a_tie(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start"), note("E4"), note("G3", voice=2, tie="stop")))
+        self.assertEqual(slur_count(p), 0)
+        self.assertEqual(ties(p, "start"), ["G3"])
+        self.assertEqual(ties(p, "stop"), ["G3"])
+
+    def test_without_the_tie_stop_the_slur_stays(self):
+        # no evidence the arc lands on that note: a phrase slur may start where a voice holds the same pitch
+        p = finished(self.break_into_two_voices(note("G3", slur="start"), note("E4"), note("G3", voice=2)))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_a_tie_the_model_wrote_across_voices_is_kept(self):
+        # mend_ties pairs by voice, and used to drop both halves
+        p = finished(self.break_into_two_voices(note("G3", tie="start"), note("E4"), note("G3", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), ["G3"])
+        self.assertEqual(ties(p, "stop"), ["G3"])
+        self.assertEqual(tie_marks(p), 4)
+
+    def test_another_pitch_is_no_partner(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start"), note("E4"), note("A3", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_the_other_staff_is_no_partner(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start"), note("E4"),
+                                                note("G3", staff=2, voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_a_partner_after_a_rest_in_its_voice_is_not_at_the_break(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start"), note("E4"),
+                                                rest(voice=2) + note("G3", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_a_partner_after_a_forward_is_not_at_the_break(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start"), note("E4"),
+                                                forward() + note("G3", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_two_voices_opening_on_the_pitch_are_ambiguous(self):
+        p = finished(part(note("G3", slur="start"),
+                          new_system(note("E4") + backup() + note("G3", voice=2, tie="stop")
+                                     + backup() + note("G3", voice=3, tie="stop"))))
+        self.assertEqual(ties(p, "start"), [])
+        self.assertEqual(slur_count(p), 1)
+
+    def test_two_voices_ending_on_the_pitch_are_ambiguous(self):
+        p = finished(part(note("G3", slur="start") + backup() + note("G3", voice=3, slur="start"),
+                          new_system(note("E4") + backup() + note("G3", voice=2, tie="stop"))))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_a_slur_closed_later_in_the_next_system_is_a_phrase_and_stays(self):
+        p = finished(part(note("G3", slur="start"),
+                          new_system(note("E4") + note("F4", slur="stop") + backup(4) + note("G3", voice=2, tie="stop"))))
+        self.assertEqual(ties(p, "start"), ["G3"])
+        self.assertEqual(slur_count(p), 2)
+
+    def test_a_slur_closed_on_the_other_staff_does_not_count(self):
+        p = finished(part(note("G3", slur="start") + backup() + note("C3", staff=2, voice=5, slur="start"),
+                          new_system(note("E4") + backup() + note("G3", voice=2, tie="stop")
+                                     + backup() + note("D3", staff=2, voice=5, slur="stop"))))
+        self.assertEqual(ties(p, "start"), ["G3"])
+        self.assertEqual(slur_count(p), 2)
+
+    def test_a_chord_tied_on_whole_loses_its_slur(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start") + note("B3", chord=True), note("E4"),
+                                                note("G3", voice=2, tie="stop") + note("B3", voice=2, chord=True, tie="stop")))
+        self.assertEqual(slur_count(p), 0)
+        self.assertEqual(sorted(ties(p, "start")), ["B3", "G3"])
+
+    def test_a_chord_tied_on_in_part_keeps_its_slur(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start") + note("D4", chord=True), note("E4"),
+                                                note("G3", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), ["G3"])
+        self.assertEqual(slur_count(p), 1)
+
+    def test_the_tie_carries_the_accidental_over_the_barline(self):
+        p = finished(self.break_into_two_voices(altered(note("F4", slur="start"), 1), note("A4"),
+                                                note("F4", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "stop"), ["F4"])
+        self.assertEqual(alters(p)[-1], "1")
+
+    def test_a_written_accidental_after_the_break_is_another_note(self):
+        p = finished(self.break_into_two_voices(altered(note("F4", slur="start"), 1), note("A4"),
+                                                written(note("F4", voice=2, tie="stop"), "natural")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_a_barline_inside_a_system_is_not_a_break(self):
+        p = finished(part(note("G3", slur="start"), note("E4") + backup() + note("G3", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_grace_notes_are_never_partners(self):
+        p = finished(self.break_into_two_voices(note("G3", grace=True, slur="start") + note("A3"), note("E4"),
+                                                note("G3", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_a_grace_note_opening_the_voice_is_no_partner(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start"), note("E4"),
+                                                note("G3", voice=2, grace=True, tie="stop") + note("A3", voice=2)))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_only_the_last_note_of_the_voice_counts(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start") + note("A3"), note("E4"),
+                                                note("G3", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_a_rest_ending_the_voice_is_left_alone(self):
+        p = finished(self.break_into_two_voices(rest(), note("E4"), note("G3", voice=2, tie="stop")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_the_same_voice_is_left_to_the_older_rule(self):
+        p = finished(part(note("G3", slur="start"), new_system(note("G3", tie="stop"))))
+        self.assertEqual(ties(p, "start"), ["G3"])
+        self.assertEqual(tie_marks(p), 4)
+
+    def test_a_voice_crossing_to_the_other_staff_is_no_partner(self):
+        p = finished(self.break_into_two_voices(note("G3", slur="start"), note("E4"),
+                                                note("G3", staff=2, voice=1, tie="stop")))
+        self.assertEqual(ties(p, "start"), [])
+
+    def test_the_last_bar_of_the_page_keeps_its_open_slur(self):
+        # it may run on to the next page
+        p = finished(part(note("C4"), note("G3", slur="start")))
+        self.assertEqual(ties(p, "start"), [])
+        self.assertEqual(slur_count(p), 1)
+
+    def test_a_page_of_one_bar_or_none(self):
+        self.assertEqual(ties(finished(part(note("C4", slur="start"))), "start"), [])
+        self.assertEqual(ties(finished(part()), "start"), [])
+
+    def test_unpitched_and_empty_measures_do_not_break_it(self):
+        p = finished(part(rest() + backup() + rest(voice=2), new_system(""), new_system(rest())))
+        self.assertEqual(tie_marks(p), 0)
+
+    def test_running_twice_changes_nothing_more(self):
+        once = finished(self.break_into_two_voices(note("G3", slur="start"), note("E4"), note("G3", voice=2, tie="stop")))
+        before = ET.tostring(once)
+        self.assertEqual(ET.tostring(finished(once)), before)
+
+    def test_two_breaks_in_a_row_each_get_their_tie(self):
+        p = finished(part(note("G3", slur="start"),
+                          new_system(note("E4") + backup() + note("G3", voice=2, tie="stop")
+                                     + note("C4", voice=2, chord=False, slur="start")),
+                          new_system(note("D4") + backup() + note("C4", voice=3, tie="stop"))))
+        self.assertEqual(sorted(ties(p, "stop")), ["C4", "G3"])
+        self.assertEqual(slur_count(p), 0)
+
+
+def chord(*pitches: str, **marks) -> str:
+    """A chord: the first pitch with `marks`, the rest marked chord, each with the same tie."""
+    tie = marks.get("tie")
+    return note(pitches[0], **marks) + "".join(note(p, chord=True, tie=tie, staff=marks.get("staff", 1),
+                                                     voice=marks.get("voice", 1)) for p in pitches[1:])
+
+
+class SlursFromTiesBetweenChords(unittest.TestCase):
+    """Polish 057 bar 10: two chords under one arc above and one below, read as ties from each note."""
+
+    def test_ties_into_a_chord_of_other_pitches_become_one_slur(self):
+        p = finished(part(chord("G4", "E5", tie="start") + chord("F4", "F5", tie="stop")))
+        self.assertEqual(tie_marks(p), 0)
+        self.assertEqual(slur_count(p), 2)
+
+    def test_the_slur_runs_from_the_first_chord_to_the_second(self):
+        p = finished(part(chord("G4", "E5", tie="start") + chord("F4", "F5")))
+        notes = list(p.iter("note"))
+        self.assertEqual([s.get("type") for s in notes[0].iter("slur")], ["start"])
+        self.assertEqual([s.get("type") for s in notes[2].iter("slur")], ["stop"])
+
+    def test_true_ties_between_the_same_chord_stay(self):
+        p = finished(part(chord("G4", "E5", tie="start") + chord("G4", "E5", tie="stop")))
+        self.assertEqual(sorted(ties(p, "stop")), ["E5", "G4"])
+        self.assertEqual(slur_count(p), 0)
+
+    def test_one_shared_pitch_leaves_it_to_mend_ties(self):
+        p = finished(part(chord("G4", "E5", tie="start") + chord("G4", "F5", tie="stop")))
+        self.assertEqual(ties(p, "start"), ["G4"])
+        self.assertEqual(slur_count(p), 0)
+
+    def test_a_shared_step_and_octave_with_another_alteration_counts_as_shared(self):
+        p = finished(part(chord("G4", "E5", tie="start") + altered(note("G4"), 1) + note("C5", chord=True)))
+        self.assertEqual(slur_count(p), 0)
+
+    def test_a_chord_tied_in_part_is_left(self):
+        p = finished(part(note("G4", tie="start") + note("E5", chord=True) + chord("F4", "F5")))
+        self.assertEqual(slur_count(p), 0)
+
+    def test_a_single_note_tied_to_another_pitch_is_left(self):
+        # a misread pitch is as likely as a misread arc: mend_ties drops the tie, as before
+        p = finished(part(note("G4", tie="start") + note("F4", tie="stop")))
+        self.assertEqual(slur_count(p), 0)
+        self.assertEqual(tie_marks(p), 0)
+
+    def test_a_chord_into_a_single_note_is_left(self):
+        p = finished(part(chord("G4", "E5", tie="start") + note("F4")))
+        self.assertEqual(slur_count(p), 0)
+
+    def test_a_rest_after_the_chord_is_left(self):
+        p = finished(part(chord("G4", "E5", tie="start") + rest()))
+        self.assertEqual(slur_count(p), 0)
+
+    def test_another_voice_is_not_the_next_chord(self):
+        p = finished(part(chord("G4", "E5", tie="start") + backup() + chord("F4", "F5", voice=2)))
+        self.assertEqual(slur_count(p), 0)
+
+    def test_over_a_barline_too(self):
+        p = finished(part(chord("G4", "E5", tie="start"), chord("F4", "F5", tie="stop")))
+        self.assertEqual(slur_count(p), 2)
+        self.assertEqual(tie_marks(p), 0)
+
+    def test_an_existing_slur_start_is_not_doubled(self):
+        p = finished(part(chord("G4", "E5", tie="start", slur="start") + chord("F4", "F5")))
+        self.assertEqual(len(list(p.iter("note"))[0].findall("notations/slur")), 1)
+
+    def test_the_last_chord_of_the_page_is_left(self):
+        p = finished(part(note("C4"), chord("G4", "E5", tie="start")))
+        self.assertEqual(slur_count(p), 0)
+
+    def test_each_pair_in_a_run_of_chords(self):
+        p = finished(part(chord("G4", "E5", tie="start") + chord("F4", "D5", tie="start") + chord("E4", "C5")))
+        self.assertEqual(slur_count(p), 4)
+        self.assertEqual(tie_marks(p), 0)
 
 
 class MendTies(unittest.TestCase):

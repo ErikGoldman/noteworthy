@@ -154,6 +154,46 @@ class HiddenAccidental(unittest.TestCase):
         self.assertEqual(self.score("F#4"), 0)
 
 
+def accented_bar(mark: str) -> str:
+    """One C5 quarter with the articulation `mark` (accent or strong-accent)."""
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part-list><score-part id="P1"><part-name>P</part-name></score-part></part-list>
+<part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>1</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>
+<note><pitch><step>C</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><notations><articulations><{mark}/></articulations></notations></note>
+</measure></part></score-partwise>"""
+
+
+class StrongAccent(unittest.TestCase):
+    """The print draws a strong accent; the gold writes kern's plain accent; the reading says strong accent."""
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        folder = Path(self.folder.name)
+        self.pred, self.gold, self.fixes = folder / "reading" / "x.musicxml", folder / "x.musicxml", folder / "fixes.jsonl"
+        self.pred.parent.mkdir()
+        self.pred.write_text(accented_bar("strong-accent"))
+        self.gold.write_text(accented_bar("accent"))
+
+    def tearDown(self):
+        self.folder.cleanup()
+
+    def score(self, pitch: str | None) -> float:
+        if pitch:
+            self.fixes.write_text(json.dumps({"page": "x", "bar": 0, "kind": "strong_accent", "reason": "test",
+                                              "notes": [{"staff": "upper", "onset": "0", "pitch": pitch}]}) + "\n")
+        return compare_parsed(METRIC, self.pred, self.gold, Options(gold_print_fixes=self.fixes if pitch else None))[0]
+
+    def test_the_plain_accent_is_charged(self):
+        self.assertGreater(self.score(None), 0)
+
+    def test_made_strong_on_the_gold_it_matches(self):
+        self.assertEqual(self.score("C5"), 0)
+
+    def test_a_note_with_no_accent_stops_the_page(self):
+        self.gold.write_text(accented_bar("staccato"))
+        with self.assertRaisesRegex(ValueError, "no accent to make strong"):
+            self.score("C5")
+
+
 class ListedNote(unittest.TestCase):
     def test_length_tells_apart_two_notes_of_one_onset_and_pitch(self):
         score = bar([("E-5", 0, 1)], [("E-5", 0, Fraction(1, 3)), ("A4", Fraction(1, 3), Fraction(1, 3))])

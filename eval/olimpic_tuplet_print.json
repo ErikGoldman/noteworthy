@@ -1,0 +1,8 @@
+{
+  "about": "OLiMPiC dev v2 (scanned), songs whose MusicXML marks tuplet numbers as shown, against the scan (Claude by eye, 2026-11-21 night; one system a song, more where the MusicXML mixes; the user to spot-check). hidden: the print draws no number on them; mixed: numbers on a run's first groups only; shown: printed. tuplet_bars.py --print-check reads it.",
+  "hidden": ["4985990", "6259568", "6801790", "6389103", "6472842", "5069066", "6474359", "6421815"],
+  "mixed": ["5079442", "6259566", "6249298", "6499366", "5098732"],
+  "shown": ["6404150", "5935864", "6652787", "5653497", "6656152", "6654137", "6011095", "6415075", "5661740", "4985973",
+            "6230261", "6001354", "6581327", "5862368", "6245974", "6629763", "6757520", "5023603", "4976604", "6816059",
+            "4945954", "5987851", "6247458", "6753337", "6982743", "6197282"]
+}

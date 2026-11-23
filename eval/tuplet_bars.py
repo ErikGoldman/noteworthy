@@ -2,8 +2,9 @@
 staff model's largest single weakness on Polish dev (EXPERIMENTS.md), where a run of
 triplets numbered only at first is read as plain notes after that.
 
-usage: tuplet_bars.py READINGS.jsonl     (written by outer_notes.py: OLiMPiC dev, synthetic and
-                                          scanned, labels with pitches as printed)
+usage: tuplet_bars.py READINGS.jsonl [--print-check]
+       (written by outer_notes.py: OLiMPiC dev, synthetic and scanned, labels with pitches as printed;
+       --print-check: bars sorted by what the scan prints, olimpic_tuplet_print.json, for scanned crops)
 
 Each crop's label and reading are cut into bars, and each bar reduced to its rhythm: durations,
 dots, tuplet ratios, rests, chords, backups and forwards, in order (pitches, beams, stems and
@@ -67,18 +68,33 @@ def ratio_recall(reading: str, label: str) -> tuple[int, int]:
     return sum((gold & read).values()), sum(gold.values())
 
 
+PRINT_CHECK = Path(__file__).with_name("olimpic_tuplet_print.json")
+SHOWN, HIDDEN = "tuplets, numbers shown", "tuplets, a number hidden"
+MIXED = "tuplets, shown in the MusicXML, mixed in print"
+
+
+def as_printed(kind_of_bar: str, song: str, check: dict) -> str:
+    """A bar's kind by what the print draws (olimpic_tuplet_print.json), where the MusicXML calls its numbers
+    shown: OLiMPiC's transcriptions leave numbers shown that many engravings omit (EXPERIMENTS.md, 2026-11-21)."""
+    if kind_of_bar != SHOWN:
+        return kind_of_bar
+    return HIDDEN if song in check["hidden"] else MIXED if song in check["mixed"] else SHOWN
+
+
 def main() -> None:
     rows = [json.loads(line) for line in Path(sys.argv[1]).open()]
+    check = json.loads(PRINT_CHECK.read_text()) if "--print-check" in sys.argv else None
     for source in sorted({r["source"] for r in rows}) + ["all"]:
         chosen = [r for r in rows if source == "all" or r["source"] == source]
         counts, found, total = Counter(), 0, 0
         for r in chosen:
+            song = Path(r["name"]).parent.name
             for k, ok in right_bars(r["reading"], r["label"]):
-                counts[k, ok] += 1
+                counts[as_printed(k, song, check) if check else k, ok] += 1
             f, t = ratio_recall(r["reading"], r["label"])
             found, total = found + f, total + t
         print(f"== {source}: tuplet-ratio tokens read {found / max(1, total):.1%} of {total}")
-        for k in ("tuplets, numbers shown", "tuplets, a number hidden", "no tuplets"):
+        for k in (SHOWN, HIDDEN, *([MIXED] if check else []), "no tuplets"):
             n = counts[k, True] + counts[k, False]
             print(f"   {k:<26} {counts[k, True] / max(1, n):>6.1%} of {n} bars read with the right rhythm")
 

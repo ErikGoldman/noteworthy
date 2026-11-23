@@ -48,6 +48,12 @@ class BeamSearch(unittest.TestCase):
         script = {(C,): {A: 0.9, B: 0.1}, (C, A): {EOS: 1.0}, (C, B): {EOS: 1.0}}
         self.assertEqual(Scripted(script)._beam_from(*NO_MEMORY, None, [C], 2), [C, A, EOS])
 
+    def test_a_longer_reading_finishing_later_is_not_cut_off(self):
+        # two short readings end first; the long one, likelier per token, ends after them (tuplet ratios, 2026-11-23)
+        script = {(): {A: 0.4, B: 0.3, C: 0.3}, (B,): {EOS: 1.0}, (C,): {EOS: 1.0},
+                  (A,): {A: 1.0}, (A, A): {A: 1.0}, (A, A, A): {EOS: 1.0}}
+        self.assertEqual(Scripted(script)._beam_from(*NO_MEMORY, None, [], 2), [A, A, A, EOS])
+
     def test_stops_at_the_length_limit_with_the_best_unfinished_reading(self):
         self.assertEqual(Scripted({}, otherwise={A: 0.9, B: 0.1})._beam_from(*NO_MEMORY, 4, [], 2), [A, A, A])
 

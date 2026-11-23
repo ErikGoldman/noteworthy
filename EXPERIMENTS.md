@@ -6596,3 +6596,790 @@ pages differ in 96 bars only (two models: 369-433); the plain reading alone 21.5
 refereed 21.43 (+0.16 [-0.79, +0.98]). The token barely moves the reading: the model learned it as a weak
 hint, not a second way of reading. A one-model referee needs more than a start token (an adapter, or a
 second set of weights); the 25-minute second model stays the recipe.
+
+**Why printed-number tuplets fail** ((l) on OLiMPiC dev scans; `tuplet_kinds.py`'s 63 printed-number bars
+read wrong, of which 34 have the ratio left out; those 34 listed and looked at, 2026-11-21 night). They
+come from few pieces: 14 from 6801790, 5 from 6011095, 5 from 6656152, the rest one to three each.
+- **6801790 (14 of 34): the number is not printed.** Sixteenth-note triplets opening with a rest (a
+  sixteenth rest and two sixteenths); the print draws no 3 and no bracket, but the MusicXML does not say
+  show-number="none", so the label (and tuplet_bars.py's "numbers shown" class, and tuplet_kinds' printed
+  class) count them as printed. They are hidden tuplets: the model reads what is drawn.
+- **6011095 (5): a 4 far above the staff, over a slur**, on quarter-note quadruplets (4in3, a ratio in
+  357 training bars): the far, unusual placement tuplet_looks_v2 was built for, and a rare ratio.
+- The rest: duplets in compound time (2in3), a sextuplet ratio on a tremolo half note (6in4), others.
+So "numbers shown" on OLiMPiC overstates the printed failures: four in ten of the ratio-left-out bars
+hide their number in the print. What is left is unusual placements and rare ratios, not the common
+printed triplet. The class should follow the print, not the MusicXML's show-number (a gold check by eye,
+as for Polish, would fix it).
+**Correction (same night):** the analysis above used tuplet_kinds_olimpic.txt, which is (l)'s reading of
+OLiMPiC dev v1 (labels from OpenScore's MusicXML). This fault was found and fixed on 2026-11-16/17
+(TODO 1d-1h): OLiMPiC train and dev were relabelled from the scores' own MuseScore files
+(`olimpic_written_v2`, `olimpic_written_dev_v2`). On dev v2 the residue is small. By eye tonight, one system
+a song for the 39 songs whose MusicXML calls numbers shown (`eval/olimpic_tuplet_print.json`: 8 hide them in
+print, 5 mix, 26 show), and `tuplet_bars.py --print-check` sorting bars by the print: of dev v2's 320
+scanned "numbers shown" bars, 42 hide their number in print and 21 are in songs that mix; 278 stay. Re-scored
+(imply_tuplets applied; shown / hidden / mixed / plain): (l) seed 0 50.0 / 54.4 / 33.3 / 80.0; the referee
+with the 25-minute second reader 53.6 / 64.9 / 33.3 / 80.4; the three seeds' referee 52.9 / 65.1 / 33.3 /
+82.0. The printed class is about half right either way; its failures are the unusual settings above (a
+number far up a slur, rare ratios), the 2026-11-16 finding (TODO 1e). No training-label change is needed:
+v2's training labels come from the same relabel (30 crops checked then).
+
+**The second reader sharing (l)'s encoder** (`shared_encoder.sh`: dpo_ft.py --no-dpo --freeze-encoder, the
+1,500-step recipe with only the decoder learning; checked: 0 of 151 encoder tensors differ from (l)'s, all
+113 decoder tensors do). Polish dev, corrected whole page: alone 20.95 (-0.32 [-1.22, +0.43]); refereed after
+seed 0 **20.70 (-0.57 [-1.34, -0.10])**, 87 bars taken of 243 that differ (the full fine-tune: 20.68 and
+20.66, two seeds). The encoder need not change: one encoder pass a system, two decodings, the second decoder
+a 1,500-step fine-tune. A LoRA adapter on that decoder would only shrink what is stored (the decoder is
+about half the checkpoint); not built.
+
+**Polish dev costs after the referee** (`cost_after_referee2.sh`; seed 0 against the referee with the
+25-minute second reader, the 43 pages both scored whole, corrected gold; note_causes, ned_causes). Total edit
+cost 6489 -> 5589 (-14%). By root cause, seed 0 -> refereed:
+- a staff's later voice 1158 -> **593** (missing notes there 606 -> 323): nearly halved, the referee's
+  main gain; tuplets 703 -> 531 (hidden-number bars 550 -> 378, printed 138 -> 138).
+- unchanged: a chord's note 443 -> 428, off the staff 379 -> 391, pitch on the staff 311 -> 312, clef or
+  ottava 272 -> 275, grace notes 259 -> 250, rests 252 -> 254, lengths and dots 249 -> 239.
+- not note-level: 34% of the refereed cost; "whole bar replaced" 557 (30 bars) untouched, now 10.0%.
+After the referee the ranking flattens: later voice 10.6%, whole bars replaced 10.0%, tuplets 9.5%, chord
+notes 7.7%, off the staff 7.0%, pitch on the staff 5.6%. No single cause holds more than about a tenth.
+(tuplet_kinds.py did not run: the main venv lacks Levenshtein.)
+
+**Tuplet looks and engraver hiding, scored** (after_games.sh step 3; (l)'s recipe at 100k with the
+2026-11-19 sets). Spec 4's rendered hidden-tuplet test (clean, 39 pieces; seed 0 67.5):
+tuplet_looks_v2 67.4, engraver_hiding 71.0. Two voices 57.2 / 57.9 (seed 0 55.0); chords of 3+ 76.8 / 81.1
+(75.0). Polish dev, corrected whole page: tuplet_looks 21.68 (+0.41 [-0.71, +1.53]), no gain.
+Engraver hiding on Polish dev, corrected whole page: **20.79 (-0.47 [-1.37, +0.27])**, the best single model
+so far (seed 0 21.27; the refereed pair 20.66-20.70). One seed; refereed after it: `engraver_pairs.sh`.
+Refereed with engraver hiding first (`engraver_pairs.sh`, pages already read; corrected whole page):
+after it the 25-minute second reader **20.32 (-0.94 [-1.83, -0.25])**, 93 bars taken of 384 that differ;
+after it seed 0 20.42 (-0.85 [-1.71, -0.19]); after it both 20.38 (-0.89 [-1.77, -0.21]). The best Polish dev
+number so far, and the gains add: the engraver run's own gain (-0.47) plus about what the referee gave seed 0
+(-0.57 to -0.61). Next (`engraver_second.sh`, queued): a second reader made from the engraver run itself
+(dpo_ft.py --no-dpo --start), the shared-encoder recipe made possible. A second seed of the engraver run is
+what would make this a finding rather than one run.
+
+**The position head, end to end** (`runs/position_2026-11-21/`; x_ft.py: (l) + 6,000 steps, x weight 10, on
+pdmx_x built --note-x and as many pdmx crops). Held-out pdmx_x crops (x_check.py): median x error 0.0092 of
+the crop's width, 90th percentile 0.0256; across staves, notes that start together lie a median 0.0078
+apart, others 0.0625 (AUC 0.952), but at gap <= 0.004 only 37% of same-onset pairs fall together (1.9% of
+others), at <= 0.01 65% (4.1%).
+- **Columns from x do not work at this precision.** The count with --page-columns (after a fix, below):
+  dev v2, bars that add up as read 4326 (onsets' columns) -> 458 (x, tolerance 0.004) / 1033 (0.008);
+  hidden-number bars right 30.2 (onsets) -> 21.4 / 21.4; spec 4's hidden test 48.6 -> 40.8 / 43.6. A column
+  split wrongly fails every bar it is in; the x must be several times sharper, or used only where it is sure.
+- **The fine-tune cost the reading**: the x model's own readings on dev v2 (imply applied) 36.6 / 25.2 / 76.0
+  (shown / hidden / none), (l) 49.4 / 54.3 / 80.0; spec 4's hidden test 51.4 against 67.5. Same reading code
+  as outer_notes.py. Whether the position loss or the narrow mix (pdmx only, 6,000 steps) does it:
+  `no_x_control.sh` (--x-weight 0), queued.
+- **Fixed in passing: count_readings.py took the token before a duration as its note** (`head_at`): a voice
+  token can stand between ("D4 voice:1 half"), so the first note of each voice got no x, and its pitch and
+  rest features were the voice token's (not pitched, not a rest). Earlier counts on readings had that fault;
+  re-run, spec 4's hidden test through the count moves 48.2 -> 48.6, dev v2 hidden 30.0 -> 30.2: negligible.
+
+**Interleaved labels, the 10k fine-tune** (ft_l_interleaved_10k: (l) seed 0 + 10k steps at 1e-4, --canonical-gaps
+--interleaved; Vast). Polish dev, corrected whole page: **24.23 (+2.97 [+1.99, +4.03])**, clearly worse.
+Quick evals (dev v2 scanned, quick_evals' classes): printed 40.3% of 590, hidden 54.7% of 170, none 72.4%.
+No conversion faults found in the read log; page 003's first bar reads the same notes as seed 0 (nine eighths
+in 3/4, likely hidden triplets), the backup now the voice's read length (canonical gaps) where seed 0 writes
+the bar's. Whether the cost is the interleaving or canonical gaps alone (which (l) never trained with) waits
+on the control ft_l_canonical_10k (relaunched twice: two hosts gave no SSH in 30 minutes; third host
+running from 01:58). The 100k from-scratch run (step 30,800 at 01:59) is the fairer test.
+
+**Plain-tuplets first reader** (after_games.sh step 4: mode_ft.py --drop-marked, 3,000 steps on unmarked
+crops only). Polish dev corrected whole page: alone 22.04 (+0.77 [+0.30, +1.35]); refereed with dpo_control
+21.08 (-0.19 [-1.05, +0.41]), worse than seed 0 first (20.68). Not adopted.
+
+**Mutopia's 11 refereed bars, and a guard** (mutopia_referee2/work/*/readings.json, the release first and
+dpo_control second; F1 0.873 alone, 0.870 refereed). The changed bars by eye:
+- vase (4): every voice fills the bar (12 beats of 12; 8 of 8), but a backup amount is misread (14 beats
+  back in a 12-beat bar, 6 in an 8-beat one), which puts the left hand's onsets out of step, so the count
+  fails the bar. The second reading "adds up" by making every note a hidden triplet (6in4, 3in2): wrong.
+- jeanne (1): the second reading read another time signature (3/4 for 2/4) and its bar was taken.
+- Traviata (6): tremolo bars (2in1 halves) and repeated-chord figures where the first's voices overfill.
+**Guard (count_vote.voices_fill, refereed(..., keep_filled=True), referee_pages.py --keep-filled):** the
+first's bar counts as adding up where each of its voices with notes fills the bar. A hidden triplet read
+plain overfills its voice, so the referee's real cases are untouched. Mutopia (`mutopia_rereferee.py`,
+offline from the kept readings): **0.870 -> 0.874** (first alone 0.873), 20 bars kept, 7 still taken.
+Polish dev (`keep_filled_polish.sh`): seed 0 + dpo_control 20.68 -> 20.68; engraver + dpo_control 20.32 ->
+20.32 (-0.95 [-1.84, -0.25]); 13 bars kept in each. Free on Polish, fixes Mutopia: adopt with the referee.
+Misread backups with filling voices are rare on Polish (17 of 1,231 seed-0 bars fill but fail the count),
+so repairing the backup itself is not worth building yet.
+
+**A second reader made from the engraver run** (`engraver_second.sh`: dpo_ft.py --no-dpo --start
+l_system_engraver_hiding_100k, 1,500 steps). Refereed after the engraver run: **20.58 (-0.69 [-1.58, -0.00])**,
+262 bars differ, 67 taken; with dpo_control as a third reader 20.33 (-0.94). The (l)-made second reader
+does better after the engraver run (20.32; 384 bars differ, 93 taken): readers from different trainings
+disagree more, and the referee has more to choose from. The best recipe tonight is the engraver run first,
+dpo_control second, with keep_filled (20.32); it needs two encoders (the two come from different runs).
+
+**What the position fine-tune cost, split** (`no_x_control.sh`: x_ft.py --x-weight 0, the same 6,000 steps and
+mix; quick_evals.sh for both). Dev v2 scanned, shown / hidden / none (no imply), and spec 4's hidden test:
+| | dev v2 shown | dev v2 hidden | dev v2 none | spec 4 hidden |
+|---|---|---|---|---|
+| (l) seed 0 | 45.9 | 53.0 | 79.9 | 67.5 |
+| same fine-tune, no x loss | 41.6 | 34.8 | 77.4 | 65.2 |
+| with the x loss (weight 10) | 30.3 | 22.5 | 76.0 | 51.4 |
+Both halves cost: the narrow mix (pdmx only, rendered) loses the scans' hidden tuplets (53.0 -> 34.8), and
+the x loss on top loses more everywhere tuplets are (spec 4 65.2 -> 51.4). A position head would need (l)'s
+full mix and a much smaller weight, or a head on a frozen decoder (reading untouched); and columns from x
+need several times its present precision (above). Parked.
+
+**Interleaved against its control, quick evals** (ft_l_canonical_10k: the same 10k fine-tune with canonical
+gaps only). Dev v2 scanned shown / hidden / none: canonical 52.2 / 44.8 / 80.4, interleaved 35.0 / 49.8 /
+72.4 (seed 0 45.9 / 53.0 / 79.9). Spec 4 hidden test: canonical 55.5, interleaved 36.8 (two voices 53.2 vs
+32.1). The interleaving itself costs most of it, not canonical gaps; Polish for the control is being read.
+Polish dev for the control: ft_l_canonical_10k **21.95 (+0.68 [-0.17, +1.74])**, interleaved 24.23 (+2.97).
+Canonical gaps alone cost a little in a 10k fine-tune (or the fine-tune does); interleaving costs about 2.3
+more. As a fine-tune of (l), interleaving is a clear loss; the from-scratch 100k run decides whether a model
+that never learned the other order does better.
+
+**keep_filled on OLiMPiC dev pages, and the engraver run first** (`olimpic_keep_filled.sh`; note F1, 46 songs).
+Seed 0 first: alone 0.931, refereed 0.937, with keep_filled 0.937 (P 0.940 -> 0.941; 17 bars kept, 42 taken
+instead of 49). Engraver run first: alone 0.930, refereed **0.940**, with keep_filled 0.940 (P 0.942 -> 0.943;
+27 kept, 78 taken). The guard is neutral to slightly positive on OLiMPiC, free on Polish, fixes Mutopia.
+Mutopia (`mutopia_referee.py` + `mutopia_rereferee.py`, engraver run first, dpo_control second): alone 0.872,
+refereed 0.868 (9 bars taken), with keep_filled **0.872** (13 kept, 5 taken). Same picture as seed 0 first:
+the guard removes the referee's Mutopia loss; Mutopia neither gains nor loses from the referee then.
+
+**Interleaved labels from scratch** (l_interleaved_100k: (l)'s settings, 100k steps, --canonical-gaps
+--interleaved; Vast). Polish dev corrected whole page **22.12 (+0.85 [-0.21, +1.85])**. Dev v2 scanned shown /
+hidden / none 50.6 / 51.6 / 77.8 (seed 0 45.9 / 53.0 / 79.9); spec 4's hidden test 51.4 (seed 0 67.5), two
+voices 50.7 (55.0). Better than the fine-tune (24.23) but not better than (l): printed tuplets a little up,
+hidden ones and two-voice bars down. Time order does not help the model count; not adopted. One seed.
+
+## Why what works works, and why the rest failed (2026-11-22)
+
+Scripts in `runs/analysis_2026-11-22/`: `edits.sh` (ned_costs.py --whole-page on corrected gold for 19 page
+readings; all 49 two- and three-staff pages scored, none timed out, so totals are above the 43-page figures of
+"Polish dev costs after the referee", which used print gold); `ledger.py` (the referee bar by bar against the
+gold); `sweep.sh` (the ledger for 13 reader pairs); `causes/` (note_causes for each run, `table*.txt`).
+`count_vote.decisions` (new) returns the referee's per-bar choices; `refereed` is built on it (pages
+reproduced byte for byte).
+
+**The referee, bar by bar** (seed 0 first, dpo_control second, keep_filled; 46 pages whose bars line up with
+the gold's). 238 bars differ; the rule takes 52: the second better in 33, worse in 3, even in 16. Gain 812
+cost units (6.3% of seed 0's cost); the refereed pages' own cost falls by 856, so the ledger is sound. A
+perfect chooser between the two readings would gain 1,622: the rule gets half.
+- **What it fixes is hidden tuplets, including those inside a staff's later voice.** In 22 of the 33 helpful
+  swaps the second's bar has more tuplet ratios; they hold 704 of the 856 gained. In no helpful swap does
+  the second read a voice the first dropped. The "later voice" cost the referee halved last night is
+  mostly accompaniment triplets in an inner voice read plain: the scorer charges them as notes at other
+  onsets in a 2+ voice staff, and note_causes files them under the voice.
+- **What it leaves:** kept bars where the second was better hold 810 units: 353 where neither adds up, 329
+  where both do, 84 where only the first does. Taking the second where both add up and it has more ratios
+  would add 136 (19 bars; 50 lost the other way); where neither adds up the same choice loses 234. A
+  candidate rule, to be checked off Polish before trusting.
+- **Specialization, not disagreement.** The sweep over 13 pairs (seed 0 first): second readers fine-tuned on
+  hidden-group crops (dpo_control and its seed 1, the frozen-encoder one, hidden_often) gain 812-907 with
+  1-5 harmful swaps; whole independent models (seeds 1, 2) disagree on more bars (302-322 against 190-238)
+  but gain 747-750 with 8-14 harmful; fine-tunes without hidden crops gain little (control 121, joined 244,
+  dropout 354, its swaps 45% harmful). The engraver run's own second reader gains 243: it adds little the
+  engraver run does not already read. The good second readers over-propose tuplets (dpo_control writes 1,967
+  ratio tokens and 539 hidden groups on Polish, seed 0 1,084 and 246); the count filters them.
+- seed 0 first, the engraver run second (largest ledger gain, 919): Polish 20.61 (-0.65 [-1.45, -0.12]),
+  between seed 0 + dpo_control (20.68) and the engraver run + dpo_control (20.32).
+
+**The engraver run's gain against seed noise.** Polish dev alone, corrected whole page: seed 0 21.27, seed 1
+21.19, seed 2 **21.09** (newly scored; -0.18 [-0.84, +0.40]); the engraver run 20.79. Total edit cost: seeds
+14,170 / 14,344 / 13,737, the engraver run 13,693. By cause, seed 0 is the worst seed on a staff's later voice
+(2,904 against 2,642 and 2,492); the engraver run's 2,405 is just below the seeds; its tuplets 764 against 880-1,046;
+grace notes 198 (seeds 203-369). Clef or ottava, rests, lengths are within the seeds' range. The engraver run
+is 0.30 below the best seed: likely real, small, and one run. The comparison against seed 0 alone (-0.47)
+overstates it because seed 0 is the worst of the three seeds.
+
+**Interleaving loses on pitch, not counting.** (l_interleaved_100k against the seeds, cost by cause): pitch on
+the staff 1,011 (seeds 504-641), off the staff 1,022 (612-781), chord notes 1,706 (1,412-1,605), lengths 455
+(259-313); tuplets 1,310 (880-1,046). Later voice 2,598 is within the seeds. The pitch errors are not clef
+confusions (a 12-step shift: 13 against 8-16) but one-step misreads: 191 against 88-142. Time order puts
+another voice's note between a voice's consecutive notes, so the decoder loses its strongest pitch cue,
+the step to the previous note of the same line. A guess that fits; not tested further.
+
+**The position head's error is the encoder's grain** (`x_errors.py` on 119 held-out crops). The drawn x is a
+perfect target: notes that start together on different staves are within 0.002 of the width in 95.5% of
+pairs, others in 0.0%. The head is biased right by about +0.005 for every kind (grace notes +0.012), which
+cancels between two notes; what is left is noise of the size of one encoder column: memory is 16 rows by
+width/16 columns, so a column is 16 px, 0.0092 of a 1,742 px crop, against the head's median error 0.0087 and
+the same-onset median gap 0.0078. The decoder state can say which column a note is in, not where in it.
+Columns from x need a finer signal: an x interpolated from the decoder's attention over columns, or a
+higher-resolution CNN map. (`x_check.py` keyed heads on the token before the duration, as count_readings
+did: it dropped each voice's first note from the pair statistics, no wrong pairs; x_errors.py does it right.)
+
+**Tuplet looks: the test has too few of its cases to say.** The far-number-over-a-slur song 6011095 on dev v2
+scans: tuplet bars right, seeds 10 / 15 / 8 of 30, looks 14. Its false tuplets on Polish (279 cost) are above
+the seeds (27-185) but the seeds alone span 7 times. A real test needs a set built of the looks it was made
+for; the null result says nothing either way.
+
+**The plain-tuplets first reader stopped marking groups hidden.** On Polish it writes 2 hidden groups (seed 0
+246) and 653 ratio tokens (1,084): trained on unmarked crops only, it learned that a tuplet's number shows,
+and it reads fewer tuplets at all. Tuplets cost 1,202 (seeds 880-1,046), later voice 3,272 (2,492-2,904). As a
+first reader it leaves every hidden group to the referee, which takes only bars that add up.
+
+**What follows.** The referee is a hidden-tuplet filter: a reader that proposes tuplets freely plus the count
+to reject the ones that do not add up. Its headroom is in choosing (half of a perfect chooser's gain is
+left), more than in more readers. The position head needs sub-column resolution before columns from the
+page can work. The engraver run needs its second seed. Interleaving's pitch loss argues against time order
+unless the decoder can see each voice's previous note.
+
+## Interleaving and the position head, tested (2026-11-22, day)
+
+**Correction to "The position head's error is the encoder's grain" (above): it is not.** A pointer head on the
+frozen reader (`runs/position_2026-11-21/pointer_x.py`: the decoder state as a query over the memory picks a
+16 px column, an MLP gives the offset within it; 4,000 steps, only the head learns) reads x from the memory
+alone as well as with the CNN stem's 4 px map added. Held-out pdmx_x crops:
+| | linear head on the decoder (x_ft) | pointer, memory | pointer, memory + 4 px map |
+|---|---|---|---|
+| median x error (share of the width) | 0.0087 | 0.0007 | 0.0003 |
+| column right | | 71.9% | 71.3% |
+| same-onset pairs across staves within 0.002 / 0.004 | 16.6% / 35.1% | 82.8% / 85.3% | 82.6% / 84.0% |
+| other pairs within 0.002 | 0.7% | 4.0% | 4.4% |
+The memory knows where a note stands within its column; the decoder's state did not pass it on (a linear
+readout of one vector, trained with the reading). Where the pointer picks the right column it is near exact;
+the remaining failures are wrong columns (28%; the column loss was still falling at 4,000 steps), which also
+put 4% of other-onset pairs together. The reader is untouched, so the reading cost of x_ft is gone.
+Next (`pointer_count.sh`): the count with these columns on (l)'s own readings, and a 12,000-step run.
+
+**Interleaving: the pitch hypothesis does not hold.** (`runs/analysis_2026-11-22/interleave_context.py`: each
+note of OLiMPiC dev v2's label bars placed in the interleaved order, read by each run.) On scans, notes with one
+other lane's element before them: read right 86.4% (seed 0), 85.7% (seed 1), **88.8% (l_interleaved_100k)**,
+88.4% (canonical fine-tune); one step off 0.64 / 0.94 / 0.54 / 0.49%. Every run finds notes far from their
+lane's last element harder (dense inner voices), interleaved or not; no extra cost from being pulled apart. By
+crop length, interleaved reads notes better than seed 0 in every bucket (over 400 tokens 85.2% against 80.6%).
+On spec 4's hidden test counted by bar (not by piece as cause_bars.py does): right 44.9% seed 0, 51.6% seed 1,
+43.2% canonical fine-tune, 41.1% l_interleaved_100k, 29.9% the interleaved fine-tune: from scratch interleaving
+is within the seeds on hidden tuplets; its failures are, like the canonical control's, tuplets left out with
+notes at other onsets. OLiMPiC dev pages (note F1, `olimpic_referee.py`): l_interleaved_100k alone 0.928 (seed 0
+0.931, the engraver run 0.930), refereed after it 0.940. So the page reader is not at fault and interleaving is
+at par off Polish. **What is left is Polish only**: 22.12 against the seeds' 21.09-21.27, with one-step pitch
+misreads (191 against 88-142; spread over pages, 27 of them in runs of 3+ in one voice against 0-3 for the
+seeds), on plain notes (not spelling). One seed; the seeds themselves vary 1.6x in these misreads.
+**Correction: the "one-step pitch misreads" on Polish are partly timing.** The measure (a deletion and an insertion at
+the same onset with the same notehead, one diatonic step apart) also catches a stepwise melody displaced in time:
+each note then pairs with its neighbour. Page 057, bar 5: both models read the same treble pitches (F4 A4 G4 B4 A4
+C5 B4) and differ only in a backup (2.75 beats against 3); the interleaved model is charged four "one-step" notes
+there. Of the interleaved model's 191 such errors, 47 fall in bars where it reads exactly seed 0's pitches (seed 0:
+29 of 93). The excess concentrates in single treble notes on one-voice staves (63 against 17-23 for the seeds).
+"Interleaving loses on pitch" (above) is not established; part of its Polish loss is timing that the scorer
+pairs as pitch. Its Polish deficit stays unexplained; a second interleaved seed would say whether it is real.
+**Interleaving: dropped (the user, 2026-11-22).** Nothing measured is attributable to the time order itself. Its
+better note reading on OLiMPiC crops (88.8% against seed 0's 86.4%) the canonical-gaps fine-tune matches without
+interleaving (88.4%): the gain is canonical gaps'. Hidden tuplets by bar 41.1% against its control's 43.2% and the
+seeds' 44.9-51.6%; OLiMPiC pages at par; Polish worse, one seed. Aligning the hands, its other purpose, is now the
+pointer head's to do. No second seed. (Corrected the same day: canonical gaps alone from scratch was already tested,
+run (p) over three seeds, "Step 2: (l) and (p) over three seeds", 2026-11-17: not adopted, Polish -0.13 [-0.62, +0.36],
+OLiMPiC pages +0.20; its better crop reading then, as now, did not carry to pages. Nothing open there.)
+**The count with the pointer's columns** (`pointer_count.sh`; pointer_x_memory on (l)'s own greedy readings, the
+reader frozen, so the readings are seed 0's; columns from x at tolerance 0.002 / 0.004 against the readings' own
+onsets). Dev v2 scans: bars that add up as read 4,653 (onsets) -> 2,091 / 2,305; hidden-number bars right (imply
+applied) 55.5 -> 39.1 / 39.1, printed 49.7 -> 38.1 / 39.4, plain 79.7 -> 79.6 / 79.7. Spec 4's hidden test (clean,
+rendered like the pointer's training): 68.6 -> 63.1 / 64.7, bars adding up 847 -> 504 / 521. Still worse: with a
+column wrong for 28% of notes, nearly every bar of 20 events holds one, and one wrong column fails the bar.
+Imposing columns needs near-perfect columns; the usable form is x as evidence (the reading's own columns, a bar
+flagged only where the page strongly disagrees). The 12,000-step pointer run is next.
+**Pointer at 12,000 steps** (pointer_x_memory_12k): column right 78.3% (72%); x error median 0.0006, 90th percentile
+**0.0030** (0.0192: most wrong columns are now the neighbour, the offset nearly making up for it); same-onset pairs
+within 0.004 88.6%, other pairs 2.0% (85.3%, 4.1%); AUC 0.968.
+**The page as evidence, not columns** (`page_evidence.py`, the 4,000-step pointer's readings): each bar's
+cross-staff pairs the reading puts at one onset but the page draws more than 0.01 apart, or at different onsets
+but within 0.002. Any such pair flags 44% of the bars that add up (wrong among them 11.5% spec 4, 18.1% dev v2,
+against 4.0% / 10.0% unflagged). The share of disputed pairs as a score for "wrong though it adds up": AUC 0.68
+(spec 4), 0.60 (dev v2); the top 10% are wrong at 2.6x / 1.9x the base rate. Weak with these positions; the same
+with the 12k pointer is running (`pointer12k_count.sh`).
+**With the 12k pointer** (`pointer12k_count.sh`): columns imposed from x at 0.004: spec 4's hidden test 67.9 (onsets
+68.6; the 4k pointer 64.7), at par on rendered crops like its training; dev v2 scans, hidden-number bars 44.8 (onsets
+55.5; 4k 39.1), printed 41.2 (49.7), plain 79.7 (79.7): still a loss on scans. The pointer has seen only rendered
+pdmx crops (no scans carry note x), which likely explains the gap. As evidence (`page_evidence.py`): a flag on any
+disputed pair marks 24% of bars that add up on spec 4 (wrong 14.2% against 5.1% unflagged), 32% on dev v2 (20.8%
+against 10.7%); the share of disputed pairs as a score AUC 0.63 / 0.61. Weak; not a usable check yet.
+
+**Continuous x or columns, and was x fed badly?** (`x_encoding_runs.sh`; stage 2 on gold symbols, 12 epochs,
+--staff-alone 0.25, tuplets x5; new train_stage2.py options --x-fourier, --x-noise, --columns-from-x.) Full bars
+at epoch 12, tuplet / plain right:
+| x as | tuplet bars | plain bars |
+|---|---|---|
+| columns from the gold onsets (run_columns_alone25, exact by construction) | 85.7 | 96.1 |
+| one raw scalar (run_layers4_tw5_e24, no staff-alone) | 75.0 | 94.2 |
+| clean x with sines and cosines at 1-128 cycles a bar | 83.0 | 95.5 |
+| x with the 12k pointer's held-out errors drawn on, sines and cosines | 60.0 | 84.6 |
+| columns from that noisy x (0.016 of a bar), x blanked | 54.3 | 81.4 |
+- Fed as sines and cosines, x nearly matches exact columns: "columns beat positions" was mostly the
+  encoding (one scalar through a small MLP makes "equal x" hard to see), and partly that the columns were exact.
+- Under the same realistic noise, continuous x beats columns made from it (+5.7 / +3.2): let the model weigh the
+  page's x rather than round it into columns.
+- The noise costs far more than either choice: plain bars 96 -> 85 on gold symbols. The noise is the pointer's
+  errors (a share of a system's crop) times 4, an assumption of four bars a system; if anything, it should be
+  checked against real bar widths before trusting the size of the drop. Precision is the bottleneck.
+
+**The ceiling for page positions in the count** (`runs/position_2026-11-21/oracle_x.py`, `oracle_count.sh`): (l)'s
+readings with each head's x taken from the label (matched in bar and staff by pitch sequence; 98.9% / 98.1% of
+heads matched on spec 4 / dev v2; a bar with an unmatched head falls back to the reading's onsets: 61 and 498
+bars), so the count gets perfect columns. Against the same readings' own onsets:
+| | own onsets | perfect columns |
+|---|---|---|
+| spec 4 hidden test (clean, by piece): hidden / two voices / chords | 68.6 / 55.7 / 74.9 | 70.8 / 56.0 / 76.7 |
+| dev v2 scans: shown / hidden / no tuplets (imply applied) | 49.7 / 55.5 / 79.7 | 50.0 / 55.2 / 79.7 |
+Bars adding up as read: spec 4 847 -> 858, dev v2 4,653 -> 4,766. **Perfect positions add about 2 points on rendered
+crops and nothing on scans.** The count is limited by the reading (notes and values read wrong), not by the
+alignment of the hands; the earlier "58% of unfixable bars are misaligned" bars carry other faults as well. With
+this stage 2 and this reading, sharper page positions are not worth pursuing for the count.
+(Fixed in passing: train_stage2.tensors read each event's x even when blanked, which broke count_readings on
+events without x; earlier counts were unaffected, every event there having one.)
+
+## The 2026-11-22 list (afternoon)
+
+**Engraver hiding, seed 1** launched on Vast (`l_system_engraver_hiding_seed1_100k`, $0.49/h, ~7 h; log
+`runs/overnight_2026-11-14/launch_engraver_seed1_2026-11-22.log`).
+
+**Referee arbitration rules** (count_vote.choose: count_ratios takes the adding-up reading with the most ratios,
+count_fill the reading whose voices miss the bar by least where none adds up, count_ratios_fill both; all with
+keep_filled, which a kept bar overrides). Polish dev corrected whole page, against seed 0 (21.27):
+| rule | seed 0 + dpo_control | engraver + dpo_control |
+|---|---|---|
+| count | -0.59 (20.68) | -0.95 (20.32) |
+| count_ratios | -0.66 | -0.94 |
+| count_fill | -0.54 | -1.05 (20.22) |
+| count_ratios_fill | -0.62 | -1.04 |
+Mutopia (note F1; first alone 0.873 / 0.872): count 0.874 / 0.872, count_ratios 0.873 / 0.872, count_fill 0.876 /
+0.873, count_ratios_fill 0.875 / 0.873. Differences of 0.1 point on Polish, inconsistent in sign between the
+pairs, inside the intervals. The ledger's "more ratios" candidate (+136 units on Polish) does not survive as a
+page score. OLiMPiC pending.
+
+**Whole bars replaced, audited** (the 77 insbar/delbar edits, cost 2,069, on engraver + dpo_control's pages):
+30% are pages where the gold files notes under the other hand's spine than the staff they are printed on (012,
+038, 047, 058 by eye: an accompaniment printed on the treble staff stems down with the bass staff empty, filed
+in the bass spine; chords printed on the bass staff with the treble staff empty, filed in the treble spine); 19%
+the three-staff page 110; 9% page 023's 8va bars, an artifact of ned_costs.py, which lacks omr_ned's
+--either-ottava (the headline does not charge them); 42% other pages, not yet looked at.
+**Missing notes by place** (`runs/analysis_2026-11-22/ledger_audit.py`, gold notes placed by their spine's clef):
+two-plus ledger lines above the staff 25.5% missing in chords and 16.8% alone, against 4.1-4.4% on the staff; below
+the staff 2.6-9.3%. But page 062 (most of them) is the same convention: notes printed on the treble staff, filed in
+the bass spine, so they count as high ledger notes of the bass and as missing from that part. By pitch alone
+(a bass-spine note at E4 or above, a treble-spine note at A3 or below), 1,690 of 16,011 gold notes (10.6%) are
+likely filed under the other staff than the one they are printed on; 16 of 49 pages exceed 15%, and they hold
+5,837 of the 12,916 edit cost. A crude flag (a high left-hand note can stand on ledger lines), confirmed by eye on
+4 pages. If it holds, a large part of the Polish dev cost is staff assignment that the print contradicts, which
+by "the target is the print" is a gold question, not a reading one.
+**Correction (same afternoon): the staff-filing "finding" is the known Corrected/Print difference.** Kern carries no
+hand: each spine is a staff (no *staff or hand markers on these pages). Corrected gold keeps the source's filing,
+which on these editions follows the hand or the editor rather than the print; Print gold (docs/EVALUATION_PROTOCOL.md:
+"a note belongs to the staff it is drawn on") already moves such notes, e.g. page 038's accompaniment into the treble
+spine as a second voice with the bass padded by invisible rests (8ryy). Our readings write the staff a note is
+drawn on, Print gold's rule. The analysis scripts of 2026-11-22 (edits.sh, ledger.py, the cause tables,
+ledger_audit.py, the whole-bar audit) used Corrected gold, so their staff-related costs (whole bars on 012, 038,
+047, 058; "missing notes two ledger lines above the staff"; the 10.6% flag) mostly measure this known difference,
+not reading errors. Cause breakdowns should use Print gold (as cost_after_referee did); the referee's headline
+scores (Corrected, both sides alike) stand.
+
+**The 2026-11-22 analyses again on Print gold** (`edits_print.sh`: ned_costs --whole-page --gold-print-fixes; the
+19 readings, 49 pages, none failed). Total cost seed 0 8,080 (Corrected 14,170). By cause (`causes_print/table.txt`):
+| Print gold | seed 0 | seed 1 | seed 2 | engraver | seed 0 + dpo | engraver + dpo |
+|---|---|---|---|---|---|---|
+| total | 8,080 | 8,694 | 7,785 | 7,552 | 7,178 | 6,756 |
+| hidden-number tuplets | 550 | 506 | 512 | **288** | 378 | 261 |
+| printed tuplets | 275 | 487 | 314 | 346 | 275 | 276 |
+| a staff's later voice | 1,282 | 1,023 | 849 | 887 | 717 | 816 |
+| a chord's note | 667 | 721 | 846 | 507 | 652 | 473 |
+| pitch on / off the staff | 380 / 484 | 560 / 648 | 335 / 408 | 458 / 565 | 381 / 496 | 460 / 535 |
+- **The engraver run nearly halves the hidden-tuplet cost** (288 against the seeds' 506-550), outside the seeds'
+  range; the rest of its gain is within it. Its seed 1 (running) decides.
+- Interleaved 100k: pitch on the staff 901 against the seeds' 335-560 on Print too (the staff filing does not
+  explain its pitch loss; timing paired as pitch may still).
+- Referee ledger on Print (`sweep_print.txt`): the same picture as on Corrected. Seed 0 + dpo_control: 238 bars
+  differ, 52 taken (34 better, 2 worse), gain 852 of a perfect chooser's 1,685; 739 of the 896 helped are bars where
+  the second has more ratios. Hidden-crop specialists 852-951 (0-5 harmful), seeds 711-841 (11-17 harmful),
+  other fine-tunes 107-322.
+- Audits on Print: whole-bar edits on engraver + dpo_control's pages 27 (cost 542, of which page 110's 8va passage
+  382, ned_costs lacking --either-ottava), against 77 (2,069) on Corrected: "whole bars replaced" is not a reading
+  cause. Missing notes two-plus ledger lines above the staff: in chords 5.3% (Corrected 25.5%), alone 12.0-13.1%
+  against 4.2-5.6% on the staff: a real but small excess (61 notes on the best pages).
+**Arbitration rules on OLiMPiC dev pages** (`olimpic_referee.py`, now scoring every count rule from one read and
+keeping the readings in OUT/work/<song>/readings.json; note F1). Seed 0 first / the engraver run first, dpo_control
+second: alone 0.931 / 0.930; count 0.937 / 0.940; count_ratios 0.937 / 0.940; **count_fill 0.939 / 0.942**;
+count_ratios_fill 0.939 / 0.942. Over the three sets, count_fill (where no reading adds up, the one whose voices
+miss the bar by least) improves five of six pairs (OLiMPiC +0.002 both, Mutopia +0.002 / +0.001, Polish engraver
+-0.10) and costs one (Polish seed 0 +0.05): small and mostly consistent. count_ratios does nothing. Candidate
+recipe: engraver run first, dpo_control second, keep_filled, count_fill: Polish 20.22, OLiMPiC 0.942, Mutopia 0.873.
+
+## Spec 5's retranscribed pages audited against the print (2026-11-22)
+
+`runs/spec5/gold_retx/`: the 40 pages Gemini transcribed (a third of staff-bars wrong), transcribed again from the
+600-dpi scans with a pitch ruler (`runs/spec5/TRANSCRIBE_RETX.md`); 37 finished (Op. 30 pp. 003 and 006 left as
+drafts in retx_work, MacDowell p. 045 a draft). Audited as Gemini's and Claude's 50 were
+(`runs/spec5/retx_audit_2026-11-22/`: our model's readings of the same pages scored against it, whole-page
+alignment; a stratified sample of staff-bars, seed 20261120; each judged in shuffled order at 600 dpi with the
+ruler, blind to its stratum; `verdicts.tsv`, a note each).
+| stratum | staff-bars | judged | wrong |
+|---|---|---|---|
+| disagree (our reading charged) | 705 | 40 | 1 (2.5%) |
+| agree | 1,508 | 25 | 0 |
+| **weighted** | 2,213 | 65 | **about 0.8%** (95% upper bound about 13%, the sample being small) |
+- The one error: IMSLP53950-PMLP02678-Mendelssohn_-_6_Songs_Without_Words,_Op.102__003 bar 31, lower staff, the first chord C4/E4 (its lower head on the C4 ledger above the bass staff)
+  written `4C 4e` (C3); our model reads C4. Its second chord, written B3/E4, our model reads B3/D4; the upper
+  head sits between the two positions, unsettled.
+- Against Gemini's 33% and Claude's 50 checked pages (1 of 68 judged): the retranscription is gold-quality.
+- Our model disagrees with this gold on 705 of 2,213 staff-bars (32%), with Gemini's on 1,002 (45%). Not an
+  independent measure: the transcriber's last step was settling every bar our model disagreed with from the print
+  (TRANSCRIBE_RETX.md, "the independent check"), so where the model is right the gold was checked against it.
+  The audit measures the gold against the print, which that does not bias.
+- Audit tooling faults met: page 014 (IMSLP853965) shows the facing page through the paper and the layout counts
+  those staves as systems, so its sheet crops point at other bars (judged from `window.py` on the real systems);
+  page 011 of Op. 67 (IMSLP53948) crops run one bar behind (`shifted.py +1`). Verdicts on those pages note it.
+**Spec 5's last three pages finished, and the 90-page set** (2026-11-22). The one wrong note the audit found (Op. 102
+p. 003 bar 31, C3 for C4) corrected in gold_retx (noted in the page's notes file; the old file in the session scratch).
+Op. 30 pp. 003, 006 and MacDowell p. 045 had a full pass but no independent check (the model had not read them): read
+now with l_system_150k (`runs/spec5/retx_extra_2026-11-22/`, and retx_check.py --readings) and checked by three agents
+following TRANSCRIBE_RETX.md. MacDowell 045: 14 of 62 staff-bars listed (23%), all kern right, no change. Op. 30 p. 006:
+10 of 114 (9%), 3 fixed (bars 16 and 18 lower, written A2 C#3 F#3, printed B2 C#3 E3 G3, checked by eye here; bar 48
+lower, a drawn flat on E4 missed). Op. 30 p. 003: 34 of 114 (30%), fixed: arpeggio signs on 20 chords (lower bars 1-4,
+9, 10, 36-39) and two bars (46-47 upper) where a down-stemmed note needs its own voice; 23 listed after, all model
+errors. The validation set: `runs/spec5/val_2026-11-22/` links the 50 checked pages (less the two old Op. 30 drafts)
+and the 40 retranscribed, 90 pages; `read.sh` reads them with the three (l) seeds, the engraver run and dpo_control;
+`score.sh` scores them and the referee pairs against seed 0.
+**A two-voice specialist reader** (`two_voice_specialist.sh`; specialist_ft.py --kind two_voices: (l) + 1,500 steps on
+20,000 PDMX crops with a two-voice staff). Polish dev corrected whole page: alone 22.08 (+0.81 [+0.39, +1.31]);
+seed 0 + it: 173 bars differ, 15 taken, -0.00 [-0.04, +0.04]; as a third reader after seed 0 + dpo_control -0.59 and
+after the engraver run + dpo_control -0.95 (the two-reader scores unchanged). The count does not find the bars it
+reads better: a dropped inner-voice note often leaves a bar that still adds up, or both readings fail it alike. The
+specialist pattern works for hidden tuplets because their error breaks the count; not adopted for two voices.
+
+**The beat clock, built** (the user, 2026-11-22; `train/seq/beat_clock.py`, tests `train/test_beat_clock.py`). Code computes,
+after every token of the decoder's input, where the voice being written stands in its bar and how much of the bar is
+left (BarClock's rules: chords and grace notes take no time, dots and tuplet ratios count as soon as written, backups
+go back, `backup:bar` returns to 0; the bar's length from the meter prefix or a written time signature), and the
+decoder adds a projection of 8 features (meter known, lengths known, time reached, time left clipped to 4 quarters,
+overfull, exactly at the end, beat phase as sin and cos) to each token's embedding (`Seq2Seq.enable_beat_clock`,
+`train_seq.py --beat-clock`, loaded by `seq_predict.load_model`). The projection starts at zero: from (l) the model
+reads exactly as (l) (checked: logits identical, the projection's gradient non-zero). Training, greedy and beam
+decoding all go through `decode`, so all see the clock; during generation it is recomputed over the prefix each
+step (quadratic in length, cheap next to the decoder). All 341 train tests pass.
+Runs (`launch_beat_clock_2026-11-22.sh`, Vast): (l) + 10k steps at 1e-4 with `--meter-context --own-readings 0.15`,
+`ft_l_beat_clock_10k` with the clock and `ft_l_meter_own_10k` without (the control). Own readings put wrong tokens
+in a share of the inputs, so the clock is seen overfull in training. Evaluated by `clock_evals.sh` when home and the
+GPU is free: spec 4's hidden test, dev v2, probes, Polish dev against seed 0.
+
+## Pitch errors broken down, Polish and OLiMPiC (2026-11-22)
+
+`runs/analysis_2026-11-22/pitch_breakdown.py` (`pitch_polish.txt`, `pitch_olimpic.txt`). Note: note_causes' "off the
+staff" and "clef or ottava" include notes missing or added there, not only wrong pitches; wrong pitches proper are
+note_causes' "a wrong pitch" kind (976 of 6,756 for the engraver run + dpo_control on Polish Print gold).
+
+**Polish dev, Print gold, notes read at a wrong pitch** (deletion and insertion paired as note_causes pairs them),
+seed 0 / 1 / 2 / engraver + dpo_control: 108 / 173 / 106 / 131 notes (of about 16,000), cost 756 / 1,206 / 719 / 937.
+- How far: one step 59-66%, two steps 9-16%, an octave 1-6%, other 16-24%.
+- Which way: read too low 57-67% (a consistent lean on every run).
+- Where: on the staff 66-69%; 1 ledger line out 15-22%; 2+ ledgers 10-18%.
+- Context: usual clef, no ottava 84-91%; under an ottava 2-7%; staff in its other clef 3-14%.
+- Paired by onset, so a stepwise melody displaced in time can pass for one-step misreads (about a quarter of
+  them on the interleaved check, "Correction ... partly timing", above); the counts are an upper bound.
+
+**OLiMPiC dev v2 scans, every label note matched to the reading at its staff and onset** (chord members included;
+pairing a chord's first-written note alone first made a 3% "wrong pitch" rate that was chord order), seeds 0 / 1 / 2 /
+engraver: about 80,000 notes; right 90.7 / 89.6 / 90.5 / 89.9%, not read at its onset 7.3-8.0%, wrong pitch 2.0-2.4%.
+Of the wrong pitches one step 23-30%, two steps 16-19%, an octave 13-20%, other 38-42% (the last mostly a note
+missing and another added at the same onset, paired by the matching: not misreads). Read too low 54-56%.
+By where the note stands (seed 0; the others alike):
+| where | notes | wrong pitch | not read at its onset |
+|---|---|---|---|
+| on the staff | 58,098 | 1.75% | 6.9% |
+| below, 1 ledger | 7,340 | 1.98% | 6.4% |
+| below, 2+ ledgers | 5,643 | 2.32% | 10.1% |
+| above, 1 ledger | 4,616 | 2.92% | 7.8% |
+| above, 2+ ledgers | 4,002 | 5.00% | 10.4% |
+**What it says.** Misread pitches proper are few on both sets (about 1% of notes, most one step off, leaning low). The
+larger pitch-area cost is notes not read at all, and both rates rise away from the staff: two-plus ledger lines
+above, wrong pitch about 3x and not read about 1.5x the on-staff rate on OLiMPiC; on Polish (ledger_audit, Print gold)
+single notes 2+ ledgers above are missed 12-13% against about 5% on the staff. Ottava and clef changes are a small
+share of wrong pitches on both. The fix the numbers point at is high ledger-line notes (seen, counted, placed), not
+on-staff pitch reading; the by-eye sample on Spec 5 tonight should test that.
+**Split by staff and position** (OLiMPiC dev v2 scans: `edge_split.py` in the session scratch, seed 0 / seed 2 / the engraver run;
+Polish: missing notes by clef and place, Print gold, seed 0 / seed 2 / engraver + dpo_control).
+- **The gap between the staves, from the lower staff, is the one region bad on both sets**: lower-staff notes 2+ ledger
+  lines above it are missing 11.0 / 12.9 / 11.0% on Polish (its own staff 3.8-4.6%), and on OLiMPiC missing 12.4-14.3%
+  (its staff 10.2-11.0%) with one- or two-step misreads 2.0-2.7% (its staff 1.1-1.2%). Read on the other staff instead:
+  1.1-1.2% of them (OLiMPiC), so staff swaps are not most of it.
+- **Above the upper staff (the crop's top edge) is not a problem**: OLiMPiC missing 2.0-3.6%, misread 0.2-0.6% (best of all
+  regions); Polish 7.3-9.0% against 4.6-5.8% on its staff (a mild excess). So crop cut-off and counting ledger lines as such
+  are not the cause.
+- The upper staff's notes below it (also the gap): OLiMPiC 2+ ledgers missing 7.0-11.0% against 4.7-5.2% on its staff.
+- OLiMPiC's lower staff misses about twice the upper's everywhere (10% against 5%, on its own lines too), Polish's does not
+  (3.8-4.6% against 4.6-5.8%): set-specific, and this measure counts a note at another onset as missing, so likely
+  rhythm in OLiMPiC's accompaniment rather than sight.
+- Shared on and off the staff: one-step misreads lean low (54-70% of them in most regions, every run): a vertical
+  readout bias, small in cost (misreads about 1% of notes).
+**The gap region checked three ways (same day): mostly a measurement effect.**
+1. *By eye and by token.* OLiMPiC: of 403 lower-staff gap notes seed 0 misses at their onset, 85% have their pitch read
+   elsewhere in the same bar on that staff (moved, not lost); shifts mostly 1/2 or 1 quarter, some by thirds or sixths;
+   they cluster in few songs (97 crops; 6581327, 6259566, 6499366 hold a third). The worst crop (6581327 p3-s4) is
+   hidden-number sextuplet 16ths in one voice that crosses from the lower staff onto the upper (`E4 16th 3in2 stem:up
+   staff:1`): the reading drops every ratio, so onsets drift, and voice_events places a voice's notes on its first
+   staff, so its upper-staff notes count as "lower staff, 2+ ledgers above". Missed gap notes sit in two-voice bars 55%
+   of the time against 41% for gap notes read right. Polish (Print gold): of the lower staff's 2+-ledger notes missing,
+   39 of 46 are lost outright (9.3% of 419, against 2.5% on that staff), but 27 of the 39 are on pages 077 and 056; on
+   077 bar 17 they are the upper staff's melody (A5 G5 F5, the gold's second spine of three), which the per-edit
+   context labels part 1 with the bass clef: on pages whose staves split into several spines, the staff and clef of an
+   edit are not reliable. On 056 bar 18 the lost chord (F4 B4 D5) is the bass staff's own, high above it.
+2. *Training frequency* (`runs/analysis_2026-11-22/gap_frequency.py`, 3,000 labels a set): lower-staff notes 2+ ledgers
+   above are 10.25% of the lower staff's notes in (l)'s weighted mix (9.0-14.7% by set), against 8.8% on OLiMPiC dev v2
+   and 7.4% on Polish: not rare in training.
+3. *Attention* (which staff's rows the decoder looks at for a gap note): not run. Its premise was a staff confusion,
+   and notes read onto the other staff are about 1% of gap notes (OLiMPiC); what remains is timing and attribution.
+**So**: the off-staff excess is mostly rhythm (hidden tuplets in cross-staff figures, two-voice bars) and how the
+measures attribute notes to staves, not sight; what is left that is visual is small (Polish's high bass notes, a few
+dozen; one-step misreads leaning low everywhere, about 1% of notes). The "pitch area" (21% of cost by note_causes'
+grouping) is mostly notes missing or moved, not pitch: its costs belong with voices and rhythm.
+**The pitch area split by root cause** (`runs/analysis_2026-11-22/pitch_rootcause.py`, `pitch_rootcause.txt`; Polish,
+Print gold; note_causes' pairing and its three pitch-area causes, each edit then given the first that fits its staff's
+bar: a one- or two-step pitch pair in a bar with no tuplet and one voice = misread; the pitch read elsewhere in the bar =
+timing; the gold bar holds a tuplet = tuplets; 2+ voices = two voices; ottava or other clef; else outright).
+Share of the pitch area (and of all cost), seed 0 / 1 / 2 / engraver + dpo_control; the area is 13.8 / 18.7 / 13.1 / 18.5%
+of all:
+| attributed to | seed 0 | seed 1 | seed 2 | engraver + dpo |
+|---|---|---|---|---|
+| misread (sight) | 27.9% (3.8%) | 26.4% (4.9%) | 29.7% (3.9%) | 27.1% (5.0%) |
+| two voices | 26.1% (3.6%) | 35.6% (6.7%) | 34.0% (4.4%) | 30.6% (5.7%) |
+| tuplets | 21.5% (3.0%) | 19.0% (3.6%) | 18.0% (2.4%) | 17.9% (3.3%) |
+| timing | 8.6% (1.2%) | 8.5% (1.6%) | 9.6% (1.3%) | 5.9% (1.1%) |
+| clef or ottava | 6.7% (0.9%) | 3.9% (0.7%) | 4.8% (0.6%) | 12.0% (2.2%) |
+| outright | 9.1% (1.2%) | 6.7% (1.3%) | 3.9% (0.5%) | 6.4% (1.2%) |
+Of the misreads, about two thirds are off the staff (a step or two from a ledger-line note). Misread pairs can include
+a stepwise melody displaced in time, so misread is an upper bound. Almost every page splits a staff into spines
+somewhere, so the attribution caveat (page 077) cannot be bounded this way.
+So of the 21% "pitch" cluster, about a quarter (4-5% of all cost) is sight; half (two voices + tuplets, 6-10%) belongs
+with rhythm and voices; the rest is timing, clef/ottava and outright losses, about 1% each.
+**Is it line-finding or the row grid? Neither, by these tests** (OLiMPiC dev v2 scans, seeds 0-2 pooled, about 240,000
+notes; "misread" = read one or two steps off at its onset).
+- *By staff position* (session scratch `by_position.py`): misreads are roughly flat across the staff (upper staff 0.54-1.03%
+  on its lines and spaces, the middle line 0.74%: no hump far from the outer lines) and do not climb with ledger lines
+  (the upper staff's third ledger above 0.16% and below 0.24%, the lowest of all). Lines and spaces alike. So not
+  "which line is this" by counting from an edge. The lower staff is about twice the upper at almost every position
+  (1.0-1.6% against 0.5-1.0%): a whole-staff effect. Hot spots: just above the upper staff's top line 1.38% (read low
+  37 to 8), the lower staff's space above its second ledger 2.98%, its space below the first ledger below 2.10%.
+- *By where the head falls within the encoder's 32 px rows* (`runs/analysis_2026-11-22/row_phase.py`, `row_phase.txt`;
+  a row spans 3.9 staff steps, median): misread 0.88-1.13% in every 4 px bin, not read 8.0-9.6%, no rise at the row's
+  edges. The row grid is not the cause either.
+Pitch misreads proper are about 1% of notes, near flat in every way measured here; with the timing pairs counted in, a
+good share may not be sight at all. Not worth a fix of their own now.
+
+## Errors against density: busy music, not crowded pixels (2026-11-22)
+
+Before any adaptive patching (finer tokens or a warp where the page is dense): `runs/analysis_2026-11-22/density.py`
+(`density.txt`), OLiMPiC dev v2 scans, seeds 0 and 2, each crop's visual density (label notes per 100 px of the 512-high
+input) and musical density (notes per quarter), notes matched at their staff and onset. No crop is squeezed by the width
+cap (seq.data MAX_WIDTH). By quintile, visual density rises gently (right 93.0% -> 88.3% from the sparsest fifth to the
+densest, seed 0); musical density is flat for four fifths (92.7-94.2%) and drops at the busiest fifth, 7+ notes per quarter
+(84.0%, not read at its onset 14.6% against 5-7%). Crossed (seed 0 / seed 2, right): ordinary music sparse 93.6 / 91.9%,
+dense 92.9 / 93.1%; busiest fifth sparse 84.2 / 90.6% (51 crops), dense 84.0 / 84.5%. Visual crowding alone costs
+nothing; busy music costs 8-9 points, mostly notes at another onset or missing (misreads 0.7% -> 1.4%). Adaptive patching
+targets the wrong thing on this evidence; the loss in busy passages is rhythm. Not built.
+**Why busy bars read worse: tuplets, and one length error per note** (`runs/analysis_2026-11-22/cascade.py`,
+`cascade.txt`; each label voice aligned with the reading's same voice by pitch sequence, every aligned note then right,
+its own length wrong (why from its own tokens), or its length right but its onset moved). Busy here = 7+ voice notes
+(chord heads) a quarter, 3,485 notes, 51% of them in tuplets against 12% elsewhere. Seed 0 / seed 2:
+busy right 60.0 / 75.7%, own length wrong 26.0 / 16.0%, shifted 9.7 / 3.7%, not aligned 4.3 / 4.6%; the rest right
+88.1 / 86.8%, own length wrong 3.0 / 3.5%, shifted 5.3 / 5.7%. Of busy bars' length errors 93-95% are a tuplet ratio
+left out (elsewhere 62-67%, plus ratios added 11-16%, the length itself 14-16%, dots 5-6%). Pitch is read in busy
+bars (not aligned 4.3% against 3.6%). So a busy bar is worse because it is usually a run of tuplets (sextuplet or
+triplet 16ths) whose ratio the reader leaves out, and in such a run every note is charged its own length error (a
+cascade from one error, "shifted", is the smaller part there: 0.2-0.4 per length error, against 1.6-1.8 elsewhere).
+Seeds disagree by 10 points on busy bars: the hidden-tuplet coin flip the referee already arbitrates.
+**All of the cost by root cause, one row per edit** (`runs/analysis_2026-11-22/root_causes.py`, `root_causes.txt`;
+Polish dev, Print gold; rows sum to OMR-NED's distance exactly). Bar circumstances first, except that a pair with the
+same onset and length and another pitch (or an accidental edit) is pitch wherever it is. Seed 0 / seed 2 /
+engraver + dpo_control (the referee's best):
+| root cause | seed 0 | seed 2 | engraver + dpo |
+|---|---|---|---|
+| pitch (sight) | 11.0% | 11.1% | 16.5% |
+| tuplets (one-voice bars) | 7.4% | 7.5% | 5.5% |
+| voices (no tuplet) | 18.6% | 21.5% | 18.9% |
+| tuplets and voices | 26.8% | 20.4% | 20.6% |
+| rhythm, plain bars (length, dot, moved note) | 13.4% | 17.3% | 15.5% |
+| notes lost or added, plain bars | 8.1% | 7.1% | 6.1% |
+| slurs, ties, marks | 13.0% | 13.8% | 14.7% |
+| clef, key, meter, structure | 1.7% | 1.3% | 2.1% |
+Correction to pitch_rootcause.py's "misread 4-5%" above: it counted only plain-bar pairs within note_causes' pitch
+area, and sent same-onset pitch errors in tuplet and two-voice bars to those causes. Pitch by sight is 11% for seed 0
+(1-2 steps 7.7%, of it 3.4% in tuplet or two-voice bars; 3+ steps 1.4%; accidentals 1.3%) and 16.5% for the referee's
+best (its 3+ step errors in plain bars 2.2% against seed 0's 0.7%: the second reader's, unexamined). Lower bound 7.6%
+(seed 0) if every 1-2 step pair in tuplet or two-voice bars is a run shifted by one note. Tuplets and voices together:
+45-53%.
+**Symptom by circumstance, no ranking (supersedes the root-cause rows above)** (`root_causes.py` rewritten; the ranked
+version is not kept; `root_causes.txt`). Each edit has a symptom (pitch, voice, timing, lost or added, marks, clef/key/
+meter) and a circumstance (its staff bar: plain, tuplets, 2+ voices, both). The referee's best (engraver + dpo_control),
+% of OMR-NED 6756:
+| | plain | tuplets | 2+ voices | both | all |
+|---|---|---|---|---|---|
+| pitch | 8.7 | 0.7 | 4.8 | 2.3 | 16.5 |
+| voice (same note, other voice) | 0.4 | 0 | 0 | 0 | 0.4 |
+| timing | 15.1 | 3.4 | 7.6 | 8.5 | 34.7 |
+| lost or added | 6.1 | 2.1 | 11.2 | 12.1 | 31.5 |
+| slurs, ties, marks | 6.7 | 1.1 | 5.0 | 2.0 | 14.7 |
+| clef, key, meter | 1.4 | 0 | 0.6 | 0.1 | 2.1 |
+| all | 38.5 | 7.3 | 29.3 | 24.9 | 100 |
+Seed 0 for comparison: both 30.3%, 2+ voices 26.4%, plain 34.3%, tuplets 9.0% (of 8080).
+- Multi-voice bars hold 54% of the cost; their largest part is notes lost or added (23%). Of notes missing there, most
+  come in runs of 2+ in one voice of a bar (12% of cost): voices partly dropped. "Same note, other voice" is almost
+  never the error. No note is regrouped at its onset (chord against voices): checked, zero.
+- Timing in plain bars (15%) is mostly notes at another onset (11.2%) with their own length right, shifted by
+  1/8-1 quarter by something earlier in the bar; whole bars 2.6%; concentrated on pages 087, 093, 051, 065, 083 (9%).
+- Pitch matched on notes every reader timed right (`pitch_matched.py`, `pitch_matched.txt`): OLiMPiC 1.69-2.23%
+  wrong, the engraver 1.87% as seed 0's 1.84%; Polish, 536 bars every reader got the rhythm of: seeds 0/2 375/364,
+  seed 1 602, engraver 561. So pitch varies by seed on Polish (not reclassification, not tuplet training); part of it
+  is a missed clef change (page 069, eight notes 12 steps high, engraver and seed 1), part one-step errors on 093.
+**Multi-voice bars and plain-bar timing, by eye (2026-11-22; working doc "Multi-voice bars",
+https://claude.ai/artifact/GGT3zNjPb63qx3BtYygJb7).** Best reader (engraver + dpo_control, Print gold).
+- 30 of 121 multi-voice staff-bars with notes lost or added (cost 3+): tuplets inside a voice 7 bars (cost 127 of 321),
+  one voice copied over the other from a shared head 7 (67), gold staff filing of cross-staff octaves 4 (53, page 030),
+  rests in the second voice 4 (29), grace notes 3, chord members and pitch 5. Notes lost on one staff and added at the
+  same pitch and onset on the other: 3.3% of cost (225), pages 077, 030, 083 (gold filing; the reader follows Print).
+- Shared heads (`shared_heads.py`, `shared_heads.txt`, OLiMPiC dev v2 scans, staff bars with exactly two voices):
+  with a head both voices share, right 77.1% against 83.0% (seed 0), 67.4% against 83.7% (engraver run, 190 bars);
+  the excess is notes shifted in time (12.7% / 23.6% against 7.3% / 6.3%), not lost.
+- 30 of 51 plain-bar (one voice, no tuplet) staff-bars with timing cost 3+: a dot missed 7 bars (cost 208), beam
+  count misread 4 (140), notehead length misread 6 (102), whole bar replaced 3 (85), rests 6 (43), grace against
+  16ths 1 (41), artifacts 3 (22).
+- Whether the reading's bar adds up (`timing_fill.py`, `timing_fill.txt`; % of all cost, adds up / does not): plain
+  timing 3.3 / 11.8, tuplet timing 0.4 / 3.1, 2+ voices timing 2.1 / 5.5, 2+ voices lost or added 7.6 / 3.6. Plain-bar
+  timing is mostly visible to counting; the copied-voice failure fills its bar and is not.
+**The multi-voice tests (2026-11-22 evening; doc "Multi-voice bars").**
+- Shared heads in training (`shared_head_frequency.py`): 7.0% of two-voice staff bars in (l)'s weighted mix (sets
+  4.3-15.2%), OLiMPiC dev 8.5%; renders draw them as print does. Readings write OLiMPiC's 318 shared heads in both
+  voices 63-74%, one voice 20-24%, neither 6-13% (engraver run worst).
+- Shared heads on Polish (`polish_shared_heads.py`, Print gold via omr_ned's parse): 197 two-voice staff bars with
+  one, 415 without; cost per gold note with / without: seed 0 0.85/0.74, seed 2 0.65/0.72, engraver 0.54/0.67, best
+  0.50/0.62. Not a consistent cause; synthetic shared-head data dropped.
+- Lost rests: 49, 2.1% of the best reader's cost (110: 12, 083: 7, 012: 4). By eye, the gold has visible rests the
+  print does not draw on 012 b10, b12 and 056 b6; 110 b20 mixed. Gold fixes (unprinted rests; staff filing on 030,
+  077, 083 and four single bars) proposed, not made: they need the user's approval.
+- The clock's control ft_l_meter_own_10k never trained (instance 62033250 no SSH, destroyed); clock_evals.sh,
+  beam_evals.sh and the stretch test waited on it with the GPU idle from about 19:11 to 20:28 ET. Relaunched on offer
+  59605821 (relaunch_meter_own_2026-11-22.sh); beat_clock_2026-11-22/chain_2026-11-22.sh runs the rest.
+**Print gold fixes, approved by the user (2026-11-22 evening), all in eval/polish_overrides.jsonl (published pages
+untouched), each checked against the page image:**
+- Staff filing: 030 bars 17, 18, 25, 26 (`move_down`, column 1: octaves' and chords' lower notes drawn on the bass
+  staff, one stem across); 077 bars 18-20 (`move_up` with the new `column`: a spine split from the lower staff carries
+  the treble's melody) and one unprinted rest there. Left as found: 083 bars 29-30, 093 bar 13 and 110 bar 23 (the
+  reader misfiled; the gold matches the print); 056 bars 18-19 (a hand crossing whose ties run through four spines:
+  needs a re-transcription, not a move).
+- Rests: of the best reader's 49 lone lost rests, 31 are padding the print does not draw (`hide_rest`: 012, 051,
+  056, 064, 069, 077, 083, 087, 110); 12 are printed (reader errors); 4 are gold note errors, an F octave
+  transcribed as a rest (060 bars 29-30, 110 bars 4-5, the same piece; not edited, for the user); 077 b19's is fixed
+  by the move; 056 b15 has no published rest to match.
+- gold_overrides.py: `move_up` takes a `column` (as `move_down` does); a chord split between the staves keeps its
+  one slur with the notes that stay (`without_slurs_staying_has`), which also fixes 067 bars 5-6 (two slur starts,
+  one end). Tests: 45 pass. Rebuilt gold: runs/stage2_gold_2026-11-21/polish_referee/gold_2026-11-22/print (the
+  old gold/ left as it was); rescored with runs/analysis_2026-11-22/rescore_gold_2026-11-22.sh.
+Rescored against gold_2026-11-22 (`edits_print_2026-11-22/`, `root_causes_gold_2026-11-22.txt`): cost falls 2.1-2.8%
+for every reader (seed 0 8080 -> 7884, mean page OMR-NED 6.13 -> 5.99; best reader 6756 -> 6568, 5.15 -> 5.03).
+Best reader's multi-voice lost or added 23.3% -> 20.8% of its cost; the order of targets is unchanged.
+
+## Plain-bar rhythm misreads (2026-11-22 evening; doc "Plain-bar rhythm misreads",
+https://claude.ai/artifact/VBkMutdZ1MmgBaUd1yYVhW)
+
+Best reader on the fixed Print gold: plain-bar timing 15.6% of cost, 12.2 points of it in bars that do not add up.
+- Polish roots (`plain_timing_roots.py`): 61 staff bars; shift only 6.7% of cost, dots 4.1%, whole bar 2.6%, note value
+  2.1%; few pages (087, 093, 065, 051, 083). By eye, missed dots are faint or not drawn (051 b22; 064 b1, the bass's
+  dotted figures print no dots where the treble's do).
+- OLiMPiC own-length misreads in plain bars (`length_confusions.py`): 0.89% of notes for seed 0, 1.06% engraver run,
+  4.37% dpo_control; mostly tuplet ratios added (0.57% / 0.39% / 4.00% of notes); quarter read as half 0.11% / 0.27%
+  / 0.11%; dots lost 0.67% of dotted notes for each.
+- Another reading has the staff bar's timing right for 42% of this cost; 33% where that reading adds up and the best's
+  does not (`plain_timing_cover.py`). Referee over five readings (engraver, dpo_control, seeds 0, 2, 1; keep_filled,
+  count_fill; `more_readers.sh`): total 6568 -> 6331 (mean page 5.03 -> 4.82), but plain-bar timing 1023 -> 1002: it
+  fixed 209 and broke 188 (065, 087), taking bars that add up but are wrong. Seeds before dpo_control: 6588.
+- Widening busy OLiMPiC crops (stretch/report.txt): right 84.2% at 1.0x, 81.2% at 1.25x, 75.7% at 1.5x. More pixels
+  across do not help (the model never trained on stretched notation). Adaptive patching stays dropped.
+- The clock's control finished on Vast (exit 0, dev SER 0.0771); its evaluations and the beam evals run in
+  beat_clock_2026-11-22/chain_2026-11-22.sh.
+
+## Spec 5 becomes a second dev set (2026-11-22, the user)
+
+Per page Polish and Spec 5 are equally noisy (paired 95% intervals 20-29% of the error level), but Spec 5's pages
+carry twice the errors (seed 0 11.29 against 5.99), so it separates real gains better (best recipe minus seed 0:
+Spec 5 -3.12 [-4.72, -1.70], Polish -0.96 [-1.88, -0.20]); the seeds' order flips between sets. Rule from now: report
+each set and pooled; adopt when the pooled interval excludes zero and neither set gets clearly worse.
+- Five-reading referee (engraver, dpo_control, seeds 0, 2, 1; keep_filled, count_fill) on Spec 5
+  (`runs/spec5/val_2026-11-22/five.sh`): 7.61 against the two-reading best's 8.17, -0.57 [-1.10, -0.10]; against
+  seed 0 -3.68. Confirms Polish (6568 -> 6331).
+- Error types by set (`runs/analysis_2026-11-22/error_types.py`, `error_types_by_set.txt`), five-reading referee,
+  Polish / Spec 5: tuplet-only bars 6.2 / 30.7%, multi-voice lost or added 21.1 / 26.0%, multi-voice timing 14.5 /
+  18.5%, marks 16.1 / 13.1%, pitch 18.3 / 4.8%, plain-bar timing 15.8 / 3.2%, plain lost or added 5.7 / 2.5%.
+  Spec 5's cost is tuplets and voices; Polish's plain-bar timing and pitch are mostly Polish's own.
+
+## Slurs, ties and marks (2026-11-22 night; doc "Slurs, ties and marks", https://claude.ai/artifact/UeKrc9CcMNEAbU4RjmGrtH)
+
+Five-reading referee: marks 16.1% of Polish's cost, 13.1% of Spec 5's (`marks_breakdown.py`, edits from
+`marks_edits.sh`; ned_costs.py now records each note's articulations, beams and expressions). Polish: slurs 7.4%
+(skipped 2.5, invented 3.2, span 1.7), beams 2.6%, ties 1.9% (mostly skipped), staccato 1.4%, grace 1.1%. Spec 5:
+beams 7.8% (6.8% misattached), slurs 2.7%. By eye, the largest are gold limits: Spec 5 Op. 53 p017's gold has 28 beam
+marks on 735 sixteenths (388 cost); Op. 85 p001's sixteenth triplets run across spines, which kern cannot beam (gold
+"partial" against the reader's groups is about two thirds of Spec 5's beam edits; cause traced on these two pages);
+Polish 017 omits the grace-note slurs the print draws (9 bars). Ties read as slurs explain about a sixth of invented
+slurs; a quarter of slur errors share a bar with lost or added notes.
+Also (the user's question): the clock's beam search branches on every token, not only durations; a rhythm-only beam
+(branch at duration, dot and ratio tokens, greedy elsewhere) would spend all four slots on timing. To try after the
+full-beam results.
+**Marks gold pass (2026-11-22 night, approved).** Grace slurs: 100 of 202 grace groups in the Print gold had none; by
+eye nine editions slur graces to their note (022, 042, 047, 055, 070, 081, 087, 095, 103), three do not (018, 091,
+105). 46 `slur` overrides added (6 groups left: in moved passages or ending on a rest); converter21 reads a note that
+ends one slur and starts another in either mark order (tested). Gold: gold_2026-11-22b/print; edits
+edits_print_2026-11-22b/. Score unchanged (five-reading referee 6331 -> 6336; on the nine pages invented slurs 62 -> 40,
+skipped 35 -> 56): the readers draw grace slurs about half the time. Skipped ties, 12-case sample: no gold errors;
+5 follow a wrong note, 2 read as slurs, 3 true skips, 1 the 056 b18 passage.
+Spec 5 beams across spines: no kern change needed; a Spec 5 print-fixes file (the `beams` kind of
+omr_ned --gold-print-fixes) can carry the print's beams. Proposal pending.
+**Ties that change voice over a system break (2026-11-22 night).** Polish 030 b26-27: G3 ends a system in the staff's
+one voice, slurred (the half arc), and the next system opens two voices with G3 in voice 2 carrying the tie's stop;
+the gold has the same voice change. ties_across_system_breaks and mend_ties paired by voice and missed it (mend_ties
+also deleted correct cross-voice ties the model wrote, e.g. Spec 5 Op. 85 p010 b7-8, where the model renumbered the
+lower staff's voice 2 as 5 across the break). New in eval/page_musicxml.py: voice_switches_over_breaks (a voice's last
+note before a break and a same-pitch note opening another voice of its staff at onset 0; ambiguous pairs left out),
+used by ties_switching_voice (a slur start answered by a tie stop becomes a tie; the slur goes only when its whole
+chord ties on and no slur on that staff carries on into the next system) and by mend_ties (keeps such ties). 27 new
+tests (69 in test_page_musicxml). Measured on the five-reading referee re-joined (`ties_switching.sh`): Polish
+6336 -> 6334, Spec 5 29731 -> 29730; skipped ties -2 on each set; the one page that rose (Op. 85 p010, +1) is a
+correct tie the scorer charges for the reader's voice choice. A withdrawn first attempt (an LMX-level rule that
+duplicated the existing one) is in the session scratchpad, not the repo.
+**Spec 5 beam print fixes (2026-11-22 night, approved).** The marks spec's "gold limit" (5.1% of Spec 5's cost): beams
+the print draws across the staves join notes kern keeps in separate spines, so the gold has them unbeamed. New:
+eval/spec5_print_fixes.jsonl (omr_ned's existing `beams` print-fix kind; no kern change), written by
+runs/analysis_2026-11-22/spec5_beam_fixes.py: per page, from its image, the beat the print beams by and the figure's
+value; the gold's unbeamed notes of that value in measures where the scorer charged such a beam are grouped by the
+beat across both staves and given start/continue/stop by onset; each fix is applied through omr_ned before it is kept.
+Six pages (Op. 53 p017, Op. 85 p001-002, Op. 38 p008, Op. 19b p005-006), 128 groups. On them (five-reading
+referee) cost 3556 -> 2745, only beam edits changed (811 of the 1507 gold-limit cost); what is left there is the
+reader splitting groups (checked on Op. 53 bars 21-30). Left by eye: Czerny 049/059 (both hands beam across at once),
+071 (three beam levels), Heller 038, 138300 009 (about 190 cost). Spec 5's score.sh, five.sh and causes.sh now pass
+the fixes; every reader rescored into runs/spec5/val_2026-11-22/scores_fixes/ (rescore_fixes.sh), scores/ left as it
+was.
+Rescored with the beam fixes (scores_fixes/): every reader's Spec 5 mean page OMR-NED falls 0.18-0.22 (seed 0 11.29 ->
+11.07, two-reading best 8.17 -> 7.95, five-reading referee 7.61 -> 7.40); the differences against seed 0 are
+unchanged (five-reading -3.67 [-5.27, -2.20]).
+**Mark fixes (2026-11-22 night, approved).**
+1. Spec 5 strong accents: Heller Op. 47 (023, 024, 036-038) and Trente etudes Op. 46 (011, 016, 017) print both > and
+   the vertical wedge; the gold writes kern's `^` for both. The reader tells them apart (every note it read as strong
+   accent that was checked shows the wedge; those it left plain show >). New omr_ned print-fix kind `strong_accent`
+   (3 tests in test_omr_ned); 117 fixes from runs/analysis_2026-11-22/spec5_print_fixes.py (renamed from
+   spec5_beam_fixes.py; it now writes both kinds; notes resolved in the parsed gold with full pitch and length, as
+   the scorer records only drawn accidentals). On the 8 pages 3747 -> 3630, only articulation edits changed.
+   Spec 5 rescored with beams + accents: scores_fixes2/ (rescore_fixes.sh now takes its output folder).
+2. page_musicxml.slurs_from_ties_between_chords: where every note of a chord is tied and the voice's next chord shares
+   no step and octave with it, the ties were one slur (Polish 057 b10: one arc above, one below). Single notes left to
+   mend_ties. 14 tests (83 in test_page_musicxml). Five-reading referee re-joined (chord_ties.sh): Polish 6334 ->
+   6331, Spec 5 28802 -> 28800 (with the fixes), skipped slurs -3 and -2.
+3. Grace slurs, page 105 bars 8, 16, 18, 20 and 097 bar 5 (the 105 edition does slur them; judged from bar 12
+   before). gold_2026-11-22c/print.
+4. Voice-and-tuplet-bar slur errors (by eye: 037 b15, 060 b14, 060 b27, 077 b15): in two-voice staves the slur
+   belongs to one voice and the reader puts it on the other or moves its ends, often over long phrase slurs that cross
+   other arcs. No gold problem; they ride with the voice errors.
+Spec 5 with beams + strong accents (scores_fixes2/), mean page OMR-NED none / beams / beams + accents: see
+runs/spec5/val_2026-11-22/rescore_fixes2.log (these readings predate the chord-tie page rule).
+
+## Beam search fixed (2026-11-23, 00:00 ET)
+
+The beam-4 evals of 2026-11-22 (beat_clock_2026-11-22/report.txt: clock no better than seed 0) are void. Debugging
+(session scratch beamdebug/): beam 4 changed 374 of 1422 OLiMPiC dev crops against greedy, mostly by deleting tuplet
+ratios (3in2 deleted 307 times, inserted 55). On the 20 crops where it lost ratios its readings had the higher total
+log-prob 19 of 19 but a worse mean per token than greedy in 7: seq.model.beam_readings stopped when `width` readings
+had ended and ranked by mean, so readings without ratios (shorter) ended first and cut off longer, better ones.
+Ratio tokens on those crops: label 661, greedy 818, beam stopping at 4 ended 353, at 8 566, at 16 568. Fix: stop at
+twice `width` ended (test_beam: a longer reading ending later is not cut off). Rerun queued:
+runs/overnight_2026-11-14/overnight_2026-11-23.sh (engraver seed 1's evals first, then beat_clock_2026-11-22/beam_fixed).
