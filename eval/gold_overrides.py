@@ -69,6 +69,7 @@ NOTE = re.compile(r"([a-g]+|[A-G]+)(#+|-+|n)?")
 RHYTHM = re.compile(r"\d+(?:%\d+)?\.*")
 BEAM_MARKS = re.compile(r"[LJKk]")
 SLUR_MARKS = re.compile(r"[()]")
+REST = re.compile(r"^\d+(?:%\d+)?\.*r")
 # Humdrum's way to flag single notes; the scorer's parser turns it into the note's colour.
 AMBIGUOUS_SIGNIFIER = "i"
 AMBIGUOUS_COLOR = "#abcdef"
@@ -443,11 +444,16 @@ def listed_moves(notes: dict[str, list[int]], first: int, last: int) -> list[set
     return [set(notes.get(str(n + 1), [])) for n in range(first, last)]
 
 
+IN_PLACE = {"articulate", "slur", "beams", "slash_grace", "hide_rest", "show_accidental"}
+
+
 def order_on_page(override: dict) -> tuple[int, int]:
     """Applied highest first: on one line, a replace (the line transcribed afresh, so the marks of
-    other overrides go onto it, not under it), then articulations, then the rest, then a
-    tuplet-number line inserted before the line."""
-    kind = 3 if "replace" in override else 2 if "articulate" in override else 0 if "tuplet_numbers" in override else 1
+    other overrides go onto it, not under it), then the edits of the line's own fields, then the
+    rest (moves and inserted lines, which put a spine line where the line was), then a tuple
+    number line inserted before the line. An edit applied after a move of its line would land on
+    the move's spine line (2026-11-23: hide_rest after move_up on Polish 060, 083, 110, 012)."""
+    kind = 3 if "replace" in override else 2 if IN_PLACE & override.keys() else 0 if "tuplet_numbers" in override else 1
     return override["line"], kind
 
 
@@ -471,7 +477,10 @@ def corrected(text: str, overrides: list[dict]) -> str:
             lines[first] = with_graces_slashed(lines[first], override["slash_grace"]["column"])
         elif "hide_rest" in override:
             fields = lines[first].split("\t")
-            fields[override["hide_rest"]["column"]] = rest_hidden(fields[override["hide_rest"]["column"]])
+            column = override["hide_rest"]["column"]
+            if not REST.match(fields[column]):
+                raise ValueError(f"{override['page']} line {override['line']}: hide_rest found no rest in column {column}: {fields[column]!r}")
+            fields[column] = rest_hidden(fields[column])
             lines[first] = "\t".join(fields)
         elif "show_accidental" in override:
             at = override["show_accidental"]

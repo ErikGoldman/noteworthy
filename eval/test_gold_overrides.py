@@ -166,6 +166,21 @@ class StaffMoves(unittest.TestCase):
         self.assertEqual(columns(text, 7), ["4ryy", "4f", "4E 4e"])
         self.assertEqual(columns(text, 8), ["4E", "4g", "4ryy"])
 
+    def test_a_rest_hidden_on_a_line_that_moves_is_hidden_whatever_the_order(self):
+        # Polish 060 bar 29: move_up and hide_rest on one line; the move once put its spine line there first
+        page = MOVES.replace("8D 8dJ\t.", "8D 8dJ\t4r")
+        moves = override(5, move_up={"last_line": 5, "notes": {"5": [1]}})
+        hide = override(5, hide_rest={"column": 1})
+        for order in ([moves, hide], [hide, moves]):
+            text = corrected(page, order)
+            self.assertTrue(spines_consistent(text))
+            self.assertIn("4ryy", text)
+            self.assertNotIn("\t4r\t", text + "\t")
+
+    def test_hide_rest_on_a_field_with_no_drawn_rest_stops(self):
+        with self.assertRaisesRegex(ValueError, "found no rest"):
+            corrected(MOVES, [override(4, hide_rest={"column": 1})])
+
     def test_move_up_takes_notes_from_a_named_lower_column(self):
         # 077 bars 18-20: a spine split from the lower staff carries the upper staff's melody
         page = MOVES.replace("*clefF4\t*clefG2", "*clefF4\t*clefG2\n*^\t*").replace(

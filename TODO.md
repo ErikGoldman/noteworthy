@@ -725,6 +725,15 @@ from saved readings). Built by `scripts/build_seq_data.sh` with the rest (always
   Then: does the clock help under the fixed beam (clock against control, both beam 4)? Does beam 4 beat greedy on
   hidden tuplets at all?
 
+- Referee into the release pipeline, staged (the user, 2026-11-23: option 2).
+  1. Release model up to the best single reader: train.sh's sequence model trained as (l) (staff positions v2,
+     --staff-samples-only, height 512), with engraver hiding in its data (scripts/build_seq_data.sh), then the DPO
+     fine-tune (runs/hidden_debug_2026-11-20/dpo_ft.py into train/ and scripts/). Reproducible from a fresh clone;
+     docs/EVALUATION_PROTOCOL.md "The system" updated to the new frozen model. Needs a training run (days; Vast).
+  2. The referee as an optional mode: count_vote's refereed/decisions and referee_pages into eval/ with tests;
+     recognize.sh and benchmark_pages.sh take extra checkpoints (--referee CKPT ...), keep_filled + count_fill.
+  3. Decide later whether the release trains the five readers (seeds and dpo_control) the referee was measured with.
+
 ## Last: the email to the Transcoda authors (decided 2026-11-18, user: after everything else)
 
 - Draft at https://claude.ai/artifact/NDK3s41464hRbJP1ybf7Bp. Add the bar-pinning finding (017,

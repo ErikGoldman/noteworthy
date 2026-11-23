@@ -7383,3 +7383,18 @@ had ended and ranked by mean, so readings without ratios (shorter) ended first a
 Ratio tokens on those crops: label 661, greedy 818, beam stopping at 4 ended 353, at 8 566, at 16 568. Fix: stop at
 twice `width` ended (test_beam: a longer reading ending later is not cut off). Rerun queued:
 runs/overnight_2026-11-14/overnight_2026-11-23.sh (engraver seed 1's evals first, then beat_clock_2026-11-22/beam_fixed).
+**Gold fixes, 2026-11-23 (approved).**
+- Polish 056 bars 18-19 transcribed afresh by drawn staff (`replace`; the hands cross; the published page merged a bass
+  subspine with a treble one, invalid kern). Parsed and checked against the image.
+- Polish 060 bars 29-30 / 110 bars 4-5: not a missing F octave, as thought on 2026-11-22: the treble's beat 2 is the
+  bass triplet's middle octave drawn on the treble (an existing move_up); the treble's quarter rest is not drawn
+  (`hide_rest`).
+- gold_overrides.py bug: an in-place edit (hide_rest, beams, slur...) on a line a move also starts on ran after the move
+  when later in the file, landed on the move's spine line and did nothing: 012 bar 10, 060, 083 (three of the
+  2026-11-22 rests) and 110 were silently not applied. In-place edits now run before moves on their line; hide_rest
+  stops on a field with no rest. 2 tests (47). Gold: gold_2026-11-23b/print.
+- Spec 5 beams by hand-checked rule on Czerny Op. 821 049, 059 (only the right hand's groups are unbeamed in the gold),
+  071 (sixteenth-chord pairs by the eighth) and Heller Op. 47 038 (triplet eighths by the beat): 545->519, 118->89,
+  372->324, 334->297 for the five-reading referee, only beam (and 038's accent) edits changed.
+- Rescoring queued after the overnight run: runs/overnight_2026-11-14/after_overnight_2026-11-23.sh (Spec 5 into
+  scores_fixes3; Polish against gold_2026-11-23b into edits_print_2026-11-23b).
